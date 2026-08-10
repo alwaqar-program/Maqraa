@@ -21,6 +21,7 @@ import TeacherHomePage from "./pages/teacher/TeacherHomePage";
 import StudentsPage from "./pages/admin/StudentsPage";
 import TeachersPage from "./pages/admin/TeachersPage";
 import ReportsPage from "./pages/admin/ReportsPage";
+import DashboardPage from "./pages/admin/DashboardPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -49,7 +50,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
 function RootRoute() {
   const { roles, homePath } = useAuth();
   if (roles.includes('admin')) {
-    return <Placeholder title="لوحة المعلومات" />;
+    return <DashboardPage />;
   }
   return <Navigate to={homePath} replace />;
 }
