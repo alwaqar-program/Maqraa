@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 30% 97%;
+    --foreground: 160 25% 12%;
+
+    --card: 40 25% 99%;
+    --card-foreground: 160 25% 12%;
+
+    --popover: 40 25% 99%;
+    --popover-foreground: 160 25% 12%;
+
+    --primary: 158 35% 25%;
+    --primary-foreground: 40 30% 97%;
+
+    --secondary: 40 20% 92%;
+    --secondary-foreground: 160 25% 12%;
+
+    --muted: 40 15% 94%;
+    --muted-foreground: 160 10% 45%;
+
+    --accent: 43 60% 50%;
+    --accent-foreground: 160 25% 12%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 40 30% 97%;
+
+    --border: 40 15% 88%;
+    --input: 40 15% 88%;
+    --ring: 158 35% 25%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 158 30% 18%;
+    --sidebar-foreground: 40 30% 95%;
+    --sidebar-primary: 43 60% 55%;
+    --sidebar-primary-foreground: 160 25% 12%;
+    --sidebar-accent: 158 25% 24%;
+    --sidebar-accent-foreground: 40 30% 95%;
+    --sidebar-border: 158 20% 25%;
+    --sidebar-ring: 43 60% 55%;
+
+    --success: 145 63% 42%;
+    --success-foreground: 40 30% 97%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 160 25% 12%;
+    --info: 205 80% 50%;
+    --info-foreground: 40 30% 97%;
+
+    --font-display: 'Amiri', serif;
+    --font-body: 'Cairo', sans-serif;
+  }
+
+  .dark {
+    --background: 160 20% 8%;
+    --foreground: 40 20% 92%;
+    --card: 160 18% 11%;
+    --card-foreground: 40 20% 92%;
+    --popover: 160 18% 11%;
+    --popover-foreground: 40 20% 92%;
+    --primary: 158 40% 40%;
+    --primary-foreground: 40 30% 97%;
+    --secondary: 160 15% 18%;
+    --secondary-foreground: 40 20% 92%;
+    --muted: 160 12% 16%;
+    --muted-foreground: 40 10% 55%;
+    --accent: 43 55% 50%;
+    --accent-foreground: 40 30% 97%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 40 30% 97%;
+    --border: 160 12% 20%;
+    --input: 160 12% 20%;
+    --ring: 158 40% 40%;
+    --sidebar-background: 160 20% 6%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 43 55% 50%;
+    --sidebar-primary-foreground: 160 25% 12%;
+    --sidebar-accent: 160 15% 12%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 160 12% 14%;
+    --sidebar-ring: 43 55% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-feature-settings: "ss01", "ss02";
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+}
+
+/* خطوط شهادات الجمعية (مستخرجة من قالب Word الرسمي) */
+@font-face {
+  font-family: 'Alyamama';
+  src: url('./assets/fonts/Alyamama-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Alyamama ExtraBold';
+  src: url('./assets/fonts/Alyamama-ExtraBold.ttf') format('truetype');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Doran ExtraBold';
+  src: url('./assets/fonts/Doran-ExtraBold.ttf') format('truetype');
+  font-display: swap;
+}
+
+/* طباعة التقرير اليومي: إظهار التقرير فقط بعرض الصفحة كاملاً */
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff; }
+  /* أخفِ كل شيء ثم أظهر التقرير فقط */
+  body * { visibility: hidden !important; }
+  #daily-report, #daily-report * { visibility: visible !important; }
+  #daily-report {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 0;
+  }
+  /* كل قسم يبدأ في صفحة جديدة (عدا الأول الذي يبقى مع الترويسة) */
+  #daily-report section:not(:first-of-type) {
+    break-before: page;
+    page-break-before: always;
+  }
+  /* لا تقطع الصفوف بين الصفحات قدر الإمكان */
+  #daily-report tr { break-inside: avoid; }
+}
