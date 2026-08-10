@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { isSupabaseConfigured } from '@/integrations/supabase/client';
-import logoImg from '@/assets/logo.png';
+import logoImg from '@/assets/logo-maqraa.svg';
 
 export default function LoginPage() {
   const { signIn } = useAuth();

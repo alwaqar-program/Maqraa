@@ -31,7 +31,7 @@ import {
   Home,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import logoImg from '@/assets/logo.png';
+import logoImg from '@/assets/logo-maqraa.svg';
 
 interface NavItem {
   label: string;

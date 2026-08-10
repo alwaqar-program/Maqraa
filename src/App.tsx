@@ -8,7 +8,7 @@ import AppLayout from "./components/layout/AppLayout";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Placeholder from "./pages/Placeholder";
-import logoImg from "@/assets/logo.png";
+import logoImg from "@/assets/logo-maqraa.svg";
 
 const queryClient = new QueryClient();
 

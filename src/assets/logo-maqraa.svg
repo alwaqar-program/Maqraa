@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" role="img" aria-label="شعار مقرأة الوقار">
+  <!-- نسخة مؤقتة مبنية على بنية الشعار الرسمي: غلاف مصحف بني بعلامة بيضاء وخط أبيض.
+       تُستبدل بملف الشعار الرسمي (PNG/SVG) فور توفره في src/assets/ -->
+  <defs>
+    <linearGradient id="cover" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#75665A"/>
+      <stop offset="0.55" stop-color="#5C4F45"/>
+      <stop offset="1" stop-color="#463C33"/>
+    </linearGradient>
+  </defs>
+  <!-- غلاف الكتاب -->
+  <rect x="4" y="4" width="112" height="128" rx="14" fill="url(#cover)"/>
+  <!-- علامة المصحف البيضاء -->
+  <path d="M84 4 h16 v26 l-8 -7 -8 7 z" fill="#FAF7F2"/>
+  <!-- الاسم -->
+  <text x="60" y="82" text-anchor="middle" font-family="Amiri, serif" font-weight="700"
+        font-size="44" fill="#FAF7F2">مقرأة</text>
+  <text x="60" y="146" text-anchor="middle" font-family="Cairo, sans-serif"
+        font-size="13" letter-spacing="2" fill="#8A7A6C">مقرأة الوقار</text>
+</svg>
