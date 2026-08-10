@@ -33,7 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
 
   const fetchRoles = async (userId: string) => {
     const { data } = await supabase
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       setRoles(data.map(r => r.role as AppRole));
     }
+    setRolesLoaded(true);
   };
 
   useEffect(() => {
@@ -51,11 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          setRolesLoaded(false);
           setTimeout(() => fetchRoles(session.user.id), 0);
         } else {
           setRoles([]);
+          setRolesLoaded(true);
         }
-        setLoading(false);
+        setAuthLoading(false);
       }
     );
 
@@ -64,8 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchRoles(session.user.id);
+      } else {
+        setRolesLoaded(true);
       }
-      setLoading(false);
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -84,6 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: AppRole) => roles.includes(role);
   const isAdmin = hasRole('admin');
   const homePath = homePathForRoles(roles);
+  // لا يكتمل التحميل قبل معرفة الأدوار — وإلا رُفض المسار قبل وصولها
+  const loading = authLoading || (!!user && !rolesLoaded);
 
   return (
     <AuthContext.Provider value={{ user, session, roles, loading, signIn, signOut, hasRole, isAdmin, homePath }}>

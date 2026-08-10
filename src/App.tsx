@@ -8,6 +8,11 @@ import AppLayout from "./components/layout/AppLayout";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Placeholder from "./pages/Placeholder";
+import TracksPage from "./pages/admin/TracksPage";
+import SeasonsPage from "./pages/admin/SeasonsPage";
+import SchedulingPage from "./pages/admin/SchedulingPage";
+import TeacherAvailabilityPage from "./pages/teacher/TeacherAvailabilityPage";
+import StudentBookingPage from "./pages/student/StudentBookingPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -64,12 +69,12 @@ const App = () => (
             <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><Placeholder title="ملف الطالبة" /></ProtectedRoute>} />
             <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><Placeholder title="المسمعات" /></ProtectedRoute>} />
             <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><Placeholder title="المتقدمات" /></ProtectedRoute>} />
-            <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><Placeholder title="الجدولة والحجوزات" /></ProtectedRoute>} />
+            <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><SchedulingPage /></ProtectedRoute>} />
             <Route path="/recitation" element={<ProtectedRoute roles={['admin']}><Placeholder title="التسميع" /></ProtectedRoute>} />
             <Route path="/attendance" element={<ProtectedRoute roles={['admin']}><Placeholder title="الحضور" /></ProtectedRoute>} />
             <Route path="/exams" element={<ProtectedRoute roles={['admin']}><Placeholder title="الاختبارات" /></ProtectedRoute>} />
-            <Route path="/tracks" element={<ProtectedRoute roles={['admin']}><Placeholder title="المسارات" /></ProtectedRoute>} />
-            <Route path="/seasons" element={<ProtectedRoute roles={['admin']}><Placeholder title="الفصول" /></ProtectedRoute>} />
+            <Route path="/tracks" element={<ProtectedRoute roles={['admin']}><TracksPage /></ProtectedRoute>} />
+            <Route path="/seasons" element={<ProtectedRoute roles={['admin']}><SeasonsPage /></ProtectedRoute>} />
             <Route path="/hostings" element={<ProtectedRoute roles={['admin']}><Placeholder title="الاستضافات" /></ProtectedRoute>} />
             <Route path="/pledges" element={<ProtectedRoute roles={['admin']}><Placeholder title="التعهدات" /></ProtectedRoute>} />
             <Route path="/violations" element={<ProtectedRoute roles={['admin']}><Placeholder title="المخالفات" /></ProtectedRoute>} />
@@ -82,7 +87,7 @@ const App = () => (
 
             {/* المسمعة */}
             <Route path="/teacher" element={<ProtectedRoute roles={['teacher']}><Placeholder title="جلساتي" /></ProtectedRoute>} />
-            <Route path="/teacher/availability" element={<ProtectedRoute roles={['teacher']}><Placeholder title="أوقات توفري" /></ProtectedRoute>} />
+            <Route path="/teacher/availability" element={<ProtectedRoute roles={['teacher']}><TeacherAvailabilityPage /></ProtectedRoute>} />
             <Route path="/teacher/tasmee" element={<ProtectedRoute roles={['teacher']}><Placeholder title="تسجيل التسميع" /></ProtectedRoute>} />
             <Route path="/teacher/attendance" element={<ProtectedRoute roles={['teacher']}><Placeholder title="الحضور" /></ProtectedRoute>} />
             <Route path="/teacher/exams" element={<ProtectedRoute roles={['teacher']}><Placeholder title="الاختبارات" /></ProtectedRoute>} />
@@ -95,7 +100,7 @@ const App = () => (
             {/* الطالبة */}
             <Route path="/me" element={<ProtectedRoute roles={['student']}><Placeholder title="رحلتي" /></ProtectedRoute>} />
             <Route path="/me/sard" element={<ProtectedRoute roles={['student']}><Placeholder title="سردي الذاتي" /></ProtectedRoute>} />
-            <Route path="/me/booking" element={<ProtectedRoute roles={['student']}><Placeholder title="موعدي" /></ProtectedRoute>} />
+            <Route path="/me/booking" element={<ProtectedRoute roles={['student']}><StudentBookingPage /></ProtectedRoute>} />
             <Route path="/me/history" element={<ProtectedRoute roles={['student']}><Placeholder title="سجلي" /></ProtectedRoute>} />
             <Route path="/me/pledges" element={<ProtectedRoute roles={['student']}><Placeholder title="تعهداتي" /></ProtectedRoute>} />
             <Route path="/me/hostings" element={<ProtectedRoute roles={['student']}><Placeholder title="الاستضافات" /></ProtectedRoute>} />

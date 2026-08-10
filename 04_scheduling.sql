@@ -98,6 +98,26 @@ CREATE POLICY "Admins manage slots" ON public.availability_slots
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+
+-- دوال كسر حلقة RLS (SECURITY DEFINER تتجاوز RLS داخليًا)
+CREATE OR REPLACE FUNCTION public.teacher_has_active_booking(p_student uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.bookings b
+    JOIN public.availability_slots s ON s.id = b.slot_id
+    WHERE b.student_id = p_student AND b.status = 'active'
+      AND s.teacher_id = public.current_teacher_id()
+  );
+$$;
+CREATE OR REPLACE FUNCTION public.student_in_supervisor_scope(p_student uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.students st
+    WHERE st.id = p_student
+      AND st.track_id IN (SELECT public.supervisor_track_ids())
+  );
+$$;
+
 -- ------------------------------------------------------------
 -- سياسات bookings
 -- ------------------------------------------------------------
@@ -137,12 +157,7 @@ CREATE POLICY "Teachers update own slot bookings" ON public.bookings
 -- المشرفة: قراءة حجوزات طالبات مساراتها
 DROP POLICY IF EXISTS "Supervisors read scoped bookings" ON public.bookings;
 CREATE POLICY "Supervisors read scoped bookings" ON public.bookings
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.students st
-    WHERE st.id = bookings.student_id
-      AND st.track_id IN (SELECT public.supervisor_track_ids())
-  ));
+  FOR SELECT TO authenticated USING (public.student_in_supervisor_scope(student_id));
 
 DROP POLICY IF EXISTS "Admins manage bookings" ON public.bookings;
 CREATE POLICY "Admins manage bookings" ON public.bookings
@@ -155,10 +170,4 @@ CREATE POLICY "Admins manage bookings" ON public.bookings
 -- ------------------------------------------------------------
 DROP POLICY IF EXISTS "Teachers read booked students" ON public.students;
 CREATE POLICY "Teachers read booked students" ON public.students
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.bookings b
-    JOIN public.availability_slots s ON s.id = b.slot_id
-    WHERE b.student_id = students.id AND b.status = 'active'
-      AND s.teacher_id = public.current_teacher_id()
-  ));
+  FOR SELECT TO authenticated USING (public.teacher_has_active_booking(id));

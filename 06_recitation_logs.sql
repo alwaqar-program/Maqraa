@@ -303,20 +303,10 @@ CREATE POLICY "Students update recent self log" ON public.self_recitation_log
   WITH CHECK (student_id = public.current_student_id() AND date >= current_date - 3);
 DROP POLICY IF EXISTS "Teachers read booked self log" ON public.self_recitation_log;
 CREATE POLICY "Teachers read booked self log" ON public.self_recitation_log
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.bookings b
-    JOIN public.availability_slots s ON s.id = b.slot_id
-    WHERE b.student_id = self_recitation_log.student_id AND b.status = 'active'
-      AND s.teacher_id = public.current_teacher_id()
-  ));
+  FOR SELECT TO authenticated USING (public.teacher_has_active_booking(student_id));
 DROP POLICY IF EXISTS "Supervisors read scoped self log" ON public.self_recitation_log;
 CREATE POLICY "Supervisors read scoped self log" ON public.self_recitation_log
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.students st WHERE st.id = self_recitation_log.student_id
-      AND st.track_id IN (SELECT public.supervisor_track_ids())
-  ));
+  FOR SELECT TO authenticated USING (public.student_in_supervisor_scope(student_id));
 DROP POLICY IF EXISTS "Admins manage self log" ON public.self_recitation_log;
 CREATE POLICY "Admins manage self log" ON public.self_recitation_log
   FOR ALL TO authenticated
@@ -333,20 +323,11 @@ CREATE POLICY "Teachers manage own tasmee" ON public.teacher_recitation_log
   USING (teacher_id = public.current_teacher_id())
   WITH CHECK (
     teacher_id = public.current_teacher_id()
-    AND EXISTS (
-      SELECT 1 FROM public.bookings b
-      JOIN public.availability_slots s ON s.id = b.slot_id
-      WHERE b.student_id = teacher_recitation_log.student_id AND b.status = 'active'
-        AND s.teacher_id = public.current_teacher_id()
-    )
+    AND public.teacher_has_active_booking(student_id)
   );
 DROP POLICY IF EXISTS "Supervisors read scoped tasmee" ON public.teacher_recitation_log;
 CREATE POLICY "Supervisors read scoped tasmee" ON public.teacher_recitation_log
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.students st WHERE st.id = teacher_recitation_log.student_id
-      AND st.track_id IN (SELECT public.supervisor_track_ids())
-  ));
+  FOR SELECT TO authenticated USING (public.student_in_supervisor_scope(student_id));
 DROP POLICY IF EXISTS "Admins manage tasmee" ON public.teacher_recitation_log;
 CREATE POLICY "Admins manage tasmee" ON public.teacher_recitation_log
   FOR ALL TO authenticated

@@ -61,20 +61,11 @@ CREATE POLICY "Teachers manage own attendance" ON public.session_attendance
   USING (teacher_id = public.current_teacher_id())
   WITH CHECK (
     teacher_id = public.current_teacher_id()
-    AND EXISTS (
-      SELECT 1 FROM public.bookings b
-      JOIN public.availability_slots s ON s.id = b.slot_id
-      WHERE b.student_id = session_attendance.student_id AND b.status = 'active'
-        AND s.teacher_id = public.current_teacher_id()
-    )
+    AND public.teacher_has_active_booking(student_id)
   );
 DROP POLICY IF EXISTS "Supervisors read scoped attendance" ON public.session_attendance;
 CREATE POLICY "Supervisors read scoped attendance" ON public.session_attendance
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.students st WHERE st.id = session_attendance.student_id
-      AND st.track_id IN (SELECT public.supervisor_track_ids())
-  ));
+  FOR SELECT TO authenticated USING (public.student_in_supervisor_scope(student_id));
 DROP POLICY IF EXISTS "Admins manage attendance" ON public.session_attendance;
 CREATE POLICY "Admins manage attendance" ON public.session_attendance
   FOR ALL TO authenticated
