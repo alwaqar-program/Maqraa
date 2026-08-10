@@ -18,6 +18,9 @@ import TasmeePage from "./pages/teacher/TasmeePage";
 import StudentHomePage from "./pages/student/StudentHomePage";
 import HistoryPage from "./pages/student/HistoryPage";
 import TeacherHomePage from "./pages/teacher/TeacherHomePage";
+import StudentsPage from "./pages/admin/StudentsPage";
+import TeachersPage from "./pages/admin/TeachersPage";
+import ReportsPage from "./pages/admin/ReportsPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -70,9 +73,9 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><RootRoute /></ProtectedRoute>} />
 
             {/* الإدارة */}
-            <Route path="/students" element={<ProtectedRoute roles={['admin']}><Placeholder title="الطالبات" /></ProtectedRoute>} />
+            <Route path="/students" element={<ProtectedRoute roles={['admin']}><StudentsPage /></ProtectedRoute>} />
             <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><Placeholder title="ملف الطالبة" /></ProtectedRoute>} />
-            <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><Placeholder title="المسمعات" /></ProtectedRoute>} />
+            <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><TeachersPage /></ProtectedRoute>} />
             <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><Placeholder title="المتقدمات" /></ProtectedRoute>} />
             <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><SchedulingPage /></ProtectedRoute>} />
             <Route path="/recitation" element={<ProtectedRoute roles={['admin']}><Placeholder title="التسميع" /></ProtectedRoute>} />
@@ -85,7 +88,7 @@ const App = () => (
             <Route path="/violations" element={<ProtectedRoute roles={['admin']}><Placeholder title="المخالفات" /></ProtectedRoute>} />
             <Route path="/suggestions" element={<ProtectedRoute roles={['admin']}><Placeholder title="الاقتراحات" /></ProtectedRoute>} />
             <Route path="/certificates" element={<ProtectedRoute roles={['admin']}><Placeholder title="الشهادات" /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute roles={['admin', 'report_viewer']}><Placeholder title="التقارير" /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute roles={['admin', 'report_viewer']}><ReportsPage /></ProtectedRoute>} />
             <Route path="/activity-log" element={<ProtectedRoute roles={['admin']}><Placeholder title="سجل النشاط" /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute roles={['admin']}><Placeholder title="المستخدمون" /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Placeholder title="الإعدادات" /></ProtectedRoute>} />
