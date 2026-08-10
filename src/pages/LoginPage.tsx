@@ -57,7 +57,7 @@ export default function LoginPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">كلمة المرور</Label>
-                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required dir="ltr" minLength={6} />
+                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required dir="ltr" />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? '...' : 'تسجيل الدخول'}
