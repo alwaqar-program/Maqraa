@@ -38,30 +38,37 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border/50 shadow-lg">
-        <CardHeader className="text-center space-y-4 pb-2">
-          <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-24 h-24 object-contain" />
-          <div>
-            <h1 className="text-2xl font-display text-foreground">مقرأة الوقار</h1>
-            <p className="text-sm text-muted-foreground mt-1">برنامج استمرارية خاتمات الوقار</p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">البريد الإلكتروني</Label>
-              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required dir="ltr" />
+      <div className="w-full max-w-md">
+        {/* غلاف المصحف: رأس بني بعلامة ذهبية — توقيع هوية المقرأة */}
+        <Card className="overflow-hidden border-border/50 shadow-lg">
+          <CardHeader className="book-cover relative text-center space-y-3 pb-6 pt-10">
+            <span className="ribbon left-8" aria-hidden="true" />
+            <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-20 h-20 object-contain drop-shadow" />
+            <div>
+              <h1 className="text-3xl font-display text-sidebar-foreground">مقرأة الوقار</h1>
+              <p className="text-sm text-sidebar-primary mt-1 font-display">«كان عمله ديمة»</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">كلمة المرور</Label>
-              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required dir="ltr" minLength={6} />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? '...' : 'تسجيل الدخول'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">البريد الإلكتروني</Label>
+                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required dir="ltr" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">كلمة المرور</Label>
+                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required dir="ltr" minLength={6} />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? '...' : 'تسجيل الدخول'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          برنامج استمرارية خاتمات الوقار في تعاهد القرآن الكريم
+        </p>
+      </div>
     </div>
   );
 }

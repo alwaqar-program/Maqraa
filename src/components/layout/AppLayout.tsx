@@ -107,18 +107,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 right-0 h-full z-50 bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300',
+          'fixed top-0 right-0 h-full z-50 book-cover text-sidebar-foreground flex flex-col transition-all duration-300',
           collapsed ? 'w-16' : 'w-64',
           mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
         )}
       >
+        {/* علامة المصحف الذهبية — توقيع الهوية */}
+        <span className="ribbon left-5" aria-hidden="true" />
+
         {/* Logo */}
         <div className={cn('flex items-center gap-3 p-4 border-b border-sidebar-border', collapsed && 'justify-center')}>
           <img src={logoImg} alt="شعار مقرأة الوقار" className="w-9 h-9 object-contain shrink-0" />
           {!collapsed && (
             <div className="overflow-hidden">
               <h2 className="font-display text-lg leading-tight">مقرأة الوقار</h2>
-              <p className="text-xs text-sidebar-foreground/60">«كان عمله ديمة»</p>
+              <p className="text-xs text-sidebar-primary/90">«كان عمله ديمة»</p>
             </div>
           )}
         </div>

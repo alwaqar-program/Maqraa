@@ -2,86 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   هوية مقرأة الوقار — مستمدة من الشعارات الثلاثة:
+   • بني المقرأة (غلاف المصحف)  #6C5D52 → hsl(25 14% 37%)
+   • ذهبي الوقار (الخط الذهبي)   #C9A876 → hsl(36 43% 63%)
+   • تركواز تعلّم (الجرّة)        #2F6B66 → hsl(175 39% 30%)
+   الاستراتيجية: قاعدة متجانسة دافئة (بني+ذهبي 25°–36°) على ورق عاجي،
+   والتركواز شبه متكامل (~175°) بجرعة صغيرة للروابط والمعلومات.
+   ============================================================ */
 @layer base {
   :root {
-    --background: 40 30% 97%;
-    --foreground: 160 25% 12%;
+    --background: 36 28% 97%;          /* عاجي ورقي — خلفيات المقرأة الرسمية */
+    --foreground: 25 18% 18%;          /* بني داكن للنص */
 
-    --card: 40 25% 99%;
-    --card-foreground: 160 25% 12%;
+    --card: 36 30% 99%;
+    --card-foreground: 25 18% 18%;
 
-    --popover: 40 25% 99%;
-    --popover-foreground: 160 25% 12%;
+    --popover: 36 30% 99%;
+    --popover-foreground: 25 18% 18%;
 
-    --primary: 158 35% 25%;
-    --primary-foreground: 40 30% 97%;
+    --primary: 25 14% 37%;             /* بني المقرأة — أزرار وعناوين */
+    --primary-foreground: 36 30% 97%;
 
-    --secondary: 40 20% 92%;
-    --secondary-foreground: 160 25% 12%;
+    --secondary: 33 22% 91%;           /* رملي هادئ */
+    --secondary-foreground: 25 18% 18%;
 
-    --muted: 40 15% 94%;
-    --muted-foreground: 160 10% 45%;
+    --muted: 33 18% 93%;
+    --muted-foreground: 25 10% 44%;
 
-    --accent: 43 60% 50%;
-    --accent-foreground: 160 25% 12%;
+    --accent: 36 43% 63%;              /* ذهبي الوقار — التمييز والتقدم */
+    --accent-foreground: 25 25% 15%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 40 30% 97%;
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 36 30% 97%;
 
-    --border: 40 15% 88%;
-    --input: 40 15% 88%;
-    --ring: 158 35% 25%;
+    --border: 33 18% 86%;
+    --input: 33 18% 86%;
+    --ring: 36 43% 55%;                /* حلقة تركيز ذهبية */
 
     --radius: 0.625rem;
 
-    --sidebar-background: 158 30% 18%;
-    --sidebar-foreground: 40 30% 95%;
-    --sidebar-primary: 43 60% 55%;
-    --sidebar-primary-foreground: 160 25% 12%;
-    --sidebar-accent: 158 25% 24%;
-    --sidebar-accent-foreground: 40 30% 95%;
-    --sidebar-border: 158 20% 25%;
-    --sidebar-ring: 43 60% 55%;
+    /* الشريط الجانبي = غلاف المصحف (بني المقرأة المتدرج) بذهبٍ للحالات النشطة */
+    --sidebar-background: 25 16% 28%;
+    --sidebar-foreground: 34 30% 93%;
+    --sidebar-primary: 36 48% 66%;
+    --sidebar-primary-foreground: 25 25% 14%;
+    --sidebar-accent: 25 14% 35%;
+    --sidebar-accent-foreground: 34 30% 95%;
+    --sidebar-border: 25 12% 36%;
+    --sidebar-ring: 36 48% 66%;
 
-    --success: 145 63% 42%;
-    --success-foreground: 40 30% 97%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 160 25% 12%;
-    --info: 205 80% 50%;
-    --info-foreground: 40 30% 97%;
+    --success: 145 45% 36%;
+    --success-foreground: 36 30% 97%;
+    --warning: 38 85% 48%;
+    --warning-foreground: 25 25% 14%;
+    --info: 175 39% 30%;               /* تركواز تعلّم — معلومات وروابط */
+    --info-foreground: 36 30% 97%;
 
     --font-display: 'Amiri', serif;
     --font-body: 'Cairo', sans-serif;
   }
 
   .dark {
-    --background: 160 20% 8%;
-    --foreground: 40 20% 92%;
-    --card: 160 18% 11%;
-    --card-foreground: 40 20% 92%;
-    --popover: 160 18% 11%;
-    --popover-foreground: 40 20% 92%;
-    --primary: 158 40% 40%;
-    --primary-foreground: 40 30% 97%;
-    --secondary: 160 15% 18%;
-    --secondary-foreground: 40 20% 92%;
-    --muted: 160 12% 16%;
-    --muted-foreground: 40 10% 55%;
-    --accent: 43 55% 50%;
-    --accent-foreground: 40 30% 97%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 40 30% 97%;
-    --border: 160 12% 20%;
-    --input: 160 12% 20%;
-    --ring: 158 40% 40%;
-    --sidebar-background: 160 20% 6%;
-    --sidebar-foreground: 40 20% 90%;
-    --sidebar-primary: 43 55% 50%;
-    --sidebar-primary-foreground: 160 25% 12%;
-    --sidebar-accent: 160 15% 12%;
-    --sidebar-accent-foreground: 40 20% 90%;
-    --sidebar-border: 160 12% 14%;
-    --sidebar-ring: 43 55% 50%;
+    --background: 25 14% 9%;
+    --foreground: 34 22% 90%;
+    --card: 25 13% 12%;
+    --card-foreground: 34 22% 90%;
+    --popover: 25 13% 12%;
+    --popover-foreground: 34 22% 90%;
+    --primary: 33 30% 62%;             /* تانّي دافئ للأزرار في الداكن */
+    --primary-foreground: 25 25% 12%;
+    --secondary: 25 10% 18%;
+    --secondary-foreground: 34 22% 90%;
+    --muted: 25 10% 16%;
+    --muted-foreground: 33 12% 58%;
+    --accent: 36 45% 58%;
+    --accent-foreground: 25 25% 12%;
+    --destructive: 0 55% 38%;
+    --destructive-foreground: 36 30% 97%;
+    --border: 25 10% 20%;
+    --input: 25 10% 20%;
+    --ring: 36 45% 55%;
+    --sidebar-background: 25 16% 12%;
+    --sidebar-foreground: 34 22% 88%;
+    --sidebar-primary: 36 45% 58%;
+    --sidebar-primary-foreground: 25 25% 12%;
+    --sidebar-accent: 25 12% 18%;
+    --sidebar-accent-foreground: 34 22% 88%;
+    --sidebar-border: 25 10% 18%;
+    --sidebar-ring: 36 45% 58%;
+    --success: 145 40% 40%;
+    --success-foreground: 36 30% 97%;
+    --warning: 38 80% 52%;
+    --warning-foreground: 25 25% 12%;
+    --info: 175 35% 42%;
+    --info-foreground: 36 30% 97%;
   }
 }
 
@@ -106,6 +121,28 @@
   }
   .font-body {
     font-family: var(--font-body);
+  }
+
+  /* غلاف المصحف: تدرج بني المقرأة (توقيع الهوية) */
+  .book-cover {
+    background: linear-gradient(165deg, hsl(26 15% 34%) 0%, hsl(25 16% 28%) 45%, hsl(24 17% 22%) 100%);
+  }
+
+  /* علامة المصحف الذهبية (Bookmark ribbon) من شعار المقرأة —
+     شريط بذيل مثلث يعلَّق أعلى العنصر عبر position:relative على الحاوية */
+  .ribbon {
+    position: absolute;
+    top: 0;
+    width: 22px;
+    height: 56px;
+    background: linear-gradient(180deg, hsl(36 48% 66%), hsl(36 43% 58%));
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 10px), 0 100%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in {
+      animation: none;
+    }
   }
 }
 
