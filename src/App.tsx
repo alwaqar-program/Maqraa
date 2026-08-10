@@ -15,6 +15,9 @@ import TeacherAvailabilityPage from "./pages/teacher/TeacherAvailabilityPage";
 import StudentBookingPage from "./pages/student/StudentBookingPage";
 import SardPage from "./pages/student/SardPage";
 import TasmeePage from "./pages/teacher/TasmeePage";
+import StudentHomePage from "./pages/student/StudentHomePage";
+import HistoryPage from "./pages/student/HistoryPage";
+import TeacherHomePage from "./pages/teacher/TeacherHomePage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -88,7 +91,7 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Placeholder title="الإعدادات" /></ProtectedRoute>} />
 
             {/* المسمعة */}
-            <Route path="/teacher" element={<ProtectedRoute roles={['teacher']}><Placeholder title="جلساتي" /></ProtectedRoute>} />
+            <Route path="/teacher" element={<ProtectedRoute roles={['teacher']}><TeacherHomePage /></ProtectedRoute>} />
             <Route path="/teacher/availability" element={<ProtectedRoute roles={['teacher']}><TeacherAvailabilityPage /></ProtectedRoute>} />
             <Route path="/teacher/tasmee" element={<ProtectedRoute roles={['teacher']}><TasmeePage /></ProtectedRoute>} />
             <Route path="/teacher/attendance" element={<ProtectedRoute roles={['teacher']}><Placeholder title="الحضور" /></ProtectedRoute>} />
@@ -100,10 +103,10 @@ const App = () => (
             <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']}><Placeholder title="متابعة المسارات" /></ProtectedRoute>} />
 
             {/* الطالبة */}
-            <Route path="/me" element={<ProtectedRoute roles={['student']}><Placeholder title="رحلتي" /></ProtectedRoute>} />
+            <Route path="/me" element={<ProtectedRoute roles={['student']}><StudentHomePage /></ProtectedRoute>} />
             <Route path="/me/sard" element={<ProtectedRoute roles={['student']}><SardPage /></ProtectedRoute>} />
             <Route path="/me/booking" element={<ProtectedRoute roles={['student']}><StudentBookingPage /></ProtectedRoute>} />
-            <Route path="/me/history" element={<ProtectedRoute roles={['student']}><Placeholder title="سجلي" /></ProtectedRoute>} />
+            <Route path="/me/history" element={<ProtectedRoute roles={['student']}><HistoryPage /></ProtectedRoute>} />
             <Route path="/me/pledges" element={<ProtectedRoute roles={['student']}><Placeholder title="تعهداتي" /></ProtectedRoute>} />
             <Route path="/me/hostings" element={<ProtectedRoute roles={['student']}><Placeholder title="الاستضافات" /></ProtectedRoute>} />
 
