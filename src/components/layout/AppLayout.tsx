@@ -31,7 +31,7 @@ import {
   Home,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import logoImg from '@/assets/logo-maqraa.svg';
+import logoAlwaqar from '@/assets/logo-alwaqar.png';
 
 interface NavItem {
   label: string;
@@ -117,7 +117,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
         {/* Logo */}
         <div className={cn('flex items-center gap-3 p-4 border-b border-sidebar-border', collapsed && 'justify-center')}>
-          <img src={logoImg} alt="شعار مقرأة الوقار" className="w-9 h-9 object-contain shrink-0" />
+          <img src={logoAlwaqar} alt="شعار الوقار" className="w-9 h-9 object-contain shrink-0" />
           {!collapsed && (
             <div className="overflow-hidden">
               <h2 className="font-display text-lg leading-tight">مقرأة الوقار</h2>
@@ -185,7 +185,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
             <Menu size={20} />
           </Button>
-          <img src={logoImg} alt="شعار مقرأة الوقار" className="w-8 h-8 object-contain" />
+          <img src={logoAlwaqar} alt="شعار الوقار" className="w-8 h-8 object-contain" />
           <div className="w-10" />
         </header>
 

@@ -8,6 +8,9 @@
 --   إنشاء الحسابات يتم فقط عبر Edge Function «admin-create-user» بصلاحية admin.
 -- ============================================================
 
+-- الدوال المساعدة تشير لجداول تُنشأ في ملفات لاحقة — عطّلي فحص أجسام الدوال أثناء الإنشاء
+SET check_function_bodies = off;
+
 -- الأدوار
 DO $$ BEGIN
   CREATE TYPE public.app_role AS ENUM ('admin','teacher','supervisor','student','report_viewer');

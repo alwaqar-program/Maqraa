@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { isSupabaseConfigured } from '@/integrations/supabase/client';
-import logoImg from '@/assets/logo-maqraa.svg';
+import logoImg from '@/assets/logo-maqraa.png';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -39,15 +39,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        {/* غلاف المصحف: رأس بني بعلامة ذهبية — توقيع هوية المقرأة */}
         <Card className="overflow-hidden border-border/50 shadow-lg">
-          <CardHeader className="book-cover relative text-center space-y-3 pb-6 pt-10">
-            <span className="ribbon left-8" aria-hidden="true" />
-            <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-20 h-20 object-contain drop-shadow" />
-            <div>
-              <h1 className="text-3xl font-display text-sidebar-foreground">مقرأة الوقار</h1>
-              <p className="text-sm text-sidebar-primary mt-1 font-display">«كان عمله ديمة»</p>
-            </div>
+          <CardHeader className="text-center space-y-3 pt-10 pb-4">
+            <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-32 object-contain" />
+            <p className="text-sm text-accent-foreground/70 font-display">«كان عمله ديمة»</p>
           </CardHeader>
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
