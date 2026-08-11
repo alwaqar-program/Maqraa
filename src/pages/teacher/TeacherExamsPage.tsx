@@ -87,12 +87,12 @@ export default function TeacherExamsPage() {
       </div>
 
       <Card className="max-w-2xl">
-        <CardHeader><CardTitle className="text-base font-body">تسجيل اختبار لطالبة من حجوزاتك</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base font-body">تسجيل اختبار</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>الطالبة</Label>
             <Select value={studentId} onValueChange={setStudentId}>
-              <SelectTrigger><SelectValue placeholder="اختاري" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="اختاري الطالبة" /></SelectTrigger>
               <SelectContent>
                 {students.map(s => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
               </SelectContent>

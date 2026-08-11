@@ -97,7 +97,7 @@ export default function TasmeePage() {
             <div className="space-y-2">
               <Label>الطالبة</Label>
               <Select value={studentId} onValueChange={setStudentId}>
-                <SelectTrigger><SelectValue placeholder="اختاري من طالبات حجوزاتك" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="اختاري الطالبة" /></SelectTrigger>
                 <SelectContent>
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
                 </SelectContent>
