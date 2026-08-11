@@ -12,13 +12,16 @@ import { CheckCircle2, X, LayoutGrid, CalendarDays, ChevronUp, ChevronDown, Grip
 import { WEEKDAYS } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
-import { useFormSettings, headerUrl } from '@/lib/form-settings';
+import { useFormSettings, headerUrl, FormQuestion } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 interface Track { id: string; name: string; juz_count: number; sort_order: number; }
 
-export default function RegisterPage() {
-  const { config, questions } = useFormSettings('student_register');
+/** preview: يُمرَّر من صفحة «النماذج» لعرض المسودة بنفس الصفحة الحقيقية (الإرسال معطل) */
+export default function RegisterPage({ preview }: { preview?: { config: any; questions: FormQuestion[] } }) {
+  const live = useFormSettings('student_register');
+  const config = preview?.config ?? live.config;
+  const questions = preview?.questions ?? live.questions;
   const [extra, setExtra] = useState<ExtraAnswers>({});
   const [tracks, setTracks] = useState<Track[]>([]);
   const [fullName, setFullName] = useState('');
@@ -63,6 +66,7 @@ export default function RegisterPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (preview) return;
     if (!pledge) { toast({ title: 'التعهد بالالتزام بنظام الحضور والغياب مطلوب', variant: 'destructive' }); return; }
     if (!trackId) { toast({ title: 'اختاري المسار', variant: 'destructive' }); return; }
     const missing = missingRequired(questions, extra);
@@ -87,7 +91,7 @@ export default function RegisterPage() {
 
   if (config.is_open === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className={`${preview ? '' : 'min-h-screen'} flex items-center justify-center bg-background p-4`}>
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-10 pb-8 space-y-4">
             <p className="text-4xl">🔒</p>
@@ -130,7 +134,7 @@ export default function RegisterPage() {
     }`;
 
   return (
-    <div className="min-h-screen bg-background py-6 px-4 sm:py-10">
+    <div className={`${preview ? '' : 'min-h-screen py-6 px-4 sm:py-10'} bg-background`}>
       <div className="max-w-2xl mx-auto space-y-5">
         {/* الترويسة */}
         <div className="text-center space-y-3">
@@ -319,7 +323,7 @@ export default function RegisterPage() {
                   <Textarea id="sugg" rows={2} value={suggestions} onChange={e => setSuggestions(e.target.value)} />
                 </div>
 
-                <Button type="submit" size="lg" className="w-full h-12 text-base shadow-sm" disabled={saving}>
+                <Button type="submit" size="lg" className="w-full h-12 text-base shadow-sm" disabled={saving || !!preview}>
                   {saving ? 'جارٍ الإرسال...' : 'إرسال التسجيل'}
                 </Button>
               </section>

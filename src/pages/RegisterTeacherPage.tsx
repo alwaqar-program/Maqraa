@@ -9,8 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import headerImg from '@/assets/header.png';
-import { useFormSettings, headerUrl } from '@/lib/form-settings';
+import { useFormSettings, headerUrl, FormQuestion } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
+import { TimeSelect } from '@/components/TimeSelect';
 
 const hijriToday = () => {
   try {
@@ -19,9 +20,12 @@ const hijriToday = () => {
   } catch { return ''; }
 };
 
-/** اتفاقية المسمعات في مقرأة الوقار — الاسم يعد بمثابة توقيع */
-export default function RegisterTeacherPage() {
-  const { config, questions } = useFormSettings('teacher_agreement');
+/** اتفاقية المسمعات في مقرأة الوقار — الاسم يعد بمثابة توقيع
+ *  preview: يُمرَّر من صفحة «النماذج» لعرض المسودة بنفس الصفحة الحقيقية (الإرسال معطل) */
+export default function RegisterTeacherPage({ preview }: { preview?: { config: any; questions: FormQuestion[] } }) {
+  const live = useFormSettings('teacher_agreement');
+  const config = preview?.config ?? live.config;
+  const questions = preview?.questions ?? live.questions;
   const [extra, setExtra] = useState<ExtraAnswers>({});
   const [fullName, setFullName] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -46,6 +50,7 @@ export default function RegisterTeacherPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (preview) return;
     if (hoursError) { toast({ title: hoursError, variant: 'destructive' }); return; }
     const missing = missingRequired(questions, extra);
     if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
@@ -64,7 +69,7 @@ export default function RegisterTeacherPage() {
 
   if (config.is_open === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className={`${preview ? '' : 'min-h-screen'} flex items-center justify-center bg-background p-4`}>
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-10 pb-8 space-y-4">
             <p className="text-4xl">🔒</p>
@@ -90,7 +95,7 @@ export default function RegisterTeacherPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
+    <div className={`${preview ? '' : 'min-h-screen py-8 px-4'} bg-background`}>
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center space-y-4">
           <img src={headerUrl(config) ?? headerImg} alt="مقرأة الوقار — تعاهدوا القرآن"
@@ -152,11 +157,11 @@ export default function RegisterTeacherPage() {
                         onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, weekday: Number(e.target.value) } : x))}>
                         {WEEKDAYS.map((d, w) => <option key={w} value={w}>{d}</option>)}
                       </select>
-                      <Input type="time" className="w-32" value={sl.start_time}
-                        onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, start_time: e.target.value } : x))} />
+                      <TimeSelect className="w-32" value={sl.start_time}
+                        onChange={v => setSlots(slots.map((x, j) => j === i ? { ...x, start_time: v } : x))} />
                       <span className="text-muted-foreground text-sm">إلى</span>
-                      <Input type="time" className="w-32" value={sl.end_time}
-                        onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, end_time: e.target.value } : x))} />
+                      <TimeSelect className="w-32" value={sl.end_time}
+                        onChange={v => setSlots(slots.map((x, j) => j === i ? { ...x, end_time: v } : x))} />
                       {slots.length > 1 && (
                         <button type="button" className="text-muted-foreground hover:text-destructive"
                           onClick={() => setSlots(slots.filter((_, j) => j !== i))}>
@@ -182,7 +187,7 @@ export default function RegisterTeacherPage() {
                 <Label htmlFor="notes">ملاحظات</Label>
                 <Textarea id="notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
-              <Button type="submit" className="w-full" disabled={saving || !fullName.trim() || !!hoursError}>
+              <Button type="submit" className="w-full" disabled={!!preview || saving || !fullName.trim() || !!hoursError}>
                 {saving ? '...' : 'أوافق على البنود وأوقّع'}
               </Button>
             </form>

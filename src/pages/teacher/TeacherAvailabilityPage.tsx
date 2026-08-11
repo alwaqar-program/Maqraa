@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, CalendarClock, Link2 } from 'lucide-react';
 import { WEEKDAYS, formatTime, totalWeeklyHours, Slot } from '@/lib/schedule';
+import { TimeSelect } from '@/components/TimeSelect';
 
 interface SlotWithBooking extends Slot {
   booking?: { id: string; student_name: string } | null;
@@ -185,11 +186,11 @@ export default function TeacherAvailabilityPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>من</Label>
-                <Input type="time" value={form.start_time} onChange={e => setForm({ ...form, start_time: e.target.value })} />
+                <TimeSelect className="w-full" value={form.start_time} onChange={v => setForm({ ...form, start_time: v })} />
               </div>
               <div className="space-y-2">
                 <Label>إلى</Label>
-                <Input type="time" value={form.end_time} onChange={e => setForm({ ...form, end_time: e.target.value })} />
+                <TimeSelect className="w-full" value={form.end_time} onChange={v => setForm({ ...form, end_time: v })} />
               </div>
             </div>
             <Button className="w-full" onClick={addSlot}>إضافة</Button>

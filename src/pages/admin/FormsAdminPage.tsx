@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
 import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl, genSlotLabel } from '@/lib/form-settings';
+import { TimeSelect } from '@/components/TimeSelect';
 import { useUrlState } from '@/lib/use-url-state';
 import { WEEKDAYS } from '@/lib/schedule';
 import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
@@ -228,11 +229,9 @@ export default function FormsAdminPage() {
                           {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <Input type="time" className="w-28" value={d.start ?? ''}
-                        onChange={e => update({ start: e.target.value })} />
+                      <TimeSelect className="w-32" value={d.start} onChange={v => update({ start: v })} />
                       <span className="text-muted-foreground text-sm">إلى</span>
-                      <Input type="time" className="w-28" value={d.end ?? ''}
-                        onChange={e => update({ end: e.target.value })} />
+                      <TimeSelect className="w-32" value={d.end} onChange={v => update({ end: v })} />
                       <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
                         {d.label || '—'}
                       </span>

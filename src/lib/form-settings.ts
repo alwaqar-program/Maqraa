@@ -31,6 +31,12 @@ function arTime(t: string): { text: string; period: string } {
   return { text, period };
 }
 
+/** "20:30" → «٨:٣٠ مساءً» — للعرض في منتقي الوقت */
+export function arTimeLabel(t: string): string {
+  const { text, period } = arTime(t);
+  return `${text} ${period}`;
+}
+
 /** يولد نص الموعد تلقائيًا: «الأحد ٥–٧ صباحًا» أو «الأحد ١١ صباحًا – ١ مساءً» */
 export function genSlotLabel(weekday: number, start: string, end: string): string {
   if (!start || !end) return WEEKDAY_NAMES[weekday] ?? '';
