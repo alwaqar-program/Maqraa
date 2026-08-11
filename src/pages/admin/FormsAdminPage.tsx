@@ -115,6 +115,33 @@ export default function FormsAdminPage() {
         </TabsList>
       </Tabs>
 
+      {/* حالة الرابط */}
+      {key !== 'hosting_feedback' && (
+        <Card className={config.is_open === false ? 'border-destructive/50' : 'border-success/40'}>
+          <CardContent className="pt-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">
+                  {config.is_open === false ? '🔒 الرابط مقفل — لا يقبل النظام أي طلب جديد' : '🟢 الرابط مفتوح — يستقبل الطلبات'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  القفل مُنفَذ في قاعدة البيانات أيضًا، لا واجهةً فقط. لا تنسي «حفظ النصوص» بعد التغيير.
+                </p>
+              </div>
+              <Switch checked={config.is_open !== false}
+                onCheckedChange={v => setConfig({ ...config, is_open: v })} />
+            </div>
+            {config.is_open === false && (
+              <div className="space-y-1.5">
+                <Label>الرسالة التي تظهر بدل النموذج</Label>
+                <Textarea rows={2} value={config.closed_message ?? ''}
+                  onChange={e => setConfig({ ...config, closed_message: e.target.value })} />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* نصوص النموذج */}
       <Card>
         <CardHeader><CardTitle className="text-base font-body">نصوص النموذج</CardTitle></CardHeader>

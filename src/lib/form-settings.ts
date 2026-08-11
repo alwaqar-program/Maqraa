@@ -20,6 +20,8 @@ export interface DayOption { value: number; label: string; }
 
 export const FORM_DEFAULTS = {
   student_register: {
+    is_open: true,
+    closed_message: 'التسجيل مغلق حاليًا — نسعد بكِ في الفصل القادم بإذن الله 🌿',
     title: 'تسجيل طالبات مقرأة الوقار — الفصل الأول',
     welcome: 'غاليتنا، المقرأة استمرارٌ لعهدك مع كتاب الله بعد الختم — «كان عمله ديمة»',
     times_note: 'يرجى اختيار المواعيد المناسبة، وسيتم مراعاة الوقت المناسب في توزيع الحلقات وفق الأسبقية بالتسجيل.',
@@ -35,6 +37,8 @@ export const FORM_DEFAULTS = {
     ] as DayOption[],
   },
   teacher_agreement: {
+    is_open: true,
+    closed_message: 'استقبال المسمعات مغلق حاليًا — شكرًا لاهتمامك، تابعينا لإعلان الفصل القادم 🌿',
     duration_text: '٦ أشهر، تبدأ من تاريخ الاتفاق مع المسمعة.',
     maqraa_items: [
       'الأخلاق الحسنة والثقة والشفافية.',

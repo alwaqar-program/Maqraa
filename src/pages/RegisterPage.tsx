@@ -64,6 +64,19 @@ export default function RegisterPage() {
     setDone(true);
   };
 
+  if (config.is_open === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="pt-10 pb-8 space-y-4">
+            <p className="text-4xl">🔒</p>
+            <p className="text-lg leading-relaxed">{config.closed_message}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
