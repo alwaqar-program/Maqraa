@@ -275,7 +275,6 @@ export default function RegisterPage() {
                 {/* سؤال عام مستقل عن اختيار المواعيد أعلاه */}
                 <div className="border-t border-dashed pt-4 space-y-2">
                   <Label>بشكل عام، أي الفترات أنسب لك؟</Label>
-                  <p className="text-xs text-muted-foreground">سؤال عام يساعدنا في التوزيع — مستقل عن المواعيد التي اخترتها أعلاه.</p>
                   <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-2.5 flex-wrap">
                     {[{ v: 'morning', l: '🌤 الصباح' }, { v: 'evening', l: '🌙 المساء' }, { v: 'both', l: '✨ كلاهما يناسبني' }].map(o => (
                       <Label key={o.v} htmlFor={`p-${o.v}`} className={pill(period === o.v)}>
