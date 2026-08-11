@@ -2375,6 +2375,20 @@ UPDATE public.tracks SET is_active = false                     WHERE juz_count =
 
 SELECT name, juz_count, quota_pages_per_season, is_active FROM public.tracks ORDER BY sort_order;
 -- ============================================================
+-- 24_applicant_slots.sql — تخزين مواعيد المتقدمة كمواعيد كاملة
+-- (يوم + وقت) بدل الأيام فقط — يميز موعدي اليوم الواحد.
+-- preferred_days تبقى للتوافق (الأيام الفريدة).
+-- ============================================================
+ALTER TABLE public.applicants ADD COLUMN IF NOT EXISTS preferred_slots text[] NOT NULL DEFAULT '{}';
+SELECT 'applicant slots ready' AS status;
+-- ============================================================
+-- 25_period_both.sql — خيار «كلاهما» في الفترة الأنسب
+-- ============================================================
+ALTER TABLE public.applicants DROP CONSTRAINT IF EXISTS applicants_preferred_period_check;
+ALTER TABLE public.applicants ADD CONSTRAINT applicants_preferred_period_check
+  CHECK (preferred_period IN ('morning', 'evening', 'both'));
+SELECT 'period both ready' AS status;
+-- ============================================================
 -- 90_seed_dev.sql — مقرأة الوقار (بيئة تطوير فقط — لا يُنفَّذ في الإنتاج)
 -- فصل حالي + 3 مسمعات بفتحات + 12 طالبة بحجوزات + أسبوعان من السجلات.
 -- المسارات مبذورة في 02. الحسابات تُنشأ بعده عبر scripts/seed-users.ts.

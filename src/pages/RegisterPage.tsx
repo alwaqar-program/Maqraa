@@ -30,7 +30,7 @@ export default function RegisterPage() {
   const [activeDay, setActiveDay] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [period, setPeriod] = useState<'morning' | 'evening' | ''>('');
+  const [period, setPeriod] = useState<'morning' | 'evening' | 'both' | ''>('');
   const [suggestions, setSuggestions] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
@@ -272,10 +272,12 @@ export default function RegisterPage() {
                     ))}
                   </div>
                 )}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Label className="text-sm text-muted-foreground shrink-0">الفترة الأنسب لك:</Label>
-                  <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-2.5">
-                    {[{ v: 'morning', l: '🌤 صباح' }, { v: 'evening', l: '🌙 مساء' }].map(o => (
+                {/* سؤال عام مستقل عن اختيار المواعيد أعلاه */}
+                <div className="border-t border-dashed pt-4 space-y-2">
+                  <Label>بشكل عام، أي الفترات أنسب لك؟</Label>
+                  <p className="text-xs text-muted-foreground">سؤال عام يساعدنا في التوزيع — مستقل عن المواعيد التي اخترتها أعلاه.</p>
+                  <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-2.5 flex-wrap">
+                    {[{ v: 'morning', l: '🌤 الصباح' }, { v: 'evening', l: '🌙 المساء' }, { v: 'both', l: '✨ كلاهما يناسبني' }].map(o => (
                       <Label key={o.v} htmlFor={`p-${o.v}`} className={pill(period === o.v)}>
                         <RadioGroupItem id={`p-${o.v}`} value={o.v} className="sr-only" />
                         <span className="text-sm">{o.l}</span>

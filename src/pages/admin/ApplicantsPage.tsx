@@ -119,7 +119,7 @@ export default function ApplicantsPage() {
           exportToCsv(filtered.map(a => ({
             ...a,
             days_text: a.preferred_slots?.length ? a.preferred_slots.map((sl, i) => `${i + 1}) ${sl}`).join(' · ') : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، '),
-            period_text: a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '',
+            period_text: a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : a.preferred_period === 'both' ? 'كلاهما' : '',
             ...Object.fromEntries(extraQs.map(q => [`q_${q.id}`, answerText(a.extra_answers[q.id])])),
           })), cols, 'متقدمات-المقرأة.csv');
         }}>
@@ -171,7 +171,7 @@ export default function ApplicantsPage() {
                         ? a.preferred_slots.map((sl, i) => `${i + 1}) ${sl}`).join(' · ')
                         : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}
                     </TableCell>
-                    <TableCell>{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '—'}</TableCell>
+                    <TableCell>{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : a.preferred_period === 'both' ? 'كلاهما' : '—'}</TableCell>
                     <TableCell>
                       {a.suggestions
                         ? <span title={a.suggestions}><MessageSquareText size={16} className="text-info" /></span>
