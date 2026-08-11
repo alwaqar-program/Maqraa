@@ -8,6 +8,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, FileCheck } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -76,6 +79,17 @@ export default function ExamsAdminPage() {
 
   const pct = (x: Exam) => Math.round((x.score / x.max_score) * 100);
 
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Exam) => unknown; type: SortType }> = {
+    date: { get: r => r.date, type: 'date' },
+    student: { get: r => r.student_name, type: 'text' },
+    title: { get: r => r.title, type: 'text' },
+    score: { get: r => r.score / r.max_score, type: 'number' },
+  };
+  const sorted = sortKey && SORTS[sortKey]
+    ? sortRows(exams, SORTS[sortKey].get, sortDir, SORTS[sortKey].type)
+    : exams;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -94,17 +108,17 @@ export default function ExamsAdminPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead>الطالبة</TableHead>
-                  <TableHead>الاختبار</TableHead>
-                  <TableHead>الدرجة</TableHead>
+                  <SortableHead label="التاريخ" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الطالبة" sortKey="student" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الاختبار" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الدرجة" sortKey="score" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>النسبة</TableHead>
                   <TableHead>المسجّلة</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {exams.map(x => (
+                {sorted.map(x => (
                   <TableRow key={x.id}>
                     <TableCell>{x.date}</TableCell>
                     <TableCell className="font-medium">{x.student_name}</TableCell>

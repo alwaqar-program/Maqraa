@@ -8,6 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, GraduationCap } from 'lucide-react';
 
@@ -47,6 +50,19 @@ export default function TeachersPage() {
     setLoading(false);
   }, [toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Teacher) => unknown; type: SortType }> = {
+    name: { get: r => r.full_name, type: 'text' },
+    phone: { get: r => r.phone, type: 'text' },
+    hours: { get: r => r.total_hours, type: 'number' },
+    booked: { get: r => r.booked, type: 'number' },
+    account: { get: r => !!r.user_id, type: 'boolean' },
+    active: { get: r => r.is_active, type: 'boolean' },
+  };
+  const sorted = sortKey && SORTS[sortKey]
+    ? sortRows(teachers, SORTS[sortKey].get, sortDir, SORTS[sortKey].type)
+    : teachers;
 
   const openCreate = () => {
     setEditing(null);
@@ -102,18 +118,18 @@ export default function TeachersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>الاسم</TableHead>
-                  <TableHead>الجوال</TableHead>
-                  <TableHead>ساعات التوفر</TableHead>
-                  <TableHead>طالباتها</TableHead>
+                  <SortableHead label="الاسم" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الجوال" sortKey="phone" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="ساعات التوفر" sortKey="hours" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="طالباتها" sortKey="booked" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>رابط الاجتماع</TableHead>
-                  <TableHead>حساب دخول</TableHead>
-                  <TableHead>نشطة</TableHead>
+                  <SortableHead label="حساب دخول" sortKey="account" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="نشطة" sortKey="active" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teachers.map(t => (
+                {sorted.map(t => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.full_name}</TableCell>
                     <TableCell dir="ltr">{t.phone ?? '—'}</TableCell>

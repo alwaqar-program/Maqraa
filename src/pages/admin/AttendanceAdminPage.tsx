@@ -5,6 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ClipboardCheck, Search, ScanSearch } from 'lucide-react';
@@ -23,9 +26,9 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }
 
 export default function AttendanceAdminPage() {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
-  const [search, setSearch] = useState('');
+  const [from, setFrom] = useUrlState('from', monthStart());
+  const [to, setTo] = useUrlState('to', new Date().toISOString().slice(0, 10));
+  const [search, setSearch] = useUrlState('q');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -44,7 +47,15 @@ export default function AttendanceAdminPage() {
   }, [from, to, toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = rows.filter(r => !search || r.student_name.includes(search));
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Row) => unknown; type: SortType }> = {
+    date: { get: r => r.date, type: 'date' },
+    student: { get: r => r.student_name, type: 'text' },
+    teacher: { get: r => r.teacher_name, type: 'text' },
+    status: { get: r => r.status, type: 'text' },
+  };
+  let filtered = rows.filter(r => !search || r.student_name.includes(search));
+  if (sortKey && SORTS[sortKey]) filtered = sortRows(filtered, SORTS[sortKey].get, sortDir, SORTS[sortKey].type);
   const absences = filtered.filter(r => r.status === 'absent' && !r.is_excused).length;
 
   // فحص يدوي فوري: من لم تُسمِّع في موعدها اليوم → غياب تلقائي بدون عذر
@@ -93,10 +104,10 @@ export default function AttendanceAdminPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead>الطالبة</TableHead>
-                  <TableHead>المسمعة</TableHead>
-                  <TableHead>الحالة</TableHead>
+                  <SortableHead label="التاريخ" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الطالبة" sortKey="student" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="المسمعة" sortKey="teacher" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الحالة" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>ملاحظات</TableHead>
                 </TableRow>
               </TableHeader>

@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Users, Search } from 'lucide-react';
 
@@ -29,7 +32,7 @@ interface Track { id: string; name: string; }
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useUrlState('q');
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
@@ -87,9 +90,19 @@ export default function StudentsPage() {
     else fetchAll();
   };
 
-  const filtered = students.filter(s =>
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Student) => unknown; type: SortType }> = {
+    name: { get: r => r.full_name, type: 'text' },
+    nid: { get: r => r.national_id, type: 'text' },
+    phone: { get: r => r.phone, type: 'text' },
+    track: { get: r => r.track_name, type: 'text' },
+    account: { get: r => !!r.user_id, type: 'boolean' },
+    active: { get: r => r.is_active, type: 'boolean' },
+  };
+  let filtered = students.filter(s =>
     !search || s.full_name.includes(search) || s.national_id.includes(search) || (s.phone ?? '').includes(search)
   );
+  if (sortKey && SORTS[sortKey]) filtered = sortRows(filtered, SORTS[sortKey].get, sortDir, SORTS[sortKey].type);
 
   return (
     <div className="space-y-6">
@@ -113,12 +126,12 @@ export default function StudentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>الاسم</TableHead>
-                  <TableHead>الهوية</TableHead>
-                  <TableHead>الجوال</TableHead>
-                  <TableHead>المسار</TableHead>
-                  <TableHead>حساب دخول</TableHead>
-                  <TableHead>نشطة</TableHead>
+                  <SortableHead label="الاسم" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الجوال" sortKey="phone" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="حساب دخول" sortKey="account" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="نشطة" sortKey="active" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead />
                 </TableRow>
               </TableHeader>

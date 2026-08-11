@@ -9,6 +9,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Check, X, MessageSquareText } from 'lucide-react';
 import { WEEKDAYS } from '@/lib/schedule';
@@ -32,7 +35,7 @@ const STATUS_LABEL: Record<string, string> = { pending: 'بانتظار المر
 
 export default function ApplicantsPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
-  const [tab, setTab] = useState('pending');
+  const [tab, setTab] = useUrlState('tab', 'pending');
   const [action, setAction] = useState<{ a: Applicant; type: 'accept' | 'reject' } | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -73,7 +76,15 @@ export default function ApplicantsPage() {
     fetchAll();
   };
 
-  const filtered = applicants.filter(a => a.status === tab);
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Applicant) => unknown; type: SortType }> = {
+    name: { get: r => r.full_name, type: 'text' },
+    nid: { get: r => r.national_id, type: 'text' },
+    track: { get: r => r.track_name, type: 'text' },
+    created: { get: r => r.created_at, type: 'date' },
+  };
+  let filtered = applicants.filter(a => a.status === tab);
+  if (sortKey && SORTS[sortKey]) filtered = sortRows(filtered, SORTS[sortKey].get, sortDir, SORTS[sortKey].type);
 
   return (
     <div className="space-y-6">
@@ -102,14 +113,14 @@ export default function ApplicantsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>الاسم</TableHead>
-                  <TableHead>الهوية</TableHead>
+                  <SortableHead label="الاسم" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>الجوال</TableHead>
-                  <TableHead>المسار</TableHead>
+                  <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>الأيام (٥–٧ص)</TableHead>
                   <TableHead>الفترة</TableHead>
                   <TableHead>ملاحظات</TableHead>
-                  <TableHead>سُجّل في</TableHead>
+                  <SortableHead label="سُجّل في" sortKey="created" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   {tab === 'pending' && <TableHead />}
                 </TableRow>
               </TableHeader>

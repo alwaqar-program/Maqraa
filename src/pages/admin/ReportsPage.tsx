@@ -6,8 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { FileBarChart, Download } from 'lucide-react';
+import { FileBarChart, Download, Printer } from 'lucide-react';
 import { exportToCsv, CsvColumnDef } from '@/lib/csv-utils';
 
 interface ReportRow {
@@ -46,8 +49,8 @@ function today(): string {
 }
 
 export default function ReportsPage() {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
+  const [from, setFrom] = useUrlState('from', monthStart());
+  const [to, setTo] = useUrlState('to', today());
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -90,6 +93,22 @@ export default function ReportsPage() {
   }, [from, to, toast]);
   useEffect(() => { run(); }, [run]);
 
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: ReportRow) => unknown; type: SortType }> = {
+    name: { get: r => r.full_name, type: 'text' },
+    track: { get: r => r.track_name, type: 'text' },
+    tasmee: { get: r => r.teacher_pages, type: 'number' },
+    self: { get: r => r.self_pages, type: 'number' },
+    sessions: { get: r => r.sessions, type: 'number' },
+    avg: { get: r => r.avg_score, type: 'number' },
+    pct: { get: r => r.quota_pct, type: 'number' },
+    khatmah: { get: r => r.khatmah_equiv, type: 'number' },
+    absences: { get: r => r.absences, type: 'number' },
+  };
+  const sorted = sortKey && SORTS[sortKey]
+    ? sortRows(rows, SORTS[sortKey].get, sortDir, SORTS[sortKey].type)
+    : rows;
+
   const totals = {
     teacherPages: Math.round(rows.reduce((a, r) => a + r.teacher_pages, 0)),
     selfPages: Math.round(rows.reduce((a, r) => a + r.self_pages, 0)),
@@ -116,8 +135,16 @@ export default function ReportsPage() {
           onClick={() => exportToCsv(rows, csvColumns, `تقرير-المقرأة-${from}-إلى-${to}.csv`)}>
           <Download size={16} /> تصدير CSV
         </Button>
+        <Button variant="outline" className="gap-1" onClick={() => window.print()}>
+          <Printer size={16} /> تصدير PDF
+        </Button>
       </div>
 
+      <div className="print-area space-y-6">
+        <div className="hidden print:block text-center space-y-1">
+          <h2 className="text-xl font-display">تقرير مقرأة الوقار</h2>
+          <p className="text-sm">من {from} إلى {to}</p>
+        </div>
       <div className="grid grid-cols-3 gap-4 max-w-xl">
         {[
           { label: 'أوجه التسميع', value: totals.teacherPages },
@@ -137,19 +164,19 @@ export default function ReportsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>الطالبة</TableHead>
-                  <TableHead>المسار</TableHead>
-                  <TableHead>تسميع</TableHead>
-                  <TableHead>سرد</TableHead>
-                  <TableHead>جلسات</TableHead>
-                  <TableHead>متوسط الدرجة</TableHead>
-                  <TableHead>الإنجاز %</TableHead>
-                  <TableHead>ختمات</TableHead>
-                  <TableHead>غيابات</TableHead>
+                  <SortableHead label="الطالبة" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="تسميع" sortKey="tasmee" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="سرد" sortKey="self" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="جلسات" sortKey="sessions" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="متوسط الدرجة" sortKey="avg" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الإنجاز %" sortKey="pct" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="ختمات" sortKey="khatmah" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="غيابات" sortKey="absences" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(r => (
+                {sorted.map(r => (
                   <TableRow key={r.student_id}>
                     <TableCell className="font-medium">{r.full_name}</TableCell>
                     <TableCell>{r.track_name}</TableCell>
@@ -176,6 +203,7 @@ export default function ReportsPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

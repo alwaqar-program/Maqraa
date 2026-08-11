@@ -6,6 +6,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Mic, Search } from 'lucide-react';
 import { surahNameOf } from '@/lib/mushaf';
@@ -20,10 +23,10 @@ function monthStart() { const d = new Date(); return `${d.getFullYear()}-${Strin
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 export default function RecitationAdminPage() {
-  const [tab, setTab] = useState<'tasmee' | 'self'>('tasmee');
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(todayStr());
-  const [search, setSearch] = useState('');
+  const [tab, setTab] = useUrlState('tab', 'tasmee');
+  const [from, setFrom] = useUrlState('from', monthStart());
+  const [to, setTo] = useUrlState('to', todayStr());
+  const [search, setSearch] = useUrlState('q');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -47,7 +50,17 @@ export default function RecitationAdminPage() {
   }, [tab, from, to, toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = rows.filter(r => !search || r.student_name.includes(search));
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Row) => unknown; type: SortType }> = {
+    date: { get: r => r.date, type: 'date' },
+    student: { get: r => r.student_name, type: 'text' },
+    pages: { get: r => r.pages, type: 'number' },
+    score: { get: r => r.score, type: 'number' },
+    grade: { get: r => r.grade, type: 'text' },
+    teacher: { get: r => r.teacher_name, type: 'text' },
+  };
+  let filtered = rows.filter(r => !search || r.student_name.includes(search));
+  if (sortKey && SORTS[sortKey]) filtered = sortRows(filtered, SORTS[sortKey].get, sortDir, SORTS[sortKey].type);
   const totalPages = Math.round(filtered.reduce((a, r) => a + Number(r.pages || 0), 0) * 100) / 100;
 
   return (
@@ -58,7 +71,7 @@ export default function RecitationAdminPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
-        <Tabs value={tab} onValueChange={v => setTab(v as any)} dir="rtl">
+        <Tabs value={tab} onValueChange={setTab} dir="rtl">
           <TabsList>
             <TabsTrigger value="tasmee">تسميع المسمعات</TabsTrigger>
             <TabsTrigger value="self">السرد الذاتي</TabsTrigger>
@@ -88,14 +101,14 @@ export default function RecitationAdminPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead>الطالبة</TableHead>
+                  <SortableHead label="التاريخ" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الطالبة" sortKey="student" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>النطاق</TableHead>
-                  <TableHead>الصفحات</TableHead>
+                  <SortableHead label="الصفحات" sortKey="pages" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   {tab === 'tasmee' && <>
-                    <TableHead>الدرجة</TableHead>
-                    <TableHead>التقدير</TableHead>
-                    <TableHead>المسمعة</TableHead>
+                    <SortableHead label="الدرجة" sortKey="score" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                    <SortableHead label="التقدير" sortKey="grade" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                    <SortableHead label="المسمعة" sortKey="teacher" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   </>}
                 </TableRow>
               </TableHeader>

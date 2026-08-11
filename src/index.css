@@ -169,18 +169,18 @@
   body { background: #fff; }
   /* أخفِ كل شيء ثم أظهر التقرير فقط */
   body * { visibility: hidden !important; }
-  #daily-report, #daily-report * { visibility: visible !important; }
-  #daily-report {
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area {
     position: absolute;
     inset: 0;
     width: 100%;
     padding: 0;
   }
   /* كل قسم يبدأ في صفحة جديدة (عدا الأول الذي يبقى مع الترويسة) */
-  #daily-report section:not(:first-of-type) {
+  .print-area section:not(:first-of-type) {
     break-before: page;
     page-break-before: always;
   }
   /* لا تقطع الصفوف بين الصفحات قدر الإمكان */
-  #daily-report tr { break-inside: avoid; }
+  .print-area tr { break-inside: avoid; }
 }

@@ -8,6 +8,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { SortableHead } from '@/components/ui/sortable-head';
+import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
+import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CalendarClock, Unlink } from 'lucide-react';
@@ -61,6 +64,17 @@ export default function SchedulingPage() {
     else { toast({ title: 'أُلغي الحجز — الموعد شاغر الآن' }); fetchAll(); }
   };
 
+  const { sortKey, sortDir, toggleSort } = useTableSort();
+  const SORTS: Record<string, { get: (r: Row) => unknown; type: SortType }> = {
+    teacher: { get: r => r.teacher_name, type: 'text' },
+    day: { get: r => r.weekday, type: 'number' },
+    time: { get: r => r.start_time, type: 'text' },
+    student: { get: r => r.student_name, type: 'text' },
+  };
+  const sorted = sortKey && SORTS[sortKey]
+    ? sortRows(rows, SORTS[sortKey].get, sortDir, SORTS[sortKey].type)
+    : rows;
+
   const booked = rows.filter(r => r.booking_id).length;
   const vacant = rows.filter(r => !r.booking_id && r.is_active).length;
   const totalHours = rows.filter(r => r.is_active).reduce((s, r) => s + slotHours(r.start_time, r.end_time), 0);
@@ -91,15 +105,15 @@ export default function SchedulingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>المسمعة</TableHead>
-                  <TableHead>اليوم</TableHead>
-                  <TableHead>الوقت</TableHead>
-                  <TableHead>الطالبة</TableHead>
+                  <SortableHead label="المسمعة" sortKey="teacher" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="اليوم" sortKey="day" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الوقت" sortKey="time" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الطالبة" sortKey="student" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(r => (
+                {sorted.map(r => (
                   <TableRow key={r.slot_id}>
                     <TableCell className="font-medium">{r.teacher_name}</TableCell>
                     <TableCell>{WEEKDAYS[r.weekday]}</TableCell>
