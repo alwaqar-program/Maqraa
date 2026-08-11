@@ -61,7 +61,7 @@ export default function LoginPage() {
           </CardContent>
         </Card>
         <p className="text-center text-xs text-muted-foreground mt-4">
-          برنامج استمرارية خاتمات الوقار في تعاهد القرآن الكريم
+          برنامج تعاهد طالبات الوقار للقرآن الكريم
         </p>
       </div>
     </div>
