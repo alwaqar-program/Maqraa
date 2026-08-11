@@ -205,15 +205,10 @@ export default function FormsAdminPage() {
           {key === 'student_register' && (
             <>
               <Field label="عنوان النموذج" value={config.title} onChange={v => patchConfig({ title: v })} />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="عنوان قسم البيانات" value={config.section_data_title} onChange={v => patchConfig({ section_data_title: v })} />
-                <Field label="عنوان قسم المسار" value={config.section_track_title} onChange={v => patchConfig({ section_track_title: v })} />
-                <Field label="عنوان قسم المواعيد" value={config.section_times_title} onChange={v => patchConfig({ section_times_title: v })} />
-                <Field label="عنوان قسم العهد" value={config.section_pledge_title} onChange={v => patchConfig({ section_pledge_title: v })} />
-                <Field label="عنوان صندوق نظام الغياب" value={config.absence_policy_title} onChange={v => patchConfig({ absence_policy_title: v })} />
-                <Field label="عنوان صندوق الملاحظات المهمة" value={config.important_notes_title} onChange={v => patchConfig({ important_notes_title: v })} />
-              </div>
               <Field label="عبارة الترحيب" rows={2} value={config.welcome} onChange={v => patchConfig({ welcome: v })} />
+              <Field label="عنوان قسم البيانات" value={config.section_data_title} onChange={v => patchConfig({ section_data_title: v })} />
+              <Field label="عنوان قسم المسار" value={config.section_track_title} onChange={v => patchConfig({ section_track_title: v })} />
+              <Field label="عنوان قسم المواعيد" value={config.section_times_title} onChange={v => patchConfig({ section_times_title: v })} />
               <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
               <div className="space-y-1.5">
                 <Label>خيارات المواعيد المعروضة</Label>
@@ -243,12 +238,16 @@ export default function FormsAdminPage() {
                   <Plus size={14} /> إضافة خيار
                 </Button>
               </div>
-              <Field label="نظام الغياب والالتزام (قبل التعهد — فارغ = مخفي)" rows={4}
+              <Field label="عنوان قسم العهد" value={config.section_pledge_title} onChange={v => patchConfig({ section_pledge_title: v })} />
+              <Field label="عنوان صندوق نظام الغياب" value={config.absence_policy_title} onChange={v => patchConfig({ absence_policy_title: v })} />
+              <Field label="نص نظام الغياب (قبل التعهد — فارغ = مخفي)" rows={4}
                 value={config.absence_policy} onChange={v => patchConfig({ absence_policy: v })} />
               <Field label="نص التعهد" rows={2} value={config.pledge_text} onChange={v => patchConfig({ pledge_text: v })} />
-              <Field label="ملاحظات مهمة (بعد التعهد — فارغة = مخفية)" rows={4}
+              <Field label="عنوان صندوق الملاحظات المهمة" value={config.important_notes_title} onChange={v => patchConfig({ important_notes_title: v })} />
+              <Field label="نص الملاحظات المهمة (بعد التعهد — فارغ = مخفي)" rows={4}
                 value={config.important_notes} onChange={v => patchConfig({ important_notes: v })} />
-              <Field label="عبارة المقترحات" rows={2} value={config.suggestions_note} onChange={v => patchConfig({ suggestions_note: v })} />
+              <Field label="عنوان خانة المقترحات" value={config.suggestions_title} onChange={v => patchConfig({ suggestions_title: v })} />
+              <Field label="عبارة المقترحات (تظهر تحت العنوان)" rows={2} value={config.suggestions_note} onChange={v => patchConfig({ suggestions_note: v })} />
               <Field label="رسالة النجاح بعد الإرسال" rows={2} value={config.success_body} onChange={v => patchConfig({ success_body: v })} />
             </>
           )}

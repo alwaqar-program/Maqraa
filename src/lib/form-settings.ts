@@ -34,6 +34,7 @@ export const FORM_DEFAULTS = {
     absence_policy: '',
     pledge_text: 'أتعهد بالالتزام بنظام الحضور والغياب',
     important_notes: '',
+    suggestions_title: 'مقترحاتك وملاحظاتك',
     suggestions_note: 'غاليتنا طالبة مقرأة الوقار — نسعد باستقبال مقترحاتك وملاحظاتك.',
     success_body: 'سيتم توزيع الحلقات وفق الأسبقية بالتسجيل، وسنتواصل معك على جوالك.',
     day_options: [

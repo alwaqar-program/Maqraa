@@ -312,7 +312,10 @@ export default function RegisterPage() {
                 </Label>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="sugg">مقترحاتك وملاحظاتك <span className="text-muted-foreground text-xs font-normal">— {config.suggestions_note}</span></Label>
+                  <Label htmlFor="sugg">{config.suggestions_title}</Label>
+                  {config.suggestions_note?.trim() && (
+                    <p className="text-xs text-muted-foreground">{config.suggestions_note}</p>
+                  )}
                   <Textarea id="sugg" rows={2} value={suggestions} onChange={e => setSuggestions(e.target.value)} />
                 </div>
 
