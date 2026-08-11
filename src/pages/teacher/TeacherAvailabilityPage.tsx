@@ -57,11 +57,25 @@ export default function TeacherAvailabilityPage() {
 
   const addSlot = async () => {
     if (!teacherId) return;
+    // فحص مسبق في الواجهة: تداخل مع موعد قائم في اليوم نفسه
+    const overlaps = slots.some(s =>
+      s.is_active && s.weekday === form.weekday &&
+      form.start_time < s.end_time.slice(0, 5) && s.start_time.slice(0, 5) < form.end_time
+    );
+    if (overlaps) {
+      toast({ title: 'هذا الوقت يتداخل مع موعد آخر لديك في اليوم نفسه', variant: 'destructive' });
+      return;
+    }
     const { error } = await supabase.from('availability_slots').insert({
       teacher_id: teacherId, weekday: form.weekday,
       start_time: form.start_time, end_time: form.end_time,
     });
-    if (error) { toast({ title: 'تعذر إضافة الموعد', description: error.message, variant: 'destructive' }); return; }
+    if (error) {
+      const msg = error.message.includes('no_overlapping_slots')
+        ? 'هذا الوقت يتداخل مع موعد آخر لديك في اليوم نفسه'
+        : error.message;
+      toast({ title: 'تعذر إضافة الموعد', description: msg, variant: 'destructive' }); return;
+    }
     toast({ title: 'أُضيف موعد التوفر' });
     setDialogOpen(false);
     fetchAll();
