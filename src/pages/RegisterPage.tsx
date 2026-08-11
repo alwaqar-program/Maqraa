@@ -169,11 +169,25 @@ export default function RegisterPage() {
 
               <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
 
+              {config.absence_policy?.trim() && (
+                <div className="border border-accent/40 bg-accent/5 rounded-lg p-4 space-y-1">
+                  <p className="font-display text-primary">نظام الغياب والالتزام</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.absence_policy}</p>
+                </div>
+              )}
+
               <Label htmlFor="pledge"
                 className={`flex items-center gap-2 border rounded-lg px-3 py-3 cursor-pointer transition-colors ${pledge ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
                 <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
                 <span className="text-sm font-medium">{config.pledge_text}</span>
               </Label>
+
+              {config.important_notes?.trim() && (
+                <div className="border rounded-lg p-4 space-y-1 bg-muted/40">
+                  <p className="font-display text-primary">ملاحظات مهمة</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.important_notes}</p>
+                </div>
+              )}
 
               <Button type="submit" className="w-full" disabled={saving}>
                 {saving ? '...' : 'إرسال التسجيل'}

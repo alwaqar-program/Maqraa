@@ -224,7 +224,9 @@ export default function FormsAdminPage() {
                   <Plus size={14} /> إضافة خيار
                 </Button>
               </div>
+              <TextField label="نظام الغياب والالتزام (يظهر قبل التعهد — اتركيه فارغًا لإخفائه)" k="absence_policy" rows={4} />
               <TextField label="نص التعهد" k="pledge_text" rows={2} />
+              <TextField label="ملاحظات مهمة (تظهر بعد التعهد — اتركيها فارغة لإخفائها)" k="important_notes" rows={4} />
               <TextField label="عبارة المقترحات" k="suggestions_note" rows={2} />
               <TextField label="رسالة النجاح بعد الإرسال" k="success_body" rows={2} />
             </>
