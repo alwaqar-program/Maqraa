@@ -37,7 +37,7 @@ export default function ExtraQuestions({ questions, answers, onChange }: {
           )}
 
           {q.qtype === 'select' && (
-            <RadioGroup value={(answers[q.id] as string) ?? ''} onValueChange={v => set(q.id, v)}
+            <RadioGroup dir="rtl" value={(answers[q.id] as string) ?? ''} onValueChange={v => set(q.id, v)}
               className="flex flex-wrap gap-2">
               {q.options.map(o => (
                 <Label key={o} htmlFor={`${q.id}-${o}`}

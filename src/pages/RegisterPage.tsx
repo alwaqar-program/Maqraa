@@ -122,7 +122,7 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label>المســار <span className="text-destructive">*</span></Label>
-                <RadioGroup value={trackId} onValueChange={setTrackId} className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <RadioGroup dir="rtl" value={trackId} onValueChange={setTrackId} className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {tracks.map(t => (
                     <Label key={t.id} htmlFor={`track-${t.id}`}
                       className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${trackId === t.id ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
@@ -150,7 +150,7 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label>الـفـتـرة الأنـسـب</Label>
-                <RadioGroup value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-3">
+                <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-3">
                   {[{ v: 'morning', l: 'صباح' }, { v: 'evening', l: 'مساء' }].map(o => (
                     <Label key={o.v} htmlFor={`p-${o.v}`}
                       className={`flex items-center gap-2 border rounded-lg px-4 py-2.5 cursor-pointer transition-colors ${period === o.v ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
