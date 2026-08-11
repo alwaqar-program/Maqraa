@@ -169,12 +169,19 @@ export default function RegisterPage() {
                 <SectionHead title="مسارك" />
                 <RadioGroup dir="rtl" value={trackId} onValueChange={setTrackId}
                   className="grid sm:grid-cols-2 gap-2.5">
-                  {tracks.map(t => (
-                    <Label key={t.id} htmlFor={`track-${t.id}`} className={pill(trackId === t.id)}>
-                      <RadioGroupItem id={`track-${t.id}`} value={t.id} />
-                      <span className="text-sm font-medium">{t.name}</span>
-                    </Label>
-                  ))}
+                  {tracks.map(t => {
+                    // «خمسة أجزاء (٧ص في الأسبوع)» → الاسم بارز والتفصيل أصغر وأفتح
+                    const [main, detail] = t.name.split(/\s*(?=\()/);
+                    return (
+                      <Label key={t.id} htmlFor={`track-${t.id}`} className={pill(trackId === t.id)}>
+                        <RadioGroupItem id={`track-${t.id}`} value={t.id} />
+                        <span className="text-sm font-medium">
+                          {main}
+                          {detail && <span className="text-xs font-normal text-muted-foreground mr-1">{detail}</span>}
+                        </span>
+                      </Label>
+                    );
+                  })}
                 </RadioGroup>
               </section>
 
