@@ -37,7 +37,8 @@ export default function TasmeePage() {
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
-    const { data: me } = await supabase.from('teachers').select('id').limit(1).maybeSingle();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: me } = await supabase.from('teachers').select('id').eq('user_id', user?.id ?? '').maybeSingle();
     if (!me) { setLoading(false); return; }
     setTeacherId(me.id);
 

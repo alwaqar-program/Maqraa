@@ -28,7 +28,8 @@ export default function TeacherAvailabilityPage() {
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
-    const { data: teacher } = await supabase.from('teachers').select('id, meeting_link').limit(1).maybeSingle();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: teacher } = await supabase.from('teachers').select('id, meeting_link').eq('user_id', user?.id ?? '').maybeSingle();
     if (!teacher) { setLoading(false); return; }
     setTeacherId(teacher.id);
     setMeetingLink(teacher.meeting_link || '');
