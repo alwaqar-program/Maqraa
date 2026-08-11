@@ -118,7 +118,7 @@ export default function ApplicantsPage() {
           ];
           exportToCsv(filtered.map(a => ({
             ...a,
-            days_text: (a.preferred_slots?.length ? a.preferred_slots : (a.preferred_days || []).map(d => WEEKDAYS[d])).join('، '),
+            days_text: a.preferred_slots?.length ? a.preferred_slots.map((sl, i) => `${i + 1}) ${sl}`).join(' · ') : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، '),
             period_text: a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '',
             ...Object.fromEntries(extraQs.map(q => [`q_${q.id}`, answerText(a.extra_answers[q.id])])),
           })), cols, 'متقدمات-المقرأة.csv');
@@ -150,7 +150,7 @@ export default function ApplicantsPage() {
                   <SortableHead label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>الجوال</TableHead>
                   <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
-                  <TableHead>الأيام (٥–٧ص)</TableHead>
+                  <TableHead>المواعيد (بالأولوية)</TableHead>
                   <TableHead>الفترة</TableHead>
                   <TableHead>ملاحظات</TableHead>
                   {extraQs.filter(q => q.is_active).map(q => <TableHead key={q.id}>{q.label}</TableHead>)}
@@ -166,8 +166,10 @@ export default function ApplicantsPage() {
                     <TableCell dir="ltr">{a.national_id ?? '—'}</TableCell>
                     <TableCell dir="ltr">{a.phone}</TableCell>
                     <TableCell>{a.track_name ?? '—'}</TableCell>
-                    <TableCell className="text-sm">
-                      {(a.preferred_slots?.length ? a.preferred_slots : (a.preferred_days || []).map(d => WEEKDAYS[d])).join('، ') || '—'}
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {a.preferred_slots?.length
+                        ? a.preferred_slots.map((sl, i) => `${i + 1}) ${sl}`).join(' · ')
+                        : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}
                     </TableCell>
                     <TableCell>{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '—'}</TableCell>
                     <TableCell>

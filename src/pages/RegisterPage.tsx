@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, X, LayoutGrid, CalendarDays } from 'lucide-react';
+import { CheckCircle2, X, LayoutGrid, CalendarDays, ChevronUp, ChevronDown } from 'lucide-react';
 import { WEEKDAYS } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
@@ -42,6 +42,13 @@ export default function RegisterPage() {
   }, []);
 
   const slotKey = (d: { value: number; label: string }) => `${d.value}|${d.label}`;
+  const moveSlot = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= selectedSlots.length) return;
+    const next = [...selectedSlots];
+    [next[i], next[j]] = [next[j], next[i]];
+    setSelectedSlots(next);
+  };
   const toggleSlot = (d: { value: number; label: string }) =>
     setSelectedSlots(prev => prev.includes(slotKey(d))
       ? prev.filter(x => x !== slotKey(d))
@@ -221,16 +228,25 @@ export default function RegisterPage() {
                   </p>
                 )}
 
-                {/* مختاراتك */}
+                {/* مواعيدك بترتيب الأولوية */}
                 {selectedSlots.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                    <span className="text-xs text-muted-foreground">مواعيدك المختارة:</span>
-                    {selectedSlots.map(k => (
-                      <span key={k} className="inline-flex items-center gap-1 bg-accent/15 border border-accent/40 rounded-full px-2.5 py-0.5 text-xs">
-                        {k.split('|').slice(1).join('|')}
+                  <div className="border border-accent/30 bg-accent/5 rounded-xl p-3 space-y-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      مواعيدك بترتيب الأولوية — <b>الأول هو الأنسب لك</b>، ورتبيها بالأسهم:
+                    </p>
+                    {selectedSlots.map((k, i) => (
+                      <div key={k} className="flex items-center gap-2 bg-background border rounded-lg px-2.5 py-1.5">
+                        <span className="w-6 h-6 shrink-0 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center">
+                          {(i + 1).toLocaleString('ar-EG')}
+                        </span>
+                        <span className="text-sm flex-1">{k.split('|').slice(1).join('|')}</span>
+                        <button type="button" onClick={() => moveSlot(i, -1)} disabled={i === 0}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-25"><ChevronUp size={16} /></button>
+                        <button type="button" onClick={() => moveSlot(i, 1)} disabled={i === selectedSlots.length - 1}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-25"><ChevronDown size={16} /></button>
                         <button type="button" onClick={() => setSelectedSlots(selectedSlots.filter(x => x !== k))}
-                          className="hover:text-destructive"><X size={11} /></button>
-                      </span>
+                          className="text-muted-foreground hover:text-destructive"><X size={14} /></button>
+                      </div>
                     ))}
                   </div>
                 )}
