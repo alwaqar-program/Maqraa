@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 
 const hijriToday = () => {
@@ -20,19 +21,33 @@ const hijriToday = () => {
 export default function RegisterTeacherPage() {
   const [fullName, setFullName] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [agreedTimes, setAgreedTimes] = useState('');
+  const [slots, setSlots] = useState<{ weekday: number; start_time: string; end_time: string }[]>([
+    { weekday: 0, start_time: '16:00', end_time: '17:00' },
+  ]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const { toast } = useToast();
 
+  const totalHours = Math.round(slots.reduce((a, s) =>
+    a + Math.max(0, slotHours(s.start_time, s.end_time)), 0) * 10) / 10;
+  const hasInvalidRow = slots.some(s => s.end_time <= s.start_time);
+  const hasOverlap = slots.some((a, i) => slots.some((b, j) =>
+    i < j && a.weekday === b.weekday && a.start_time < b.end_time && b.start_time < a.end_time));
+  const hoursError =
+    hasInvalidRow ? 'هناك موعد نهايته قبل بدايته' :
+    hasOverlap ? 'هناك مواعيد متداخلة في اليوم نفسه' :
+    totalHours < 2 ? 'المجموع أقل من الحد الأدنى (ساعتان أسبوعيًا)' :
+    totalHours > 12 ? 'المجموع يتجاوز الحد الأعلى (12 ساعة أسبوعيًا)' : null;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hoursError) { toast({ title: hoursError, variant: 'destructive' }); return; }
     setSaving(true);
     const { error } = await supabase.from('teacher_agreements').insert({
       full_name: fullName.trim(),
       agreement_date: date,
-      agreed_times: agreedTimes.trim() || null,
+      agreed_slots: slots,
       notes: notes.trim() || null,
     });
     setSaving(false);
@@ -111,15 +126,48 @@ export default function RegisterTeacherPage() {
                 <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="times">المواعيد المتفق عليها للتسميع</Label>
-                <Textarea id="times" rows={2} placeholder="مثال: الأحد والثلاثاء من ٤ إلى ٦ مساءً"
-                  value={agreedTimes} onChange={e => setAgreedTimes(e.target.value)} />
+                <Label>المواعيد المتفق عليها للتسميع <span className="text-destructive">*</span></Label>
+                <p className="text-xs text-muted-foreground">
+                  أدخلي أوقاتك المتاحة (يوم ووقت) — بمجموع لا يقل عن ساعتين ولا يزيد على 12 ساعة أسبوعيًا.
+                </p>
+                <div className="space-y-2">
+                  {slots.map((sl, i) => (
+                    <div key={i} className="flex items-center gap-2 flex-wrap">
+                      <select
+                        className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                        value={sl.weekday}
+                        onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, weekday: Number(e.target.value) } : x))}>
+                        {WEEKDAYS.map((d, w) => <option key={w} value={w}>{d}</option>)}
+                      </select>
+                      <Input type="time" className="w-32" value={sl.start_time}
+                        onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, start_time: e.target.value } : x))} />
+                      <span className="text-muted-foreground text-sm">إلى</span>
+                      <Input type="time" className="w-32" value={sl.end_time}
+                        onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, end_time: e.target.value } : x))} />
+                      {slots.length > 1 && (
+                        <button type="button" className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setSlots(slots.filter((_, j) => j !== i))}>
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" className="gap-1"
+                      onClick={() => setSlots([...slots, { weekday: 0, start_time: '16:00', end_time: '17:00' }])}>
+                      <Plus size={14} /> إضافة موعد
+                    </Button>
+                    <span className={`text-sm font-medium ${hoursError ? 'text-destructive' : 'text-success'}`}>
+                      المجموع: {totalHours} ساعة أسبوعيًا {hoursError ? `— ${hoursError}` : '✓'}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">ملاحظات</Label>
                 <Textarea id="notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
-              <Button type="submit" className="w-full" disabled={saving || !fullName.trim()}>
+              <Button type="submit" className="w-full" disabled={saving || !fullName.trim() || !!hoursError}>
                 {saving ? '...' : 'أوافق على البنود وأوقّع'}
               </Button>
             </form>

@@ -1,15 +1,17 @@
 -- ============================================================
--- 18_teacher_applicants.sql — اتفاقية المسمعات في مقرأة الوقار
--- نموذج عام: المسمعة تقرأ البنود وتوقّع باسمها (الاسم = التوقيع)،
--- مع تاريخ الاتفاقية والمواعيد المتفق عليها والملاحظات.
--- الإدارة تراجع وتقبل → يُنشأ ملف مسمعة.
+-- 18_teacher_applicants.sql — اتفاقية المسمعات في مقرأة الوقار (v2)
+-- المسمعة توقّع البنود باسمها، وتُدخل مواعيدها المتاحة (يوم + وقت)
+-- بمجموع لا يقل عن ساعتين ولا يزيد على 12 ساعة أسبوعيًا.
+-- القبول ينشئ ملف المسمعة ومواعيد توفرها تلقائيًا.
+-- آمن لإعادة التنفيذ (يعيد بناء الجدول — بيانات التطوير فقط).
 -- ============================================================
-CREATE TABLE IF NOT EXISTS public.teacher_agreements (
+DROP TABLE IF EXISTS public.teacher_agreements CASCADE;
+CREATE TABLE public.teacher_agreements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name text NOT NULL,                 -- اسم المسمعة (يعد بمثابة توقيع)
-  agreement_date date NOT NULL DEFAULT current_date,  -- تاريخ الاتفاقية
-  agreed_times text,                       -- المواعيد المتفق عليها للتسميع
-  notes text,                              -- ملاحظات
+  agreement_date date NOT NULL DEFAULT current_date,
+  agreed_slots jsonb NOT NULL DEFAULT '[]',  -- [{weekday, start_time, end_time}]
+  notes text,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','rejected')),
   teacher_id uuid REFERENCES public.teachers(id),
   reviewed_at timestamptz,
@@ -28,4 +30,4 @@ CREATE POLICY "Admins manage teacher agreements" ON public.teacher_agreements
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
-SELECT 'teacher agreements ready' AS status;
+SELECT 'teacher agreements v2 ready' AS status;

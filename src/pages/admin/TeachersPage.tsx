@@ -13,6 +13,7 @@ import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, GraduationCap, FileSignature, Check, X } from 'lucide-react';
+import { WEEKDAYS } from '@/lib/schedule';
 
 interface Teacher {
   id: string;
@@ -29,7 +30,8 @@ interface Teacher {
 
 interface Agreement {
   id: string; full_name: string; agreement_date: string;
-  agreed_times: string | null; notes: string | null;
+  agreed_slots: { weekday: number; start_time: string; end_time: string }[];
+  notes: string | null;
 }
 
 export default function TeachersPage() {
@@ -108,11 +110,18 @@ export default function TeachersPage() {
     const { data: teacher, error: tErr } = await supabase.from('teachers')
       .insert({ full_name: a.full_name }).select('id').single();
     if (tErr) { toast({ title: 'خطأ', description: tErr.message, variant: 'destructive' }); return; }
+    // مواعيد الاتفاقية تصبح مواعيد توفرها مباشرة
+    if (a.agreed_slots?.length) {
+      const { error: slotErr } = await supabase.from('availability_slots').insert(
+        a.agreed_slots.map(s => ({ teacher_id: teacher.id, ...s }))
+      );
+      if (slotErr) toast({ title: 'أُنشئت المسمعة لكن تعذر إنشاء بعض المواعيد', description: slotErr.message, variant: 'destructive' });
+    }
     const { error } = await supabase.from('teacher_agreements')
       .update({ status: 'accepted', teacher_id: teacher.id, reviewed_at: new Date().toISOString() })
       .eq('id', a.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else toast({ title: `قُبلت ${a.full_name} — أكملي بياناتها وأنشئي حسابها من صفحة المستخدمين` });
+    else toast({ title: `قُبلت ${a.full_name} ومواعيدها جاهزة — أنشئي حسابها من صفحة المستخدمين` });
     fetchAll();
   };
   const rejectAgreement = async (a: Agreement) => {
@@ -151,7 +160,11 @@ export default function TeachersPage() {
                 <div>
                   <b>{a.full_name}</b>
                   <span className="text-muted-foreground"> — وقّعت في {a.agreement_date}</span>
-                  {a.agreed_times && <p className="text-muted-foreground mt-0.5">المواعيد: {a.agreed_times}</p>}
+                  {a.agreed_slots?.length > 0 && (
+                    <p className="text-muted-foreground mt-0.5">
+                      المواعيد: {a.agreed_slots.map(s => `${WEEKDAYS[s.weekday]} ${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)}`).join('، ')}
+                    </p>
+                  )}
                   {a.notes && <p className="text-muted-foreground mt-0.5">ملاحظات: {a.notes}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
