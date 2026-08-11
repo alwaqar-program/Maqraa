@@ -205,6 +205,14 @@ export default function FormsAdminPage() {
           {key === 'student_register' && (
             <>
               <Field label="عنوان النموذج" value={config.title} onChange={v => patchConfig({ title: v })} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="عنوان قسم البيانات" value={config.section_data_title} onChange={v => patchConfig({ section_data_title: v })} />
+                <Field label="عنوان قسم المسار" value={config.section_track_title} onChange={v => patchConfig({ section_track_title: v })} />
+                <Field label="عنوان قسم المواعيد" value={config.section_times_title} onChange={v => patchConfig({ section_times_title: v })} />
+                <Field label="عنوان قسم العهد" value={config.section_pledge_title} onChange={v => patchConfig({ section_pledge_title: v })} />
+                <Field label="عنوان صندوق نظام الغياب" value={config.absence_policy_title} onChange={v => patchConfig({ absence_policy_title: v })} />
+                <Field label="عنوان صندوق الملاحظات المهمة" value={config.important_notes_title} onChange={v => patchConfig({ important_notes_title: v })} />
+              </div>
               <Field label="عبارة الترحيب" rows={2} value={config.welcome} onChange={v => patchConfig({ welcome: v })} />
               <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
               <div className="space-y-1.5">

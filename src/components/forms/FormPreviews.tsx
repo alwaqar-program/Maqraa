@@ -92,7 +92,7 @@ export function StudentRegisterPreview({ config, questions }: { config: any; que
 
       {config.absence_policy?.trim() && (
         <div className="border border-accent/40 bg-accent/5 rounded-lg p-4 space-y-1">
-          <p className="font-display text-primary">نظام الغياب والالتزام</p>
+          <p className="font-display text-primary">{config.absence_policy_title ?? 'نظام الغياب والالتزام'}</p>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.absence_policy}</p>
         </div>
       )}
@@ -101,7 +101,7 @@ export function StudentRegisterPreview({ config, questions }: { config: any; que
       </span>
       {config.important_notes?.trim() && (
         <div className="border rounded-lg p-4 space-y-1 bg-muted/40">
-          <p className="font-display text-primary">ملاحظات مهمة</p>
+          <p className="font-display text-primary">{config.important_notes_title ?? 'ملاحظات مهمة'}</p>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.important_notes}</p>
         </div>
       )}

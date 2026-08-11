@@ -146,7 +146,7 @@ export default function RegisterPage() {
 
               {/* ۞ بياناتك */}
               <section className="px-5 sm:px-8 py-6 space-y-4">
-                <SectionHead title="بياناتك" />
+                <SectionHead title={config.section_data_title} />
                 <div className="space-y-1.5">
                   <Label htmlFor="name">الاسم الرباعي <span className="text-destructive">*</span></Label>
                   <Input id="name" required value={fullName} onChange={e => setFullName(e.target.value)} />
@@ -167,7 +167,7 @@ export default function RegisterPage() {
 
               {/* ۞ مسارك */}
               <section className="px-5 sm:px-8 py-6 space-y-4">
-                <SectionHead title="مسارك" />
+                <SectionHead title={config.section_track_title} />
                 <RadioGroup dir="rtl" value={trackId} onValueChange={setTrackId}
                   className="grid sm:grid-cols-2 gap-2.5">
                   {tracks.map(t => {
@@ -188,7 +188,7 @@ export default function RegisterPage() {
 
               {/* ۞ مواعيدك */}
               <section className="px-5 sm:px-8 py-6 space-y-4">
-                <SectionHead title="مواعيدك" hint={config.times_note} />
+                <SectionHead title={config.section_times_title} hint={config.times_note} />
 
                 {/* اختيار اليوم أولا */}
                 <div className="flex items-center gap-2 flex-wrap">
@@ -289,20 +289,20 @@ export default function RegisterPage() {
 
               {/* ۞ عهدك وملاحظاتك */}
               <section className="px-5 sm:px-8 py-6 space-y-4">
-                <SectionHead title="عهدك وملاحظاتك" />
+                <SectionHead title={config.section_pledge_title} />
 
                 <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
 
                 {config.absence_policy?.trim() && (
                   <div className="border border-accent/40 bg-accent/5 rounded-xl p-4 space-y-1">
-                    <p className="font-display text-primary">نظام الغياب والالتزام</p>
+                    <p className="font-display text-primary">{config.absence_policy_title}</p>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.absence_policy}</p>
                   </div>
                 )}
 
                 {config.important_notes?.trim() && (
                   <div className="border rounded-xl p-4 space-y-1 bg-muted/40">
-                    <p className="font-display text-primary">ملاحظات مهمة</p>
+                    <p className="font-display text-primary">{config.important_notes_title}</p>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.important_notes}</p>
                   </div>
                 )}
