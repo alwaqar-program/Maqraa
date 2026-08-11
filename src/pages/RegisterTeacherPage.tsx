@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
-import logoImg from '@/assets/logo-maqraa.png';
+import headerImg from '@/assets/header.png';
 
 const hijriToday = () => {
   try {
@@ -72,8 +72,9 @@ export default function RegisterTeacherPage() {
   return (
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
-        <div className="text-center space-y-3">
-          <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-24 object-contain" />
+        <div className="text-center space-y-4">
+          <img src={headerImg} alt="مقرأة الوقار — تعاهدوا القرآن"
+            className="w-full rounded-2xl shadow-sm" />
           <h1 className="text-2xl font-display">اتفاقية المسمعات في مقرأة الوقار</h1>
         </div>
 

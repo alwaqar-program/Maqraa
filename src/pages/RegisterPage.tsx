@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2 } from 'lucide-react';
 import logoImg from '@/assets/logo-maqraa.png';
+import headerImg from '@/assets/header.png';
 
 interface Track { id: string; name: string; juz_count: number; sort_order: number; }
 
@@ -84,8 +85,8 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-xl mx-auto space-y-6">
-        <div className="text-center space-y-3">
-          <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-28 object-contain" />
+        <div className="text-center space-y-4">
+          <img src={headerImg} alt="مقرأة الوقار — تعاهدوا القرآن" className="w-full rounded-2xl shadow-sm" />
           <h1 className="text-2xl font-display">تسجيل طالبات مقرأة الوقار — الفصل الأول</h1>
           <p className="text-muted-foreground text-sm">
             غاليتنا، المقرأة استمرارٌ لعهدك مع كتاب الله بعد الختم — «كان عمله ديمة»
