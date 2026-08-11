@@ -8,13 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp } from 'lucide-react';
+import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
 import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl } from '@/lib/form-settings';
-import headerDefault from '@/assets/header.png';
 import { useUrlState } from '@/lib/use-url-state';
 import { WEEKDAYS } from '@/lib/schedule';
+import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
+import headerDefault from '@/assets/header.png';
 
 const FORM_LABELS: Record<FormKey, { label: string; url: string }> = {
   student_register: { label: 'تسجيل الطالبات', url: '/register' },
@@ -23,12 +25,18 @@ const FORM_LABELS: Record<FormKey, { label: string; url: string }> = {
 };
 const QTYPE_LABELS = { text: 'نص حر', select: 'اختيار واحد', multiselect: 'اختيار متعدد' };
 
+/** أسئلة المسودة: الجديدة تحمل معرفًا مؤقتًا new-... حتى تُحفظ */
+type DraftQuestion = FormQuestion & { _new?: boolean };
+
 export default function FormsAdminPage() {
   const [tab, setTab] = useUrlState('form', 'student_register');
   const key = tab as FormKey;
   const [config, setConfig] = useState<any>(FORM_DEFAULTS[key]);
-  const [questions, setQuestions] = useState<FormQuestion[]>([]);
+  const [questions, setQuestions] = useState<DraftQuestion[]>([]);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
@@ -37,88 +45,76 @@ export default function FormsAdminPage() {
       supabase.from('form_questions').select('*').eq('form_key', key).order('sort_order'),
     ]);
     setConfig({ ...FORM_DEFAULTS[key], ...((row?.config as object) ?? {}) });
-    setQuestions((qs || []) as FormQuestion[]);
+    setQuestions((qs || []) as DraftQuestion[]);
+    setDeletedIds([]);
+    setDirty(false);
   }, [key]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const save = async () => {
+  // كل التعديلات محلية (مسودة) — لا تصل النموذج العام قبل «حفظ»
+  const patchConfig = (patch: object) => { setConfig({ ...config, ...patch }); setDirty(true); };
+  const patchQuestion = (id: string, patch: Partial<DraftQuestion>) => {
+    setQuestions(qs => qs.map(q => q.id === id ? { ...q, ...patch } : q));
+    setDirty(true);
+  };
+  const addQuestion = () => {
+    setQuestions([...questions, {
+      id: `new-${Date.now()}`, _new: true, form_key: key, label: 'سؤال جديد',
+      qtype: 'text', options: [], required: false,
+      sort_order: (questions[questions.length - 1]?.sort_order ?? 0) + 1, is_active: true,
+    }]);
+    setDirty(true);
+  };
+  const removeQuestion = (q: DraftQuestion) => {
+    setQuestions(questions.filter(x => x.id !== q.id));
+    if (!q._new) setDeletedIds([...deletedIds, q.id]);
+    setDirty(true);
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= questions.length) return;
+    const next = [...questions];
+    [next[i], next[j]] = [next[j], next[i]];
+    setQuestions(next.map((q, idx) => ({ ...q, sort_order: idx + 1 })));
+    setDirty(true);
+  };
+
+  /** الحفظ: يعتمد النصوص وكل تغييرات الأسئلة دفعة واحدة */
+  const saveAll = async () => {
     setSaving(true);
-    const { error } = await supabase.from('form_settings')
+    const { error: cfgErr } = await supabase.from('form_settings')
       .upsert({ form_key: key, config, updated_at: new Date().toISOString() });
+    if (cfgErr) { toast({ title: 'خطأ في حفظ النصوص', description: cfgErr.message, variant: 'destructive' }); setSaving(false); return; }
+
+    for (const id of deletedIds) {
+      const { error } = await supabase.from('form_questions').delete().eq('id', id);
+      if (error) { toast({ title: 'خطأ في حذف سؤال', description: error.message, variant: 'destructive' }); setSaving(false); return; }
+    }
+    for (const q of questions) {
+      const payload = {
+        form_key: key, label: q.label, qtype: q.qtype,
+        options: q.options.filter(o => o.trim()),
+        required: q.required, sort_order: q.sort_order, is_active: q.is_active,
+      };
+      const { error } = q._new
+        ? await supabase.from('form_questions').insert(payload)
+        : await supabase.from('form_questions').update(payload).eq('id', q.id);
+      if (error) { toast({ title: 'خطأ في حفظ سؤال', description: error.message, variant: 'destructive' }); setSaving(false); return; }
+    }
     setSaving(false);
-    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
-    toast({ title: 'حُفظ — التعديل ساري فورًا على الرابط العام' });
-  };
-
-  // ---------- صورة الترويسة ----------
-  const uploadHeader = async (file: File) => {
-    const path = `${key}-header-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error: upErr } = await supabase.storage.from('form-assets').upload(path, file);
-    if (upErr) { toast({ title: 'تعذر رفع الصورة', description: upErr.message, variant: 'destructive' }); return; }
-    const newConfig = { ...config, header_path: path };
-    setConfig(newConfig);
-    const { error } = await supabase.from('form_settings')
-      .upsert({ form_key: key, config: newConfig, updated_at: new Date().toISOString() });
-    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else toast({ title: 'حُدّثت صورة الترويسة — سارية فورًا' });
-  };
-  const resetHeader = async () => {
-    const newConfig = { ...config, header_path: undefined };
-    delete newConfig.header_path;
-    setConfig(newConfig);
-    const { error } = await supabase.from('form_settings')
-      .upsert({ form_key: key, config: newConfig, updated_at: new Date().toISOString() });
-    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else toast({ title: 'عادت الصورة الافتراضية' });
-  };
-
-  // ---------- الأسئلة الإضافية ----------
-  const addQuestion = async () => {
-    const { error } = await supabase.from('form_questions').insert({
-      form_key: key, label: 'سؤال جديد', qtype: 'text',
-      sort_order: (questions[questions.length - 1]?.sort_order ?? 0) + 1,
-    });
-    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else fetchAll();
-  };
-  const deleteQuestion = async (q: FormQuestion) => {
-    if (!window.confirm(`حذف سؤال «${q.label}» نهائيًا؟ إجاباته في الطلبات السابقة ستختفي من الأعمدة.`)) return;
-    const { error } = await supabase.from('form_questions').delete().eq('id', q.id);
-    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else { toast({ title: 'حُذف السؤال' }); fetchAll(); }
-  };
-  const updateQuestion = async (q: FormQuestion, patch: Partial<FormQuestion>) => {
-    const { error } = await supabase.from('form_questions').update(patch).eq('id', q.id);
-    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else fetchAll();
-  };
-  const move = async (i: number, dir: -1 | 1) => {
-    const other = questions[i + dir];
-    if (!other) return;
-    const q = questions[i];
-    await supabase.from('form_questions').update({ sort_order: other.sort_order }).eq('id', q.id);
-    await supabase.from('form_questions').update({ sort_order: q.sort_order }).eq('id', other.id);
+    toast({ title: 'اعتُمدت التعديلات — سارية الآن على الرابط العام' });
     fetchAll();
   };
 
-  // ---------- محررات مساعدة ----------
-  const TextField = ({ label, k, rows }: { label: string; k: string; rows?: number }) => (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {rows ? (
-        <Textarea rows={rows} value={config[k] ?? ''} onChange={e => setConfig({ ...config, [k]: e.target.value })} />
-      ) : (
-        <Input value={config[k] ?? ''} onChange={e => setConfig({ ...config, [k]: e.target.value })} />
-      )}
-    </div>
-  );
-  const ListField = ({ label, k }: { label: string; k: string }) => (
-    <div className="space-y-1.5">
-      <Label>{label} <span className="text-muted-foreground text-xs">(سطر لكل بند)</span></Label>
-      <Textarea rows={5} value={((config[k] as string[]) ?? []).join('\n')}
-        onChange={e => setConfig({ ...config, [k]: e.target.value.split('\n').filter(l => l.trim()) })} />
-    </div>
-  );
+  const uploadHeader = async (file: File) => {
+    const path = `${key}-header-${Date.now()}.${file.name.split('.').pop()}`;
+    const { error } = await supabase.storage.from('form-assets').upload(path, file);
+    if (error) { toast({ title: 'تعذر رفع الصورة', description: error.message, variant: 'destructive' }); return; }
+    patchConfig({ header_path: path });
+    toast({ title: 'رُفعت الصورة — اضغطي «حفظ» لاعتمادها' });
+  };
+
+  const activeDraftQuestions = questions.filter(q => q.is_active);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -126,17 +122,29 @@ export default function FormsAdminPage() {
         <div className="flex items-center gap-2">
           <FileEdit className="text-accent" />
           <h1 className="text-2xl font-display">النماذج</h1>
+          {dirty && <Badge className="bg-warning text-warning-foreground">تعديلات غير محفوظة</Badge>}
         </div>
-        {FORM_LABELS[key].url && (
-          <Button variant="outline" size="sm" className="gap-1" asChild>
-            <a href={FORM_LABELS[key].url} target="_blank" rel="noreferrer">
-              <ExternalLink size={14} /> فتح النموذج
-            </a>
+        <div className="flex gap-2">
+          {FORM_LABELS[key].url && (
+            <Button variant="outline" size="sm" className="gap-1" asChild>
+              <a href={FORM_LABELS[key].url} target="_blank" rel="noreferrer">
+                <ExternalLink size={14} /> النموذج المنشور
+              </a>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => setPreviewOpen(true)}>
+            <Eye size={14} /> استعراض
           </Button>
-        )}
+          <Button size="sm" className="gap-1" onClick={saveAll} disabled={saving || !dirty}>
+            <Save size={14} /> {saving ? 'جارٍ الحفظ...' : 'حفظ'}
+          </Button>
+        </div>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} dir="rtl">
+      <Tabs value={tab} onValueChange={v => {
+        if (dirty && !window.confirm('لديك تعديلات غير محفوظة — الانتقال سيفقدها. المتابعة؟')) return;
+        setTab(v);
+      }} dir="rtl">
         <TabsList>
           {(Object.keys(FORM_LABELS) as FormKey[]).map(k => (
             <TabsTrigger key={k} value={k}>{FORM_LABELS[k].label}</TabsTrigger>
@@ -153,18 +161,15 @@ export default function FormsAdminPage() {
                 <p className="font-medium">
                   {config.is_open === false ? '🔒 الرابط مقفل — لا يقبل النظام أي طلب جديد' : '🟢 الرابط مفتوح — يستقبل الطلبات'}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  القفل مُنفَذ في قاعدة البيانات أيضًا، لا واجهةً فقط. لا تنسي «حفظ النصوص» بعد التغيير.
-                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">القفل مُنفَذ في قاعدة البيانات أيضًا — يسري بعد «حفظ».</p>
               </div>
-              <Switch checked={config.is_open !== false}
-                onCheckedChange={v => setConfig({ ...config, is_open: v })} />
+              <Switch checked={config.is_open !== false} onCheckedChange={v => patchConfig({ is_open: v })} />
             </div>
             {config.is_open === false && (
               <div className="space-y-1.5">
                 <Label>الرسالة التي تظهر بدل النموذج</Label>
                 <Textarea rows={2} value={config.closed_message ?? ''}
-                  onChange={e => setConfig({ ...config, closed_message: e.target.value })} />
+                  onChange={e => patchConfig({ closed_message: e.target.value })} />
               </div>
             )}
           </CardContent>
@@ -176,8 +181,7 @@ export default function FormsAdminPage() {
         <Card>
           <CardHeader><CardTitle className="text-base font-body">صورة الترويسة</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <img src={headerUrl(config) ?? headerDefault} alt="ترويسة النموذج"
-              className="w-full rounded-xl border" />
+            <img src={headerUrl(config) ?? headerDefault} alt="ترويسة النموذج" className="w-full rounded-xl border" />
             <div className="flex gap-2">
               <label className="inline-flex items-center gap-1 border rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-accent">
                 <ImageUp size={15} /> رفع صورة جديدة
@@ -185,10 +189,11 @@ export default function FormsAdminPage() {
                   onChange={e => e.target.files?.[0] && uploadHeader(e.target.files[0])} />
               </label>
               {config.header_path && (
-                <Button variant="ghost" size="sm" onClick={resetHeader}>الرجوع للافتراضية</Button>
+                <Button variant="ghost" size="sm" onClick={() => patchConfig({ header_path: undefined })}>
+                  الرجوع للافتراضية
+                </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">يُفضل عرض 2000px تقريبًا بصيغة PNG — تسري فورًا بعد الرفع.</p>
           </CardContent>
         </Card>
       )}
@@ -199,16 +204,16 @@ export default function FormsAdminPage() {
         <CardContent className="space-y-4">
           {key === 'student_register' && (
             <>
-              <TextField label="عنوان النموذج" k="title" />
-              <TextField label="عبارة الترحيب" k="welcome" rows={2} />
-              <TextField label="عبارة المواعيد" k="times_note" rows={2} />
+              <Field label="عنوان النموذج" value={config.title} onChange={v => patchConfig({ title: v })} />
+              <Field label="عبارة الترحيب" rows={2} value={config.welcome} onChange={v => patchConfig({ welcome: v })} />
+              <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
               <div className="space-y-1.5">
                 <Label>خيارات المواعيد المعروضة</Label>
                 {((config.day_options as DayOption[]) ?? []).map((d, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <Select value={String(d.value)} onValueChange={v => {
                       const next = [...config.day_options]; next[i] = { ...d, value: Number(v) };
-                      setConfig({ ...config, day_options: next });
+                      patchConfig({ day_options: next });
                     }}>
                       <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -217,44 +222,46 @@ export default function FormsAdminPage() {
                     </Select>
                     <Input value={d.label} onChange={e => {
                       const next = [...config.day_options]; next[i] = { ...d, label: e.target.value };
-                      setConfig({ ...config, day_options: next });
+                      patchConfig({ day_options: next });
                     }} />
                     <button type="button" className="text-muted-foreground hover:text-destructive"
-                      onClick={() => setConfig({ ...config, day_options: config.day_options.filter((_: any, j: number) => j !== i) })}>
+                      onClick={() => patchConfig({ day_options: config.day_options.filter((_: any, j: number) => j !== i) })}>
                       <Trash2 size={15} />
                     </button>
                   </div>
                 ))}
                 <Button type="button" variant="outline" size="sm" className="gap-1"
-                  onClick={() => setConfig({ ...config, day_options: [...(config.day_options ?? []), { value: 0, label: 'الأحد ٥–٧ صباحًا' }] })}>
+                  onClick={() => patchConfig({ day_options: [...(config.day_options ?? []), { value: 0, label: 'الأحد ٥–٧ صباحًا' }] })}>
                   <Plus size={14} /> إضافة خيار
                 </Button>
               </div>
-              <TextField label="نظام الغياب والالتزام (يظهر قبل التعهد — اتركيه فارغًا لإخفائه)" k="absence_policy" rows={4} />
-              <TextField label="نص التعهد" k="pledge_text" rows={2} />
-              <TextField label="ملاحظات مهمة (تظهر بعد التعهد — اتركيها فارغة لإخفائها)" k="important_notes" rows={4} />
-              <TextField label="عبارة المقترحات" k="suggestions_note" rows={2} />
-              <TextField label="رسالة النجاح بعد الإرسال" k="success_body" rows={2} />
+              <Field label="نظام الغياب والالتزام (قبل التعهد — فارغ = مخفي)" rows={4}
+                value={config.absence_policy} onChange={v => patchConfig({ absence_policy: v })} />
+              <Field label="نص التعهد" rows={2} value={config.pledge_text} onChange={v => patchConfig({ pledge_text: v })} />
+              <Field label="ملاحظات مهمة (بعد التعهد — فارغة = مخفية)" rows={4}
+                value={config.important_notes} onChange={v => patchConfig({ important_notes: v })} />
+              <Field label="عبارة المقترحات" rows={2} value={config.suggestions_note} onChange={v => patchConfig({ suggestions_note: v })} />
+              <Field label="رسالة النجاح بعد الإرسال" rows={2} value={config.success_body} onChange={v => patchConfig({ success_body: v })} />
             </>
           )}
 
           {key === 'teacher_agreement' && (
             <>
-              <TextField label="مدة التعاون" k="duration_text" rows={2} />
-              <ListField label="التزامات المقرأة" k="maqraa_items" />
-              <ListField label="التزامات المسمعات" k="teacher_items" />
-              <TextField label="الخاتمة" k="closing_text" />
-              <TextField label="عبارة التوقيع" k="signature_hint" />
+              <Field label="مدة التعاون" rows={2} value={config.duration_text} onChange={v => patchConfig({ duration_text: v })} />
+              <ListEditor label="التزامات المقرأة" items={config.maqraa_items ?? []} onChange={v => patchConfig({ maqraa_items: v })} />
+              <ListEditor label="التزامات المسمعات" items={config.teacher_items ?? []} onChange={v => patchConfig({ teacher_items: v })} />
+              <Field label="الخاتمة" value={config.closing_text} onChange={v => patchConfig({ closing_text: v })} />
+              <Field label="عبارة التوقيع" value={config.signature_hint} onChange={v => patchConfig({ signature_hint: v })} />
               <div className="grid grid-cols-2 gap-4 max-w-sm">
                 <div className="space-y-1.5">
                   <Label>الحد الأدنى للساعات</Label>
                   <Input type="number" min={0} value={config.min_hours}
-                    onChange={e => setConfig({ ...config, min_hours: Number(e.target.value) })} />
+                    onChange={e => patchConfig({ min_hours: Number(e.target.value) })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>الحد الأعلى للساعات</Label>
                   <Input type="number" min={1} value={config.max_hours}
-                    onChange={e => setConfig({ ...config, max_hours: Number(e.target.value) })} />
+                    onChange={e => patchConfig({ max_hours: Number(e.target.value) })} />
                 </div>
               </div>
             </>
@@ -262,12 +269,10 @@ export default function FormsAdminPage() {
 
           {key === 'hosting_feedback' && (
             <>
-              <TextField label="عنوان قياس الرضا" k="prompt_label" />
-              <TextField label="نص خانة الملاحظات" k="comment_placeholder" />
+              <Field label="عنوان قياس الرضا" value={config.prompt_label} onChange={v => patchConfig({ prompt_label: v })} />
+              <Field label="نص خانة الملاحظات" value={config.comment_placeholder} onChange={v => patchConfig({ comment_placeholder: v })} />
             </>
           )}
-
-          <Button onClick={save} disabled={saving}>{saving ? '...' : 'حفظ النصوص'}</Button>
         </CardContent>
       </Card>
 
@@ -283,15 +288,13 @@ export default function FormsAdminPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {questions.length === 0 && (
-            <p className="text-muted-foreground text-sm text-center py-2">
-              لا أسئلة إضافية — النموذج بحقوله الأساسية فقط.
-            </p>
+            <p className="text-muted-foreground text-sm text-center py-2">لا أسئلة إضافية — النموذج بحقوله الأساسية فقط.</p>
           )}
           {questions.map((q, i) => (
             <div key={q.id} className={`border rounded-lg p-3 space-y-3 ${!q.is_active ? 'opacity-50' : ''}`}>
               <div className="flex items-center gap-2">
-                <Input defaultValue={q.label} onBlur={e => e.target.value !== q.label && updateQuestion(q, { label: e.target.value })} />
-                <Select value={q.qtype} onValueChange={v => updateQuestion(q, { qtype: v as any })}>
+                <Input value={q.label} onChange={e => patchQuestion(q.id, { label: e.target.value })} />
+                <Select value={q.qtype} onValueChange={v => patchQuestion(q.id, { qtype: v as any })}>
                   <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(QTYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -299,31 +302,65 @@ export default function FormsAdminPage() {
                 </Select>
                 <button onClick={() => move(i, -1)} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp size={15} /></button>
                 <button onClick={() => move(i, 1)} disabled={i === questions.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown size={15} /></button>
-                <button onClick={() => deleteQuestion(q)} title="حذف نهائي"
-                  className="text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
+                <button onClick={() => removeQuestion(q)} title="حذف" className="text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
               </div>
               {q.qtype !== 'text' && (
                 <div className="space-y-1">
                   <Label className="text-xs">الخيارات (سطر لكل خيار)</Label>
-                  <Textarea rows={3} defaultValue={q.options.join('\n')}
-                    onBlur={e => updateQuestion(q, { options: e.target.value.split('\n').filter(l => l.trim()) })} />
+                  <Textarea rows={3} value={q.options.join('\n')}
+                    onChange={e => patchQuestion(q.id, { options: e.target.value.split('\n') })} />
                 </div>
               )}
               <div className="flex items-center gap-4 text-sm">
                 <label className="flex items-center gap-1.5">
-                  <Switch checked={q.required} onCheckedChange={v => updateQuestion(q, { required: v })} />
+                  <Switch checked={q.required} onCheckedChange={v => patchQuestion(q.id, { required: v })} />
                   إلزامي
                 </label>
                 <label className="flex items-center gap-1.5">
-                  <Switch checked={q.is_active} onCheckedChange={v => updateQuestion(q, { is_active: v })} />
+                  <Switch checked={q.is_active} onCheckedChange={v => patchQuestion(q.id, { is_active: v })} />
                   ظاهر في النموذج
                 </label>
-                {!q.is_active && <Badge variant="outline">معطّل — إجاباته السابقة محفوظة</Badge>}
+                {q._new && <Badge variant="outline">جديد — لم يُحفظ</Badge>}
               </div>
             </div>
           ))}
         </CardContent>
       </Card>
+
+      {/* الاستعراض */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              استعراض {FORM_LABELS[key].label}
+              {dirty && <Badge className="bg-warning text-warning-foreground">يعرض المسودة قبل الحفظ</Badge>}
+            </DialogTitle>
+          </DialogHeader>
+          {key === 'student_register' && <StudentRegisterPreview config={config} questions={activeDraftQuestions} />}
+          {key === 'teacher_agreement' && <TeacherAgreementPreview config={config} questions={activeDraftQuestions} />}
+          {key === 'hosting_feedback' && <HostingFeedbackPreview config={config} questions={activeDraftQuestions} />}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------- محررات صغيرة ----------
+function Field({ label, value, onChange, rows }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {rows
+        ? <Textarea rows={rows} value={value ?? ''} onChange={e => onChange(e.target.value)} />
+        : <Input value={value ?? ''} onChange={e => onChange(e.target.value)} />}
+    </div>
+  );
+}
+function ListEditor({ label, items, onChange }: { label: string; items: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label} <span className="text-muted-foreground text-xs">(سطر لكل بند)</span></Label>
+      <Textarea rows={5} value={items.join('\n')} onChange={e => onChange(e.target.value.split('\n'))} />
     </div>
   );
 }

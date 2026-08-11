@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -46,6 +46,58 @@ import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
 
+// عنوان التبويب حسب الصفحة — «اسم الصفحة مقرأة الوقار»
+const PAGE_TITLES: [string, string][] = [
+  ['/login', 'تسجيل الدخول'],
+  ['/register-teacher', 'اتفاقية المسمعات'],
+  ['/register', 'نموذج تسجيل'],
+  ['/guest/', 'بيانات لقاء الاستضافة'],
+  ['/certificate', 'التحقق من الشهادات'],
+  ['/students', 'الطالبات'],
+  ['/teachers', 'المسمعات'],
+  ['/applicants', 'المتقدمات'],
+  ['/scheduling', 'الجدولة والحجوزات'],
+  ['/recitation', 'التسميع'],
+  ['/attendance', 'الحضور'],
+  ['/exams', 'الاختبارات'],
+  ['/tracks', 'المسارات'],
+  ['/seasons', 'الفصول'],
+  ['/hostings', 'الاستضافات'],
+  ['/pledges', 'التعهدات'],
+  ['/violations', 'المخالفات'],
+  ['/suggestions', 'الاقتراحات'],
+  ['/certificates', 'الشهادات'],
+  ['/reports', 'التقارير'],
+  ['/monthly-report', 'الإحصائية الشهرية'],
+  ['/season-report', 'تقرير نهاية الفصل'],
+  ['/activity-log', 'سجل النشاط'],
+  ['/users', 'المستخدمون'],
+  ['/forms', 'النماذج'],
+  ['/settings', 'الإعدادات'],
+  ['/teacher/availability', 'أوقات توفري'],
+  ['/teacher/tasmee', 'تسجيل التسميع'],
+  ['/teacher/attendance', 'الحضور'],
+  ['/teacher/exams', 'الاختبارات'],
+  ['/teacher/students', 'طالباتي'],
+  ['/teacher/suggestions', 'اقتراحاتي'],
+  ['/teacher', 'جلساتي'],
+  ['/me/sard', 'سردي الذاتي'],
+  ['/me/booking', 'موعدي'],
+  ['/me/history', 'سجلي'],
+  ['/me/pledges', 'تعهداتي'],
+  ['/me/hostings', 'الاستضافات'],
+  ['/me/suggestions', 'اقتراحاتي'],
+  ['/me', 'رحلتي مع القرآن'],
+];
+
+function TitleUpdater() {
+  const { pathname } = useLocation();
+  const match = PAGE_TITLES.find(([prefix]) =>
+    pathname === prefix || pathname.startsWith(prefix + '/') || (prefix.endsWith('/') && pathname.startsWith(prefix)));
+  document.title = match ? `${match[1]} مقرأة الوقار` : 'مقرأة الوقار';
+  return null;
+}
+
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: AppRole[] }) {
   const { user, loading, roles: userRoles, homePath } = useAuth();
   if (loading) {
@@ -81,6 +133,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <TitleUpdater />
         <AuthProvider>
           <Routes>
             {/* عام */}
