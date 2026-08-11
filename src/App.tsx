@@ -22,6 +22,8 @@ import StudentsPage from "./pages/admin/StudentsPage";
 import TeachersPage from "./pages/admin/TeachersPage";
 import ReportsPage from "./pages/admin/ReportsPage";
 import DashboardPage from "./pages/admin/DashboardPage";
+import RegisterPage from "./pages/RegisterPage";
+import ApplicantsPage from "./pages/admin/ApplicantsPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -65,7 +67,7 @@ const App = () => (
           <Routes>
             {/* عام */}
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<Placeholder title="تسجيل الطالبات" />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/register-teacher" element={<Placeholder title="تسجيل المسمعات" />} />
             <Route path="/guest/:token" element={<Placeholder title="بوابة الضيفة" />} />
             <Route path="/certificate" element={<Placeholder title="التحقق من الشهادات" />} />
@@ -77,7 +79,7 @@ const App = () => (
             <Route path="/students" element={<ProtectedRoute roles={['admin']}><StudentsPage /></ProtectedRoute>} />
             <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><Placeholder title="ملف الطالبة" /></ProtectedRoute>} />
             <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><TeachersPage /></ProtectedRoute>} />
-            <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><Placeholder title="المتقدمات" /></ProtectedRoute>} />
+            <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><ApplicantsPage /></ProtectedRoute>} />
             <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><SchedulingPage /></ProtectedRoute>} />
             <Route path="/recitation" element={<ProtectedRoute roles={['admin']}><Placeholder title="التسميع" /></ProtectedRoute>} />
             <Route path="/attendance" element={<ProtectedRoute roles={['admin']}><Placeholder title="الحضور" /></ProtectedRoute>} />
