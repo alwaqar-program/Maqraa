@@ -41,6 +41,7 @@ import GuestHostingPage from "./pages/GuestHostingPage";
 import MonthlyReportPage from "./pages/admin/MonthlyReportPage";
 import SeasonReportPage from "./pages/admin/SeasonReportPage";
 import RegisterTeacherPage from "./pages/RegisterTeacherPage";
+import FormsAdminPage from "./pages/admin/FormsAdminPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -113,6 +114,7 @@ const App = () => (
             <Route path="/season-report" element={<ProtectedRoute roles={['admin', 'report_viewer']}><SeasonReportPage /></ProtectedRoute>} />
             <Route path="/activity-log" element={<ProtectedRoute roles={['admin']}><Placeholder title="سجل النشاط" /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute roles={['admin']}><UsersPage /></ProtectedRoute>} />
+            <Route path="/forms" element={<ProtectedRoute roles={['admin']}><FormsAdminPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
 
             {/* المسمعة */}

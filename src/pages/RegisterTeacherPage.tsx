@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import headerImg from '@/assets/header.png';
+import { useFormSettings } from '@/lib/form-settings';
+import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 const hijriToday = () => {
   try {
@@ -19,6 +21,8 @@ const hijriToday = () => {
 
 /** اتفاقية المسمعات في مقرأة الوقار — الاسم يعد بمثابة توقيع */
 export default function RegisterTeacherPage() {
+  const { config, questions } = useFormSettings('teacher_agreement');
+  const [extra, setExtra] = useState<ExtraAnswers>({});
   const [fullName, setFullName] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [slots, setSlots] = useState<{ weekday: number; start_time: string; end_time: string }[]>([
@@ -37,18 +41,21 @@ export default function RegisterTeacherPage() {
   const hoursError =
     hasInvalidRow ? 'هناك موعد نهايته قبل بدايته' :
     hasOverlap ? 'هناك مواعيد متداخلة في اليوم نفسه' :
-    totalHours < 2 ? 'المجموع أقل من الحد الأدنى (ساعتان أسبوعيًا)' :
-    totalHours > 12 ? 'المجموع يتجاوز الحد الأعلى (12 ساعة أسبوعيًا)' : null;
+    totalHours < config.min_hours ? `المجموع أقل من الحد الأدنى (${config.min_hours} ساعة أسبوعيًا)` :
+    totalHours > config.max_hours ? `المجموع يتجاوز الحد الأعلى (${config.max_hours} ساعة أسبوعيًا)` : null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (hoursError) { toast({ title: hoursError, variant: 'destructive' }); return; }
+    const missing = missingRequired(questions, extra);
+    if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     setSaving(true);
     const { error } = await supabase.from('teacher_agreements').insert({
       full_name: fullName.trim(),
       agreement_date: date,
       agreed_slots: slots,
       notes: notes.trim() || null,
+      ...(Object.keys(extra).length ? { extra_answers: extra } : {}),
     });
     setSaving(false);
     if (error) { toast({ title: 'تعذر إرسال الاتفاقية', description: error.message, variant: 'destructive' }); return; }
@@ -87,29 +94,21 @@ export default function RegisterTeacherPage() {
             </p>
             <div>
               <h3 className="font-display text-lg text-primary mb-1">مدة التعاون مع المقرأة</h3>
-              <p>٦ أشهر، تبدأ من تاريخ الاتفاق مع المسمعة.</p>
+              <p>{config.duration_text}</p>
             </div>
             <div>
               <h3 className="font-display text-lg text-primary mb-1">تلتزم (مقرأة الوقار) تجاه (المسمعات) بـ:</h3>
               <ul className="space-y-1.5 pr-1">
-                <li>✦ الأخلاق الحسنة والثقة والشفافية.</li>
-                <li>✦ إتاحة الفرصة لخدمة كتاب الله وحملته، وما يترتب على ذلك من عظيم الثواب.</li>
-                <li>✦ إطلاع المسمعات على منهج المقرأة وتقديم التوجيه والمعلومات اللازمة لسير العمل، ومتابعة الإشكالات الواردة والسعي في معالجتها دوريًا.</li>
-                <li>✦ منح المسمعة ساعات تطوعية موثقة في منصة التطوع.</li>
+                {config.maqraa_items.map((x, i) => <li key={i}>✦ {x}</li>)}
               </ul>
             </div>
             <div>
               <h3 className="font-display text-lg text-primary mb-1">كما تلتزم (المسمعات) تجاه (مقرأة الوقار) بـ:</h3>
               <ul className="space-y-1.5 pr-1">
-                <li>✦ مراعاة الضوابط الشرعية في كل ما يعد ضمن نطاق المقرأة، والتحلي بأخلاق حامل القرآن وتمثّل القدوة الحسنة للطالبات.</li>
-                <li>✦ حرص المسمعة على الرفق والتيسير والعدل بين الطالبات.</li>
-                <li>✦ الالتزام بالتسميع للطالبات وفق الطريقة المتبعة في المقرأة، مع التدوين في ملف المتابعة.</li>
-                <li>✦ الالتزام بالتسميع للطالبات وفق المواعيد المتفق عليها، بما لا يقل عن ٥ ساعات أسبوعيًا.</li>
-                <li>✦ تبليغ المشرفة حال وجود طارئ يحول دون الالتزام بالموعد المحدد واتخاذ الإجراء المناسب (الاتفاق على موعد آخر مع الطالبات / توكيل من تنوب بالتسميع بالتنسيق مع المشرفة).</li>
-                <li>✦ التحلي بالمرونة والتعاون فيما يحقق مصلحة للمقرأة والطالبات.</li>
+                {config.teacher_items.map((x, i) => <li key={i}>✦ {x}</li>)}
               </ul>
             </div>
-            <p className="text-center">هذا وصلى الله وسلم على نبينا محمد.</p>
+            <p className="text-center">{config.closing_text}</p>
           </CardContent>
         </Card>
 
@@ -120,7 +119,7 @@ export default function RegisterTeacherPage() {
               <div className="space-y-2">
                 <Label htmlFor="name">اسم المسمعة <span className="text-destructive">*</span></Label>
                 <Input id="name" required value={fullName} onChange={e => setFullName(e.target.value)} />
-                <p className="text-xs text-muted-foreground">يعد بمثابة توقيع للموافقة على البنود أعلاه.</p>
+                <p className="text-xs text-muted-foreground">{config.signature_hint}</p>
               </div>
               <div className="space-y-2 max-w-48">
                 <Label htmlFor="date">تاريخ الاتفاقية</Label>
@@ -129,7 +128,7 @@ export default function RegisterTeacherPage() {
               <div className="space-y-2">
                 <Label>المواعيد المتفق عليها للتسميع <span className="text-destructive">*</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  أدخلي أوقاتك المتاحة (يوم ووقت) — بمجموع لا يقل عن ساعتين ولا يزيد على 12 ساعة أسبوعيًا.
+                  أدخلي أوقاتك المتاحة (يوم ووقت) — بمجموع لا يقل عن {config.min_hours} ولا يزيد على {config.max_hours} ساعة أسبوعيًا.
                 </p>
                 <div className="space-y-2">
                   {slots.map((sl, i) => (
@@ -164,6 +163,8 @@ export default function RegisterTeacherPage() {
                   </div>
                 </div>
               </div>
+              <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
+
               <div className="space-y-2">
                 <Label htmlFor="notes">ملاحظات</Label>
                 <Textarea id="notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />

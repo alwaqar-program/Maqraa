@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Presentation, Paperclip, Star, CheckCircle2 } from 'lucide-react';
+import { useFormSettings } from '@/lib/form-settings';
+import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 interface Hosting {
   id: string; title: string; host_name: string; event_date: string | null;
@@ -14,6 +16,8 @@ interface Hosting {
 }
 
 export default function StudentHostingsPage() {
+  const { config, questions } = useFormSettings('hosting_feedback');
+  const [extraByHosting, setExtraByHosting] = useState<Record<string, ExtraAnswers>>({});
   const [studentId, setStudentId] = useState<string | null>(null);
   const [hostings, setHostings] = useState<Hosting[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { rating: number; comment: string }>>({});
@@ -41,8 +45,12 @@ export default function StudentHostingsPage() {
     if (!studentId) return;
     const d = drafts[h.id];
     if (!d?.rating) { toast({ title: 'اختاري تقييمك أولًا', variant: 'destructive' }); return; }
+    const extra = extraByHosting[h.id] ?? {};
+    const missing = missingRequired(questions, extra);
+    if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     const { error } = await supabase.from('hosting_feedback').insert({
       hosting_id: h.id, student_id: studentId, rating: d.rating, comment: d.comment || null,
+      ...(Object.keys(extra).length ? { extra_answers: extra } : {}),
     });
     if (error) { toast({ title: 'تعذر الإرسال', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'شكرًا لتقييمك 🌿' });
@@ -97,7 +105,7 @@ export default function StudentHostingsPage() {
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        <p className="font-medium flex items-center gap-1"><Star size={14} className="text-accent" /> قياس الرضا عن اللقاء</p>
+                        <p className="font-medium flex items-center gap-1"><Star size={14} className="text-accent" /> {config.prompt_label}</p>
                         <div className="flex gap-1" dir="ltr">
                           {[1, 2, 3, 4, 5].map(n => (
                             <button key={n} type="button"
@@ -107,8 +115,10 @@ export default function StudentHostingsPage() {
                             </button>
                           ))}
                         </div>
-                        <Textarea rows={2} placeholder="ملاحظاتك (اختياري)" value={d.comment}
+                        <Textarea rows={2} placeholder={config.comment_placeholder} value={d.comment}
                           onChange={e => setDrafts({ ...drafts, [h.id]: { ...d, comment: e.target.value } })} />
+                        <ExtraQuestions questions={questions} answers={extraByHosting[h.id] ?? {}}
+                          onChange={a => setExtraByHosting({ ...extraByHosting, [h.id]: a })} />
                         <Button size="sm" onClick={() => submit(h)}>إرسال التقييم</Button>
                       </div>
                     )}

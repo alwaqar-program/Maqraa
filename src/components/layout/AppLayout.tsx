@@ -30,6 +30,7 @@ import {
   Award,
   ScrollText,
   Home,
+  FileEdit,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logoAlwaqar from '@/assets/logo-alwaqar.png';
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
   { label: 'الإحصائية الشهرية', href: '/monthly-report', icon: <CalendarDays size={20} />, roles: ['admin', 'report_viewer'] },
   { label: 'سجل النشاط', href: '/activity-log', icon: <ScrollText size={20} />, roles: ['admin'] },
   { label: 'المستخدمون', href: '/users', icon: <Shield size={20} />, roles: ['admin'] },
+  { label: 'النماذج', href: '/forms', icon: <FileEdit size={20} />, roles: ['admin'] },
   { label: 'الإعدادات', href: '/settings', icon: <Settings size={20} />, roles: ['admin'] },
   // المسمعة
   { label: 'جلساتي', href: '/teacher', icon: <Home size={20} />, roles: ['teacher'] },

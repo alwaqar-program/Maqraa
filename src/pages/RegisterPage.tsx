@@ -11,19 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2 } from 'lucide-react';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
+import { useFormSettings } from '@/lib/form-settings';
+import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 interface Track { id: string; name: string; juz_count: number; sort_order: number; }
 
-// المواعيد المتاحة للاختيار: الأحد–الخميس ٥–٧ صباحًا
-const DAY_OPTIONS = [
-  { value: 0, label: 'الأحد ٥–٧ صباحًا' },
-  { value: 1, label: 'الاثنين ٥–٧ صباحًا' },
-  { value: 2, label: 'الثلاثاء ٥–٧ صباحًا' },
-  { value: 3, label: 'الأربعاء ٥–٧ صباحًا' },
-  { value: 4, label: 'الخميس ٥–٧ صباحًا' },
-];
-
 export default function RegisterPage() {
+  const { config, questions } = useFormSettings('student_register');
+  const [extra, setExtra] = useState<ExtraAnswers>({});
   const [tracks, setTracks] = useState<Track[]>([]);
   const [fullName, setFullName] = useState('');
   const [nationalId, setNationalId] = useState('');
@@ -50,6 +45,8 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!pledge) { toast({ title: 'التعهد بالالتزام بنظام الحضور والغياب مطلوب', variant: 'destructive' }); return; }
     if (!trackId) { toast({ title: 'اختاري المسار', variant: 'destructive' }); return; }
+    const missing = missingRequired(questions, extra);
+    if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     setSaving(true);
     const { error } = await supabase.from('applicants').insert({
       full_name: fullName.trim(),
@@ -60,6 +57,7 @@ export default function RegisterPage() {
       preferred_days: days,
       preferred_period: period || null,
       suggestions: suggestions.trim() || null,
+      ...(Object.keys(extra).length ? { extra_answers: extra } : {}),
     });
     setSaving(false);
     if (error) { toast({ title: 'تعذر إرسال التسجيل', description: error.message, variant: 'destructive' }); return; }
@@ -73,9 +71,7 @@ export default function RegisterPage() {
           <CardContent className="pt-10 pb-8 space-y-4">
             <CheckCircle2 size={48} className="mx-auto text-success" />
             <h1 className="text-2xl font-display">وصلنا تسجيلك 🌿</h1>
-            <p className="text-muted-foreground">
-              سيتم توزيع الحلقات وفق الأسبقية بالتسجيل، وسنتواصل معك على جوالك.
-            </p>
+            <p className="text-muted-foreground">{config.success_body}</p>
           </CardContent>
         </Card>
       </div>
@@ -87,10 +83,8 @@ export default function RegisterPage() {
       <div className="max-w-xl mx-auto space-y-6">
         <div className="text-center space-y-4">
           <img src={headerImg} alt="مقرأة الوقار — تعاهدوا القرآن" className="w-full rounded-2xl shadow-sm" />
-          <h1 className="text-2xl font-display">تسجيل طالبات مقرأة الوقار — الفصل الأول</h1>
-          <p className="text-muted-foreground text-sm">
-            غاليتنا، المقرأة استمرارٌ لعهدك مع كتاب الله بعد الختم — «كان عمله ديمة»
-          </p>
+          <h1 className="text-2xl font-display">{config.title}</h1>
+          <p className="text-muted-foreground text-sm">{config.welcome}</p>
         </div>
 
         <Card>
@@ -128,11 +122,9 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label>المواعيد المناسبة</Label>
-                <p className="text-xs text-muted-foreground">
-                  يرجى اختيار المواعيد المناسبة، وسيتم مراعاة الوقت المناسب في توزيع الحلقات وفق الأسبقية بالتسجيل.
-                </p>
+                <p className="text-xs text-muted-foreground">{config.times_note}</p>
                 <div className="grid gap-2">
-                  {DAY_OPTIONS.map(d => (
+                  {config.day_options.map(d => (
                     <Label key={d.value} htmlFor={`day-${d.value}`}
                       className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${days.includes(d.value) ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
                       <Checkbox id={`day-${d.value}`} checked={days.includes(d.value)}
@@ -158,16 +150,16 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="sugg">مقترحاتك وملاحظاتك</Label>
-                <p className="text-xs text-muted-foreground">
-                  غاليتنا طالبة مقرأة الوقار — نسعد باستقبال مقترحاتك وملاحظاتك.
-                </p>
+                <p className="text-xs text-muted-foreground">{config.suggestions_note}</p>
                 <Textarea id="sugg" rows={3} value={suggestions} onChange={e => setSuggestions(e.target.value)} />
               </div>
+
+              <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
 
               <Label htmlFor="pledge"
                 className={`flex items-center gap-2 border rounded-lg px-3 py-3 cursor-pointer transition-colors ${pledge ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
                 <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
-                <span className="text-sm font-medium">أتعهد بالالتزام بنظام الحضور والغياب</span>
+                <span className="text-sm font-medium">{config.pledge_text}</span>
               </Label>
 
               <Button type="submit" className="w-full" disabled={saving}>

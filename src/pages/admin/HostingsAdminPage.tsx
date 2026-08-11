@@ -17,7 +17,7 @@ interface Hosting {
   description: string | null; attachments: string[]; guest_token: string;
   guest_filled_at: string | null; is_published: boolean;
   avg_rating?: number | null; responses?: number;
-  comments?: { student: string; rating: number; comment: string | null }[];
+  comments?: { student: string; rating: number; comment: string | null; extra?: Record<string, any> }[];
 }
 
 export default function HostingsAdminPage() {
@@ -34,7 +34,7 @@ export default function HostingsAdminPage() {
   const fetchAll = useCallback(async () => {
     const [{ data: rows, error }, { data: fb }] = await Promise.all([
       supabase.from('hostings').select('*').order('created_at', { ascending: false }),
-      supabase.from('hosting_feedback').select('hosting_id, rating, comment, students(full_name)'),
+      supabase.from('hosting_feedback').select('hosting_id, rating, comment, extra_answers, students(full_name)'),
     ]);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setHostings((rows || []).map((h: any) => {
@@ -43,7 +43,7 @@ export default function HostingsAdminPage() {
         ...h,
         responses: mine.length,
         avg_rating: mine.length ? Math.round((mine.reduce((a: number, f: any) => a + f.rating, 0) / mine.length) * 10) / 10 : null,
-        comments: mine.map((f: any) => ({ student: f.students?.full_name ?? '—', rating: f.rating, comment: f.comment })),
+        comments: mine.map((f: any) => ({ student: f.students?.full_name ?? '—', rating: f.rating, comment: f.comment, extra: f.extra_answers ?? {} })),
       };
     }));
     setLoading(false);
@@ -196,6 +196,11 @@ export default function HostingsAdminPage() {
                   <span className="text-accent">{'★'.repeat(c.rating)}{'☆'.repeat(5 - c.rating)}</span>
                 </div>
                 {c.comment && <p className="text-sm text-muted-foreground mt-1">{c.comment}</p>}
+                {c.extra && Object.keys(c.extra).length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {Object.values(c.extra).map(v => Array.isArray(v) ? v.join('، ') : v).join(' · ')}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

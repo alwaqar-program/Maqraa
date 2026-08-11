@@ -32,6 +32,7 @@ interface Agreement {
   id: string; full_name: string; agreement_date: string;
   agreed_slots: { weekday: number; start_time: string; end_time: string }[];
   notes: string | null;
+  extra_answers?: Record<string, any>;
 }
 
 export default function TeachersPage() {
@@ -166,6 +167,11 @@ export default function TeachersPage() {
                     </p>
                   )}
                   {a.notes && <p className="text-muted-foreground mt-0.5">ملاحظات: {a.notes}</p>}
+                  {a.extra_answers && Object.keys(a.extra_answers).length > 0 && (
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      إجابات إضافية: {Object.values(a.extra_answers).map(v => Array.isArray(v) ? v.join('، ') : v).join(' · ')}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Button size="sm" variant="outline" className="gap-1" onClick={() => acceptAgreement(a)}>

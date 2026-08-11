@@ -15,6 +15,11 @@ import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Check, X, MessageSquareText } from 'lucide-react';
 import { WEEKDAYS } from '@/lib/schedule';
+import { supabase as sb } from '@/integrations/supabase/client';
+import { FormQuestion } from '@/lib/form-settings';
+import { answerText } from '@/components/forms/ExtraQuestions';
+import { exportToCsv, CsvColumnDef } from '@/lib/csv-utils';
+import { Download } from 'lucide-react';
 
 interface Applicant {
   id: string;
@@ -28,6 +33,7 @@ interface Applicant {
   suggestions: string | null;
   status: 'pending' | 'accepted' | 'rejected';
   created_at: string;
+  extra_answers: Record<string, any>;
   student_id: string | null;
 }
 
@@ -35,6 +41,7 @@ const STATUS_LABEL: Record<string, string> = { pending: 'بانتظار المر
 
 export default function ApplicantsPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [extraQs, setExtraQs] = useState<FormQuestion[]>([]);
   const [tab, setTab] = useUrlState('tab', 'pending');
   const [action, setAction] = useState<{ a: Applicant; type: 'accept' | 'reject' } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +52,10 @@ export default function ApplicantsPage() {
       .select('*, tracks(name)')
       .order('created_at'); // الأسبقية بالتسجيل
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    setApplicants((data || []).map((r: any) => ({ ...r, track_name: r.tracks?.name })));
+    setApplicants((data || []).map((r: any) => ({ ...r, track_name: r.tracks?.name, extra_answers: r.extra_answers ?? {} })));
+    const { data: qs } = await sb.from('form_questions').select('*')
+      .eq('form_key', 'student_register').order('sort_order');
+    setExtraQs((qs || []) as FormQuestion[]);
     setLoading(false);
   }, [toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -92,6 +102,28 @@ export default function ApplicantsPage() {
         <UserPlus className="text-accent" />
         <h1 className="text-2xl font-display">المتقدمات</h1>
         <Badge variant="outline">{applicants.filter(a => a.status === 'pending').length} بانتظار المراجعة</Badge>
+        <Button variant="outline" size="sm" className="gap-1 mr-auto" onClick={() => {
+          const cols: CsvColumnDef[] = [
+            { key: 'full_name', header: 'الاسم' },
+            { key: 'national_id', header: 'الهوية' },
+            { key: 'phone', header: 'الجوال' },
+            { key: 'track_name', header: 'المسار' },
+            { key: 'days_text', header: 'الأيام' },
+            { key: 'period_text', header: 'الفترة' },
+            { key: 'suggestions', header: 'ملاحظات' },
+            { key: 'status', header: 'الحالة' },
+            { key: 'created_at', header: 'سُجّل في', transform: v => String(v).slice(0, 10) },
+            ...extraQs.map(q => ({ key: `q_${q.id}`, header: q.label })),
+          ];
+          exportToCsv(filtered.map(a => ({
+            ...a,
+            days_text: (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، '),
+            period_text: a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '',
+            ...Object.fromEntries(extraQs.map(q => [`q_${q.id}`, answerText(a.extra_answers[q.id])])),
+          })), cols, 'متقدمات-المقرأة.csv');
+        }}>
+          <Download size={14} /> CSV
+        </Button>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} dir="rtl">
@@ -120,6 +152,7 @@ export default function ApplicantsPage() {
                   <TableHead>الأيام (٥–٧ص)</TableHead>
                   <TableHead>الفترة</TableHead>
                   <TableHead>ملاحظات</TableHead>
+                  {extraQs.filter(q => q.is_active).map(q => <TableHead key={q.id}>{q.label}</TableHead>)}
                   <SortableHead label="سُجّل في" sortKey="created" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   {tab === 'pending' && <TableHead />}
                 </TableRow>
@@ -141,6 +174,9 @@ export default function ApplicantsPage() {
                         ? <span title={a.suggestions}><MessageSquareText size={16} className="text-info" /></span>
                         : '—'}
                     </TableCell>
+                    {extraQs.filter(q => q.is_active).map(q => (
+                      <TableCell key={q.id} className="text-sm">{answerText(a.extra_answers[q.id])}</TableCell>
+                    ))}
                     <TableCell className="text-sm text-muted-foreground">{a.created_at.slice(0, 10)}</TableCell>
                     {tab === 'pending' && (
                       <TableCell className="whitespace-nowrap">
