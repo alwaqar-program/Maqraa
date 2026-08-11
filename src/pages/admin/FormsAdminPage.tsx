@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
-import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl } from '@/lib/form-settings';
+import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl, genSlotLabel } from '@/lib/form-settings';
 import { useUrlState } from '@/lib/use-url-state';
 import { WEEKDAYS } from '@/lib/schedule';
 import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
@@ -211,30 +211,40 @@ export default function FormsAdminPage() {
               <Field label="عنوان قسم المواعيد" value={config.section_times_title} onChange={v => patchConfig({ section_times_title: v })} />
               <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
               <div className="space-y-1.5">
-                <Label>خيارات المواعيد المعروضة</Label>
-                {((config.day_options as DayOption[]) ?? []).map((d, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Select value={String(d.value)} onValueChange={v => {
-                      const next = [...config.day_options]; next[i] = { ...d, value: Number(v) };
-                      patchConfig({ day_options: next });
-                    }}>
-                      <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input value={d.label} onChange={e => {
-                      const next = [...config.day_options]; next[i] = { ...d, label: e.target.value };
-                      patchConfig({ day_options: next });
-                    }} />
-                    <button type="button" className="text-muted-foreground hover:text-destructive"
-                      onClick={() => patchConfig({ day_options: config.day_options.filter((_: any, j: number) => j !== i) })}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ))}
+                <Label>خيارات المواعيد المعروضة <span className="text-muted-foreground text-xs">— اختاري اليوم والوقت والنص يُكتب تلقائيًا</span></Label>
+                {((config.day_options as DayOption[]) ?? []).map((d, i) => {
+                  const update = (patch: Partial<DayOption>) => {
+                    const next = [...config.day_options];
+                    const merged = { ...d, ...patch };
+                    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '') || merged.label;
+                    next[i] = merged;
+                    patchConfig({ day_options: next });
+                  };
+                  return (
+                    <div key={i} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
+                      <Select value={String(d.value)} onValueChange={v => update({ value: Number(v) })}>
+                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Input type="time" className="w-28" value={d.start ?? ''}
+                        onChange={e => update({ start: e.target.value })} />
+                      <span className="text-muted-foreground text-sm">إلى</span>
+                      <Input type="time" className="w-28" value={d.end ?? ''}
+                        onChange={e => update({ end: e.target.value })} />
+                      <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
+                        {d.label || '—'}
+                      </span>
+                      <button type="button" className="text-muted-foreground hover:text-destructive mr-auto"
+                        onClick={() => patchConfig({ day_options: config.day_options.filter((_: any, j: number) => j !== i) })}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  );
+                })}
                 <Button type="button" variant="outline" size="sm" className="gap-1"
-                  onClick={() => patchConfig({ day_options: [...(config.day_options ?? []), { value: 0, label: 'الأحد ٥–٧ صباحًا' }] })}>
+                  onClick={() => patchConfig({ day_options: [...(config.day_options ?? []), { value: 0, start: '05:00', end: '07:00', label: genSlotLabel(0, '05:00', '07:00') }] })}>
                   <Plus size={14} /> إضافة خيار
                 </Button>
               </div>

@@ -16,7 +16,30 @@ export interface FormQuestion {
   is_active: boolean;
 }
 
-export interface DayOption { value: number; label: string; }
+export interface DayOption { value: number; label: string; start?: string; end?: string; }
+
+const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+const arNum = (n: number | string) => String(n).replace(/\d/g, d => AR_DIGITS[Number(d)]);
+const WEEKDAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+/** "05:00" → {h12: '٥', period: 'صباحًا'} مع الدقائق إن وجدت */
+function arTime(t: string): { text: string; period: string } {
+  const [h, m] = t.split(':').map(Number);
+  const period = h < 12 ? 'صباحًا' : 'مساءً';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const text = m ? `${arNum(h12)}:${arNum(String(m).padStart(2, '0'))}` : arNum(h12);
+  return { text, period };
+}
+
+/** يولد نص الموعد تلقائيًا: «الأحد ٥–٧ صباحًا» أو «الأحد ١١ صباحًا – ١ مساءً» */
+export function genSlotLabel(weekday: number, start: string, end: string): string {
+  if (!start || !end) return WEEKDAY_NAMES[weekday] ?? '';
+  const a = arTime(start), b = arTime(end);
+  const times = a.period === b.period
+    ? `${a.text}–${b.text} ${a.period}`
+    : `${a.text} ${a.period} – ${b.text} ${b.period}`;
+  return `${WEEKDAY_NAMES[weekday]} ${times}`;
+}
 
 export const FORM_DEFAULTS = {
   student_register: {
