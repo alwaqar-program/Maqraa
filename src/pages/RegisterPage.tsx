@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, X, LayoutGrid, CalendarDays, ChevronUp, ChevronDown } from 'lucide-react';
+import { CheckCircle2, X, LayoutGrid, CalendarDays, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { WEEKDAYS } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
@@ -29,6 +29,7 @@ export default function RegisterPage() {
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);   // "weekday|label"
   const [activeDay, setActiveDay] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [period, setPeriod] = useState<'morning' | 'evening' | ''>('');
   const [suggestions, setSuggestions] = useState('');
   const [saving, setSaving] = useState(false);
@@ -242,7 +243,21 @@ export default function RegisterPage() {
                       مواعيدك بترتيب الأولوية — <b>الأول هو الأنسب لك</b>، ورتبيها بالأسهم:
                     </p>
                     {selectedSlots.map((k, i) => (
-                      <div key={k} className="flex items-center gap-2 bg-background border rounded-lg px-2.5 py-1.5">
+                      <div key={k} draggable
+                        onDragStart={() => setDragIndex(i)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                          e.preventDefault();
+                          if (dragIndex === null || dragIndex === i) return;
+                          const next = [...selectedSlots];
+                          const [moved] = next.splice(dragIndex, 1);
+                          next.splice(i, 0, moved);
+                          setSelectedSlots(next);
+                          setDragIndex(null);
+                        }}
+                        onDragEnd={() => setDragIndex(null)}
+                        className={`flex items-center gap-2 bg-background border rounded-lg px-2.5 py-1.5 cursor-grab active:cursor-grabbing transition-opacity ${dragIndex === i ? 'opacity-40' : ''}`}>
+                        <GripVertical size={14} className="text-muted-foreground/50 shrink-0" aria-hidden="true" />
                         <span className="w-6 h-6 shrink-0 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center">
                           {(i + 1).toLocaleString('ar-EG')}
                         </span>
