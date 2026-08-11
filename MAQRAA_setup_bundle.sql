@@ -1581,6 +1581,7 @@ WHERE tgname IN ('trg_log_self','trg_log_tasmee','trg_log_attendance','trg_log_b
 CREATE TABLE IF NOT EXISTS public.applicants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name text NOT NULL,
+  national_id text,
   phone text NOT NULL,
   attendance_pledge boolean NOT NULL DEFAULT false,   -- أتعهد بالالتزام بنظام الحضور والغياب
   track_id uuid REFERENCES public.tracks(id),
@@ -1595,6 +1596,7 @@ CREATE TABLE IF NOT EXISTS public.applicants (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.applicants ADD COLUMN IF NOT EXISTS national_id text;
 CREATE INDEX IF NOT EXISTS idx_applicants_status ON public.applicants (status, created_at);
 ALTER TABLE public.applicants ENABLE ROW LEVEL SECURITY;
 

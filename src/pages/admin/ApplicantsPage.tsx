@@ -17,6 +17,7 @@ interface Applicant {
   id: string;
   full_name: string;
   phone: string;
+  national_id: string | null;
   track_id: string | null;
   track_name?: string;
   preferred_days: number[];
@@ -53,7 +54,7 @@ export default function ApplicantsPage() {
     if (type === 'accept') {
       // القبول = إنشاء ملف طالبة مربوط بمسارها (حساب الدخول يُنشأ من صفحة المستخدمين)
       const { data: student, error: stErr } = await supabase.from('students').insert({
-        full_name: a.full_name, national_id: `APP-${a.id.slice(0, 8)}`,
+        full_name: a.full_name, national_id: a.national_id || `APP-${a.id.slice(0, 8)}`,
         phone: a.phone, track_id: a.track_id,
       }).select('id').single();
       if (stErr) { toast({ title: 'تعذر إنشاء الطالبة', description: stErr.message, variant: 'destructive' }); return; }
@@ -102,6 +103,7 @@ export default function ApplicantsPage() {
                 <TableRow>
                   <TableHead>#</TableHead>
                   <TableHead>الاسم</TableHead>
+                  <TableHead>الهوية</TableHead>
                   <TableHead>الجوال</TableHead>
                   <TableHead>المسار</TableHead>
                   <TableHead>الأيام (٥–٧ص)</TableHead>
@@ -116,6 +118,7 @@ export default function ApplicantsPage() {
                   <TableRow key={a.id}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium">{a.full_name}</TableCell>
+                    <TableCell dir="ltr">{a.national_id ?? '—'}</TableCell>
                     <TableCell dir="ltr">{a.phone}</TableCell>
                     <TableCell>{a.track_name ?? '—'}</TableCell>
                     <TableCell className="text-sm">

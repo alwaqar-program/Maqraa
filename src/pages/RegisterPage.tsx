@@ -25,6 +25,7 @@ const DAY_OPTIONS = [
 export default function RegisterPage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [fullName, setFullName] = useState('');
+  const [nationalId, setNationalId] = useState('');
   const [phone, setPhone] = useState('');
   const [pledge, setPledge] = useState(false);
   const [trackId, setTrackId] = useState('');
@@ -51,6 +52,7 @@ export default function RegisterPage() {
     setSaving(true);
     const { error } = await supabase.from('applicants').insert({
       full_name: fullName.trim(),
+      national_id: nationalId.trim(),
       phone: phone.trim(),
       attendance_pledge: pledge,
       track_id: trackId,
@@ -96,6 +98,12 @@ export default function RegisterPage() {
               <div className="space-y-2">
                 <Label htmlFor="name">الاســم الربــاعـي <span className="text-destructive">*</span></Label>
                 <Input id="name" required value={fullName} onChange={e => setFullName(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nid">رقم الهوية <span className="text-destructive">*</span></Label>
+                <Input id="nid" required dir="ltr" inputMode="numeric" maxLength={10}
+                  value={nationalId} onChange={e => setNationalId(e.target.value)} />
               </div>
 
               <div className="space-y-2">
