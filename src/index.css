@@ -183,4 +183,9 @@
   }
   /* لا تقطع الصفوف بين الصفحات قدر الإمكان */
   .print-area tr { break-inside: avoid; }
+  /* أبقِ ألوان الخلفيات في الطباعة (الإحصائية الشهرية وغيرها) */
+  .print-area, .print-area * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

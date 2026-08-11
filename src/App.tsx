@@ -38,6 +38,7 @@ import SuggestionsAdminPage from "./pages/admin/SuggestionsAdminPage";
 import HostingsAdminPage from "./pages/admin/HostingsAdminPage";
 import StudentHostingsPage from "./pages/student/StudentHostingsPage";
 import GuestHostingPage from "./pages/GuestHostingPage";
+import MonthlyReportPage from "./pages/admin/MonthlyReportPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -106,6 +107,7 @@ const App = () => (
             <Route path="/suggestions" element={<ProtectedRoute roles={['admin', 'supervisor']}><SuggestionsAdminPage /></ProtectedRoute>} />
             <Route path="/certificates" element={<ProtectedRoute roles={['admin']}><Placeholder title="الشهادات" /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute roles={['admin', 'report_viewer']}><ReportsPage /></ProtectedRoute>} />
+            <Route path="/monthly-report" element={<ProtectedRoute roles={['admin', 'report_viewer']}><MonthlyReportPage /></ProtectedRoute>} />
             <Route path="/activity-log" element={<ProtectedRoute roles={['admin']}><Placeholder title="سجل النشاط" /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute roles={['admin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
