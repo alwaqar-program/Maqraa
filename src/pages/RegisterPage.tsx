@@ -196,17 +196,17 @@ export default function RegisterPage() {
                   </div>
                 )}
 
-                <Label htmlFor="pledge" className={pill(pledge) + ' py-3.5'}>
-                  <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
-                  <span className="text-sm font-medium">{config.pledge_text}</span>
-                </Label>
-
                 {config.important_notes?.trim() && (
                   <div className="border rounded-xl p-4 space-y-1 bg-muted/40">
                     <p className="font-display text-primary">ملاحظات مهمة</p>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.important_notes}</p>
                   </div>
                 )}
+
+                <Label htmlFor="pledge" className={pill(pledge) + ' py-3.5'}>
+                  <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
+                  <span className="text-sm font-medium">{config.pledge_text}</span>
+                </Label>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="sugg">مقترحاتك وملاحظاتك <span className="text-muted-foreground text-xs font-normal">— {config.suggestions_note}</span></Label>
