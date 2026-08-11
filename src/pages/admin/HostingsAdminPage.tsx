@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Presentation, LinkIcon, Paperclip, Star, X } from 'lucide-react';
+import { Plus, Pencil, Presentation, LinkIcon, Paperclip, Star, X, Download, Printer } from 'lucide-react';
+import { exportToCsv, CsvColumnDef } from '@/lib/csv-utils';
 
 interface Hosting {
   id: string; title: string; host_name: string; event_date: string | null;
@@ -98,6 +99,22 @@ export default function HostingsAdminPage() {
   const attachmentUrl = (path: string) =>
     supabase.storage.from('hostings').getPublicUrl(path).data.publicUrl;
 
+  // تصدير كل اللقاءات CSV
+  const csvColumns: CsvColumnDef[] = [
+    { key: 'title', header: 'عنوان اللقاء' },
+    { key: 'host_name', header: 'قدّمتها' },
+    { key: 'event_date', header: 'التاريخ' },
+    { key: 'avg_rating', header: 'متوسط الرضا (من 5)' },
+    { key: 'responses', header: 'عدد التقييمات' },
+    { key: 'attachments_count', header: 'المرفقات' },
+  ];
+  const exportAll = () =>
+    exportToCsv(
+      hostings.map(h => ({ ...h, attachments_count: h.attachments.length })),
+      csvColumns,
+      'لقاءات-مقرأة-الوقار.csv'
+    );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -105,7 +122,15 @@ export default function HostingsAdminPage() {
           <Presentation className="text-accent" />
           <h1 className="text-2xl font-display">الاستضافات</h1>
         </div>
-        <Button onClick={openCreate}><Plus size={16} className="ml-1" /> استضافة جديدة</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-1" onClick={exportAll}>
+            <Download size={15} /> تصدير كل اللقاءات
+          </Button>
+          <Button variant="outline" className="gap-1" onClick={() => window.print()}>
+            <Printer size={15} /> PDF
+          </Button>
+          <Button onClick={openCreate}><Plus size={16} className="ml-1" /> استضافة جديدة</Button>
+        </div>
       </div>
 
       {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : hostings.length === 0 ? (
@@ -113,7 +138,7 @@ export default function HostingsAdminPage() {
           لا استضافات بعد — أنشئي الأولى أو أرسلي رابط التعبئة للضيفة.
         </CardContent></Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="print-area grid gap-4 md:grid-cols-2">
           {hostings.map(h => (
             <Card key={h.id} className={!h.is_published ? 'opacity-60' : ''}>
               <CardHeader className="pb-2">
