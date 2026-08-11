@@ -119,11 +119,10 @@ CREATE POLICY "Admins manage tracks" ON public.tracks
 INSERT INTO public.tracks (name, juz_count, quota_pages_per_season, sort_order)
 SELECT v.name, v.juz, v.pages, v.ord
 FROM (VALUES
-  ('خمسة أجزاء',  5.0,  100.0, 1),
-  ('عشرة أجزاء', 10.0,  200.0, 2),
-  ('عشرون جزءًا', 20.0,  400.0, 3),
-  ('ختمة',       30.0,  600.0, 4),
-  ('ختمتان',     60.0, 1200.0, 5)
+  ('خمسة أجزاء (٧ص في الأسبوع)',   5.0,  100.0, 1),
+  ('عشرة أجزاء (١٤ص في الأسبوع)', 10.0,  200.0, 2),
+  ('عشرون جزء (٢٩ص في الأسبوع)',  20.0,  400.0, 3),
+  ('ختمة (٤٣ص في الأسبوع)',       30.0,  600.0, 4)
 ) AS v(name, juz, pages, ord)
 WHERE NOT EXISTS (SELECT 1 FROM public.tracks);
 
@@ -2363,6 +2362,18 @@ CREATE POLICY "Admins delete form assets" ON storage.objects
   USING (bucket_id = 'form-assets' AND public.has_role(auth.uid(), 'admin'));
 
 SELECT 'form assets bucket ready' AS status;
+-- ============================================================
+-- 23_tracks_rename.sql — أسماء المسارات المعتمدة بنصابها الأسبوعي
+--   خمسة أجزاء (٧ص في الأسبوع) · عشرة أجزاء (١٤ص) ·
+--   عشرون جزء (٢٩ص) · ختمة (٤٣ص) — وإيقاف مسار الختمتين.
+-- ============================================================
+UPDATE public.tracks SET name = 'خمسة أجزاء (٧ص في الأسبوع)'   WHERE juz_count = 5;
+UPDATE public.tracks SET name = 'عشرة أجزاء (١٤ص في الأسبوع)' WHERE juz_count = 10;
+UPDATE public.tracks SET name = 'عشرون جزء (٢٩ص في الأسبوع)'  WHERE juz_count = 20;
+UPDATE public.tracks SET name = 'ختمة (٤٣ص في الأسبوع)'       WHERE juz_count = 30;
+UPDATE public.tracks SET is_active = false                     WHERE juz_count = 60;
+
+SELECT name, juz_count, quota_pages_per_season, is_active FROM public.tracks ORDER BY sort_order;
 -- ============================================================
 -- 90_seed_dev.sql — مقرأة الوقار (بيئة تطوير فقط — لا يُنفَّذ في الإنتاج)
 -- فصل حالي + 3 مسمعات بفتحات + 12 طالبة بحجوزات + أسبوعان من السجلات.

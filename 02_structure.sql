@@ -28,11 +28,10 @@ CREATE POLICY "Admins manage tracks" ON public.tracks
 INSERT INTO public.tracks (name, juz_count, quota_pages_per_season, sort_order)
 SELECT v.name, v.juz, v.pages, v.ord
 FROM (VALUES
-  ('خمسة أجزاء',  5.0,  100.0, 1),
-  ('عشرة أجزاء', 10.0,  200.0, 2),
-  ('عشرون جزءًا', 20.0,  400.0, 3),
-  ('ختمة',       30.0,  600.0, 4),
-  ('ختمتان',     60.0, 1200.0, 5)
+  ('خمسة أجزاء (٧ص في الأسبوع)',   5.0,  100.0, 1),
+  ('عشرة أجزاء (١٤ص في الأسبوع)', 10.0,  200.0, 2),
+  ('عشرون جزء (٢٩ص في الأسبوع)',  20.0,  400.0, 3),
+  ('ختمة (٤٣ص في الأسبوع)',       30.0,  600.0, 4)
 ) AS v(name, juz, pages, ord)
 WHERE NOT EXISTS (SELECT 1 FROM public.tracks);
 
