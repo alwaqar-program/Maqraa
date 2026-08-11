@@ -29,6 +29,7 @@ interface Applicant {
   track_id: string | null;
   track_name?: string;
   preferred_days: number[];
+  preferred_slots?: string[];
   preferred_period: string | null;
   suggestions: string | null;
   status: 'pending' | 'accepted' | 'rejected';
@@ -117,7 +118,7 @@ export default function ApplicantsPage() {
           ];
           exportToCsv(filtered.map(a => ({
             ...a,
-            days_text: (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، '),
+            days_text: (a.preferred_slots?.length ? a.preferred_slots : (a.preferred_days || []).map(d => WEEKDAYS[d])).join('، '),
             period_text: a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '',
             ...Object.fromEntries(extraQs.map(q => [`q_${q.id}`, answerText(a.extra_answers[q.id])])),
           })), cols, 'متقدمات-المقرأة.csv');
@@ -166,7 +167,7 @@ export default function ApplicantsPage() {
                     <TableCell dir="ltr">{a.phone}</TableCell>
                     <TableCell>{a.track_name ?? '—'}</TableCell>
                     <TableCell className="text-sm">
-                      {(a.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}
+                      {(a.preferred_slots?.length ? a.preferred_slots : (a.preferred_days || []).map(d => WEEKDAYS[d])).join('، ') || '—'}
                     </TableCell>
                     <TableCell>{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : '—'}</TableCell>
                     <TableCell>

@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, X, LayoutGrid, CalendarDays } from 'lucide-react';
+import { WEEKDAYS } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
 import { useFormSettings, headerUrl } from '@/lib/form-settings';
@@ -25,7 +26,9 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [pledge, setPledge] = useState(false);
   const [trackId, setTrackId] = useState('');
-  const [days, setDays] = useState<number[]>([]);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);   // "weekday|label"
+  const [activeDay, setActiveDay] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [period, setPeriod] = useState<'morning' | 'evening' | ''>('');
   const [suggestions, setSuggestions] = useState('');
   const [saving, setSaving] = useState(false);
@@ -38,8 +41,17 @@ export default function RegisterPage() {
       .then(({ data }) => setTracks(data || []));
   }, []);
 
-  const toggleDay = (d: number) =>
-    setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+  const slotKey = (d: { value: number; label: string }) => `${d.value}|${d.label}`;
+  const toggleSlot = (d: { value: number; label: string }) =>
+    setSelectedSlots(prev => prev.includes(slotKey(d))
+      ? prev.filter(x => x !== slotKey(d))
+      : [...prev, slotKey(d)]);
+
+  // الأيام التي لها مواعيد معروضة (فريدة وبترتيب الأسبوع)
+  const availableDays = [...new Set(config.day_options.map(d => d.value))].sort((a, b) => a - b);
+  const visibleOptions = showAll || activeDay === null
+    ? config.day_options
+    : config.day_options.filter(d => d.value === activeDay);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +66,8 @@ export default function RegisterPage() {
       phone: phone.trim(),
       attendance_pledge: pledge,
       track_id: trackId,
-      preferred_days: days,
+      preferred_days: [...new Set(selectedSlots.map(k => Number(k.split('|')[0])))].sort(),
+      preferred_slots: selectedSlots.map(k => k.split('|').slice(1).join('|')),
       preferred_period: period || null,
       suggestions: suggestions.trim() || null,
       ...(Object.keys(extra).length ? { extra_answers: extra } : {}),
@@ -161,15 +174,66 @@ export default function RegisterPage() {
               {/* ۞ مواعيدك */}
               <section className="px-5 sm:px-8 py-6 space-y-4">
                 <SectionHead title="مواعيدك" hint={config.times_note} />
-                <div className="grid sm:grid-cols-2 gap-2.5">
-                  {config.day_options.map(d => (
-                    <Label key={d.value} htmlFor={`day-${d.value}`} className={pill(days.includes(d.value))}>
-                      <Checkbox id={`day-${d.value}`} checked={days.includes(d.value)}
-                        onCheckedChange={() => toggleDay(d.value)} />
-                      <span className="text-sm">{d.label}</span>
-                    </Label>
-                  ))}
+
+                {/* اختيار اليوم أولا */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {availableDays.map(w => {
+                    const count = selectedSlots.filter(k => k.startsWith(`${w}|`)).length;
+                    const active = !showAll && activeDay === w;
+                    return (
+                      <button key={w} type="button"
+                        onClick={() => { setActiveDay(w); setShowAll(false); }}
+                        className={`relative rounded-full px-4 py-1.5 text-sm border transition-colors ${
+                          active ? 'bg-primary text-primary-foreground border-primary'
+                                 : 'border-border hover:border-accent/60 hover:bg-accent/5'}`}>
+                        {WEEKDAYS[w]}
+                        {count > 0 && (
+                          <span className="absolute -top-1.5 -left-1.5 bg-accent text-accent-foreground text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  <button type="button" onClick={() => { setShowAll(!showAll); if (!showAll) setActiveDay(null); }}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs border transition-colors ${
+                      showAll ? 'bg-primary text-primary-foreground border-primary' : 'border-dashed border-border text-muted-foreground hover:border-accent/60'}`}>
+                    {showAll ? <CalendarDays size={13} /> : <LayoutGrid size={13} />}
+                    {showAll ? 'عرض حسب اليوم' : 'عرض كل المواعيد'}
+                  </button>
                 </div>
+
+                {/* أوقات اليوم المختار (أو الكل) */}
+                {(showAll || activeDay !== null) ? (
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    {visibleOptions.map((d, i) => (
+                      <Label key={`${d.value}-${i}`} htmlFor={`slot-${d.value}-${i}`}
+                        className={pill(selectedSlots.includes(slotKey(d)))}>
+                        <Checkbox id={`slot-${d.value}-${i}`} checked={selectedSlots.includes(slotKey(d))}
+                          onCheckedChange={() => toggleSlot(d)} />
+                        <span className="text-sm">{d.label}</span>
+                      </Label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground border border-dashed rounded-xl px-4 py-3 text-center">
+                    اختاري يومًا لعرض مواعيده المتاحة — أو «عرض كل المواعيد»
+                  </p>
+                )}
+
+                {/* مختاراتك */}
+                {selectedSlots.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-xs text-muted-foreground">مواعيدك المختارة:</span>
+                    {selectedSlots.map(k => (
+                      <span key={k} className="inline-flex items-center gap-1 bg-accent/15 border border-accent/40 rounded-full px-2.5 py-0.5 text-xs">
+                        {k.split('|').slice(1).join('|')}
+                        <button type="button" onClick={() => setSelectedSlots(selectedSlots.filter(x => x !== k))}
+                          className="hover:text-destructive"><X size={11} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center gap-3 flex-wrap">
                   <Label className="text-sm text-muted-foreground shrink-0">الفترة الأنسب لك:</Label>
                   <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-2.5">
