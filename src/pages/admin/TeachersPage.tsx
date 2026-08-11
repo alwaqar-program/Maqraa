@@ -12,7 +12,7 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, GraduationCap } from 'lucide-react';
+import { Plus, Pencil, GraduationCap, FileSignature, Check, X } from 'lucide-react';
 
 interface Teacher {
   id: string;
@@ -27,8 +27,14 @@ interface Teacher {
   booked?: number;
 }
 
+interface Agreement {
+  id: string; full_name: string; agreement_date: string;
+  agreed_times: string | null; notes: string | null;
+}
+
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
@@ -36,11 +42,13 @@ export default function TeachersPage() {
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
-    const [{ data: rows, error }, { data: hours }, { data: bookings }] = await Promise.all([
+    const [{ data: rows, error }, { data: hours }, { data: bookings }, { data: agr }] = await Promise.all([
       supabase.from('teachers').select('*').order('full_name'),
       supabase.from('v_teacher_weekly_hours').select('*'),
       supabase.from('bookings').select('slot_id, status, availability_slots(teacher_id)').eq('status', 'active'),
+      supabase.from('teacher_agreements').select('*').eq('status', 'pending').order('created_at'),
     ]);
+    setAgreements(agr || []);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setTeachers((rows || []).map((t: any) => ({
       ...t,
@@ -95,6 +103,25 @@ export default function TeachersPage() {
     fetchAll();
   };
 
+  // قبول اتفاقية موقعة → إنشاء ملف مسمعة
+  const acceptAgreement = async (a: Agreement) => {
+    const { data: teacher, error: tErr } = await supabase.from('teachers')
+      .insert({ full_name: a.full_name }).select('id').single();
+    if (tErr) { toast({ title: 'خطأ', description: tErr.message, variant: 'destructive' }); return; }
+    const { error } = await supabase.from('teacher_agreements')
+      .update({ status: 'accepted', teacher_id: teacher.id, reviewed_at: new Date().toISOString() })
+      .eq('id', a.id);
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else toast({ title: `قُبلت ${a.full_name} — أكملي بياناتها وأنشئي حسابها من صفحة المستخدمين` });
+    fetchAll();
+  };
+  const rejectAgreement = async (a: Agreement) => {
+    const { error } = await supabase.from('teacher_agreements')
+      .update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', a.id);
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else fetchAll();
+  };
+
   const toggleActive = async (t: Teacher) => {
     const { error } = await supabase.from('teachers').update({ is_active: !t.is_active }).eq('id', t.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
@@ -111,6 +138,35 @@ export default function TeachersPage() {
         </div>
         <Button onClick={openCreate}><Plus size={16} className="ml-1" /> مسمعة جديدة</Button>
       </div>
+
+      {agreements.length > 0 && (
+        <Card className="border-accent/50">
+          <CardContent className="pt-5 space-y-3">
+            <p className="font-medium flex items-center gap-2">
+              <FileSignature size={17} className="text-accent" />
+              اتفاقيات موقعة بانتظار الاعتماد ({agreements.length})
+            </p>
+            {agreements.map(a => (
+              <div key={a.id} className="flex items-start justify-between gap-3 border-b last:border-0 pb-3 text-sm">
+                <div>
+                  <b>{a.full_name}</b>
+                  <span className="text-muted-foreground"> — وقّعت في {a.agreement_date}</span>
+                  {a.agreed_times && <p className="text-muted-foreground mt-0.5">المواعيد: {a.agreed_times}</p>}
+                  {a.notes && <p className="text-muted-foreground mt-0.5">ملاحظات: {a.notes}</p>}
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() => acceptAgreement(a)}>
+                    <Check size={13} /> قبول
+                  </Button>
+                  <Button size="sm" variant="ghost" className="gap-1 text-destructive" onClick={() => rejectAgreement(a)}>
+                    <X size={13} /> رفض
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">

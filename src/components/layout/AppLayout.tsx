@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -98,6 +98,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // أغلق القائمة الجوّالة عند أي تنقّل — يمنع بقاء طبقة التعتيم عالقة فوق الصفحة
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const filteredItems = navItems.filter(item => item.roles.some(r => roles.includes(r)));
 

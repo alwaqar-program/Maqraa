@@ -40,6 +40,7 @@ import StudentHostingsPage from "./pages/student/StudentHostingsPage";
 import GuestHostingPage from "./pages/GuestHostingPage";
 import MonthlyReportPage from "./pages/admin/MonthlyReportPage";
 import SeasonReportPage from "./pages/admin/SeasonReportPage";
+import RegisterTeacherPage from "./pages/RegisterTeacherPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -84,7 +85,7 @@ const App = () => (
             {/* عام */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/register-teacher" element={<Placeholder title="تسجيل المسمعات" />} />
+            <Route path="/register-teacher" element={<RegisterTeacherPage />} />
             <Route path="/guest/:token" element={<GuestHostingPage />} />
             <Route path="/certificate" element={<Placeholder title="التحقق من الشهادات" />} />
 
