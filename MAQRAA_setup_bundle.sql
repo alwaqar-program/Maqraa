@@ -1632,6 +1632,349 @@ CREATE POLICY "Anon read active tracks" ON public.tracks
 
 SELECT 'applicants ready' AS status;
 -- ============================================================
+-- 10_exams_pledges_users.sql — مقرأة الوقار
+-- الاختبارات + التعهدات + دالة عرض المستخدمين للإدارة + قيم إعدادات إضافية.
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- الاختبارات
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.exams (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  teacher_id uuid REFERENCES public.teachers(id),
+  season_id uuid REFERENCES public.seasons(id),
+  date date NOT NULL DEFAULT current_date,
+  title text NOT NULL,                          -- مثال: اختبار الجزء الأول
+  score numeric NOT NULL CHECK (score >= 0),
+  max_score numeric NOT NULL DEFAULT 100 CHECK (max_score > 0),
+  notes text,
+  is_deleted boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (score <= max_score)
+);
+CREATE INDEX IF NOT EXISTS idx_exams_student ON public.exams (student_id, date);
+ALTER TABLE public.exams ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.exams_before()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  NEW.updated_at := now();
+  IF NEW.season_id IS NULL THEN
+    SELECT id INTO NEW.season_id FROM public.seasons WHERE is_current LIMIT 1;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_exams_before ON public.exams;
+CREATE TRIGGER trg_exams_before BEFORE INSERT OR UPDATE ON public.exams
+  FOR EACH ROW EXECUTE FUNCTION public.exams_before();
+
+DROP POLICY IF EXISTS "Students read own exams" ON public.exams;
+CREATE POLICY "Students read own exams" ON public.exams
+  FOR SELECT TO authenticated USING (student_id = public.current_student_id());
+DROP POLICY IF EXISTS "Teachers manage own exams" ON public.exams;
+CREATE POLICY "Teachers manage own exams" ON public.exams
+  FOR ALL TO authenticated
+  USING (teacher_id = public.current_teacher_id())
+  WITH CHECK (teacher_id = public.current_teacher_id() AND public.teacher_has_active_booking(student_id));
+DROP POLICY IF EXISTS "Supervisors read scoped exams" ON public.exams;
+CREATE POLICY "Supervisors read scoped exams" ON public.exams
+  FOR SELECT TO authenticated USING (public.student_in_supervisor_scope(student_id));
+DROP POLICY IF EXISTS "Admins manage exams" ON public.exams;
+CREATE POLICY "Admins manage exams" ON public.exams
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+-- ------------------------------------------------------------
+-- التعهدات: قوالب تعتمدها الإدارة وتوقّعها الطالبة
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.pledge_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  body text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.pledge_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.student_pledges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  template_id uuid NOT NULL REFERENCES public.pledge_templates(id) ON DELETE CASCADE,
+  signed_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (student_id, template_id)
+);
+ALTER TABLE public.student_pledges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated read active templates" ON public.pledge_templates;
+CREATE POLICY "Authenticated read active templates" ON public.pledge_templates
+  FOR SELECT TO authenticated USING (is_active = true OR public.has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "Admins manage templates" ON public.pledge_templates;
+CREATE POLICY "Admins manage templates" ON public.pledge_templates
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+DROP POLICY IF EXISTS "Students sign own pledges" ON public.student_pledges;
+CREATE POLICY "Students sign own pledges" ON public.student_pledges
+  FOR INSERT TO authenticated WITH CHECK (student_id = public.current_student_id());
+DROP POLICY IF EXISTS "Students read own pledges" ON public.student_pledges;
+CREATE POLICY "Students read own pledges" ON public.student_pledges
+  FOR SELECT TO authenticated USING (student_id = public.current_student_id());
+DROP POLICY IF EXISTS "Admins manage student pledges" ON public.student_pledges;
+CREATE POLICY "Admins manage student pledges" ON public.student_pledges
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+-- تعهد افتراضي (نص التسجيل المعتمد)
+INSERT INTO public.pledge_templates (title, body)
+SELECT 'تعهد الحضور والغياب',
+       'أتعهد بالالتزام بنظام الحضور والغياب في مقرأة الوقار، وأن أحافظ على موعدي الأسبوعي الثابت طوال الفصل.'
+WHERE NOT EXISTS (SELECT 1 FROM public.pledge_templates WHERE title = 'تعهد الحضور والغياب');
+
+-- ------------------------------------------------------------
+-- عرض المستخدمين للإدارة (auth.users لا يُقرأ مباشرة من الواجهة)
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_list_users()
+RETURNS TABLE (id uuid, email text, created_at timestamptz, last_sign_in_at timestamptz)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.has_role(auth.uid(), 'admin') THEN
+    RAISE EXCEPTION 'admins only';
+  END IF;
+  RETURN QUERY
+    SELECT u.id, u.email::text, u.created_at, u.last_sign_in_at
+    FROM auth.users u ORDER BY u.created_at;
+END $$;
+
+SELECT 'exams + pledges + users ready' AS status;
+-- ============================================================
+-- 11_auto_absence.sql — الغياب التلقائي
+-- القاعدة المعتمدة: أي طالبة لم تُسمِّع في يومها الأسبوعي المحجوز
+-- يُسجَّل لها غياب تلقائي (بدون عذر) ويدخل عدّاد الغيابات فورًا،
+-- وإذا حوّلته الإدارة إلى «بعذر» خرج من العدّاد.
+-- ============================================================
+
+-- فحص يوم معيّن: حجز نشط يومُه = يوم التاريخ، ولا تسميع ولا تحضير مسجل → غياب
+CREATE OR REPLACE FUNCTION public.auto_mark_absences(p_date date DEFAULT current_date)
+RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_count int := 0;
+BEGIN
+  -- تُستدعى من الجدولة أو من الإدارة فقط
+  IF auth.uid() IS NOT NULL AND NOT public.has_role(auth.uid(), 'admin') THEN
+    RAISE EXCEPTION 'admins only';
+  END IF;
+
+  INSERT INTO public.session_attendance (booking_id, student_id, teacher_id, date, status, is_excused, notes)
+  SELECT b.id, b.student_id, s.teacher_id, p_date, 'absent', false,
+         'غياب تلقائي — لا تسميع في الموعد المحجوز'
+  FROM public.bookings b
+  JOIN public.availability_slots s ON s.id = b.slot_id
+  WHERE b.status = 'active'
+    AND s.is_active
+    AND s.weekday = EXTRACT(dow FROM p_date)::int
+    -- لا تسجيل حضور/غياب مسبق لهذا اليوم
+    AND NOT EXISTS (
+      SELECT 1 FROM public.session_attendance a
+      WHERE a.student_id = b.student_id AND a.date = p_date AND NOT a.is_deleted
+    )
+    -- ولا تسميع مسجل لهذا اليوم
+    AND NOT EXISTS (
+      SELECT 1 FROM public.teacher_recitation_log t
+      WHERE t.student_id = b.student_id AND t.date = p_date AND NOT t.is_deleted
+    );
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END $$;
+
+-- عدّاد التنبيهات: الغياب بعذر لا يُحسب ضمن الحد
+CREATE OR REPLACE VIEW public.v_absence_alerts
+WITH (security_invoker = true) AS
+SELECT a.student_id, st.full_name, a.season_id,
+       count(*) FILTER (WHERE a.status = 'absent' AND NOT a.is_excused) AS absences,
+       (SELECT value::int FROM public.app_settings WHERE key = 'max_absences_per_season') AS max_allowed
+FROM public.session_attendance a
+JOIN public.students st ON st.id = a.student_id
+WHERE NOT a.is_deleted
+GROUP BY a.student_id, st.full_name, a.season_id
+HAVING count(*) FILTER (WHERE a.status = 'absent' AND NOT a.is_excused)
+       >= (SELECT value::int FROM public.app_settings WHERE key = 'max_absences_per_season');
+
+-- جدولة يومية 11:55 مساءً بتوقيت السعودية (20:55 UTC) عبر pg_cron
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS pg_cron;
+  PERFORM cron.unschedule('auto-absences') WHERE EXISTS (
+    SELECT 1 FROM cron.job WHERE jobname = 'auto-absences');
+  PERFORM cron.schedule('auto-absences', '55 20 * * *',
+    $job$ SELECT public.auto_mark_absences(current_date); $job$);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'pg_cron غير متاح (%) — فعّليه من Database → Extensions ثم أعيدي تنفيذ هذا الملف', SQLERRM;
+END $$;
+
+SELECT 'auto absence ready' AS status;
+-- ============================================================
+-- 12_waqar_scoring.sql — نموذج الأخطاء واللحون «زي الوقار بالضبط»
+--
+-- التسميع  /20: score = 20 − 0.25 × (الأخطاء + اللحون)   (بحد أدنى صفر)
+--   التقدير على المجموع: 0-2 ممتاز · 3-4 جيد جدًا · 5-6 جيد · 7+ ضعيف
+--
+-- الاختبار: أنواع ثابتة بلا عنوان حر —
+--   weekly_1 الأسبوع الأول /20 · weekly_2 الأسبوع الثاني /20 · final النهائي /40
+--   الدرجة = الحد الأقصى − 0.25×(الأخطاء+اللحون) − 2×تغيير المقطع (مرة واحدة كحد أقصى)
+--   ولا يتكرر النوع نفسه للطالبة في الفصل الواحد.
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- التسميع: إعادة تسمية الأعمدة وإعادة تعريف الدرجة والتقدير
+-- ------------------------------------------------------------
+DO $$ BEGIN
+  ALTER TABLE public.teacher_recitation_log RENAME COLUMN lahn_jali_count TO error_count;
+  ALTER TABLE public.teacher_recitation_log RENAME COLUMN lahn_khafi_count TO lahn_count;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+-- الأعمدة المولدة لا تُعدّل في مكانها — والعرض v_season_progress يعتمد على score
+DROP VIEW IF EXISTS public.v_season_progress;
+ALTER TABLE public.teacher_recitation_log DROP COLUMN IF EXISTS score;
+ALTER TABLE public.teacher_recitation_log
+  ADD COLUMN score numeric(5,2) GENERATED ALWAYS AS (
+    GREATEST(0, 20 - 0.25 * (COALESCE(error_count, 0) + COALESCE(lahn_count, 0)))
+  ) STORED;
+ALTER TABLE public.teacher_recitation_log DROP COLUMN IF EXISTS grade;
+ALTER TABLE public.teacher_recitation_log
+  ADD COLUMN grade text GENERATED ALWAYS AS (
+    CASE
+      WHEN (COALESCE(error_count, 0) + COALESCE(lahn_count, 0)) <= 2 THEN 'ممتاز'
+      WHEN (COALESCE(error_count, 0) + COALESCE(lahn_count, 0)) <= 4 THEN 'جيد جدًا'
+      WHEN (COALESCE(error_count, 0) + COALESCE(lahn_count, 0)) <= 6 THEN 'جيد'
+      ELSE 'ضعيف'
+    END
+  ) STORED;
+
+-- إعادة إنشاء عرض تقدم الفصل كما كان
+CREATE OR REPLACE VIEW public.v_season_progress
+WITH (security_invoker = true) AS
+WITH base AS (
+  SELECT st.id AS student_id, st.full_name, st.track_id, t.name AS track_name,
+         t.quota_pages_per_season, e.season_id
+  FROM public.students st
+  JOIN public.tracks t ON t.id = st.track_id
+  JOIN public.enrollments e ON e.student_id = st.id AND e.status = 'enrolled'
+  WHERE st.is_active
+),
+self_sum AS (
+  SELECT student_id, season_id, SUM(pages) AS self_pages, count(*) AS self_entries
+  FROM public.self_recitation_log WHERE NOT is_deleted GROUP BY 1, 2
+),
+teacher_sum AS (
+  SELECT student_id, season_id, SUM(pages) AS teacher_pages, count(*) AS teacher_sessions,
+         round(avg(score), 2) AS avg_score
+  FROM public.teacher_recitation_log WHERE NOT is_deleted GROUP BY 1, 2
+)
+SELECT b.*, COALESCE(s.self_pages, 0) AS self_pages,
+       COALESCE(ts.teacher_pages, 0) AS teacher_pages,
+       COALESCE(s.self_entries, 0) AS self_entries,
+       COALESCE(ts.teacher_sessions, 0) AS teacher_sessions,
+       ts.avg_score,
+       round(COALESCE(ts.teacher_pages, 0) / NULLIF(b.quota_pages_per_season, 0) * 100, 1) AS quota_pct,
+       round((COALESCE(s.self_pages, 0) + COALESCE(ts.teacher_pages, 0)) / 604.0, 2) AS khatmah_equiv
+FROM base b
+LEFT JOIN self_sum s ON s.student_id = b.student_id AND s.season_id = b.season_id
+LEFT JOIN teacher_sum ts ON ts.student_id = b.student_id AND ts.season_id = b.season_id;
+
+-- ------------------------------------------------------------
+-- الاختبارات: إعادة البناء على نموذج الوقار (بلا عنوان حر)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS public.exams CASCADE;
+CREATE TABLE public.exams (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  teacher_id uuid REFERENCES public.teachers(id),
+  season_id uuid REFERENCES public.seasons(id),
+  date date NOT NULL DEFAULT current_date,
+  exam_type text NOT NULL CHECK (exam_type IN ('weekly_1', 'weekly_2', 'final')),
+  error_count int NOT NULL DEFAULT 0 CHECK (error_count >= 0),          -- عدد الأخطاء
+  lahn_count int NOT NULL DEFAULT 0 CHECK (lahn_count >= 0),            -- عدد اللحون
+  segment_changes int NOT NULL DEFAULT 0 CHECK (segment_changes BETWEEN 0 AND 1), -- تغيير المقطع (مرة واحدة، خصم درجتين)
+  max_score numeric(5,2) GENERATED ALWAYS AS (
+    CASE exam_type WHEN 'final' THEN 40 ELSE 20 END
+  ) STORED,
+  total_errors int GENERATED ALWAYS AS (error_count + lahn_count) STORED,
+  total_score numeric(5,2) GENERATED ALWAYS AS (
+    GREATEST(0,
+      (CASE exam_type WHEN 'final' THEN 40 ELSE 20 END)
+      - 0.25 * (error_count + lahn_count)
+      - 2 * segment_changes)
+  ) STORED,
+  notes text,
+  is_deleted boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- لا يتكرر نوع الاختبار للطالبة في الفصل نفسه
+CREATE UNIQUE INDEX IF NOT EXISTS one_exam_type_per_student_season
+  ON public.exams (student_id, exam_type, season_id) WHERE NOT is_deleted;
+CREATE INDEX IF NOT EXISTS idx_exams_student ON public.exams (student_id, date);
+ALTER TABLE public.exams ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.exams_before()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  NEW.updated_at := now();
+  IF NEW.season_id IS NULL THEN
+    SELECT id INTO NEW.season_id FROM public.seasons WHERE is_current LIMIT 1;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_exams_before ON public.exams;
+CREATE TRIGGER trg_exams_before BEFORE INSERT OR UPDATE ON public.exams
+  FOR EACH ROW EXECUTE FUNCTION public.exams_before();
+
+DROP POLICY IF EXISTS "Students read own exams" ON public.exams;
+CREATE POLICY "Students read own exams" ON public.exams
+  FOR SELECT TO authenticated USING (student_id = public.current_student_id());
+DROP POLICY IF EXISTS "Teachers manage own exams" ON public.exams;
+CREATE POLICY "Teachers manage own exams" ON public.exams
+  FOR ALL TO authenticated
+  USING (teacher_id = public.current_teacher_id())
+  WITH CHECK (teacher_id = public.current_teacher_id() AND public.teacher_has_active_booking(student_id));
+DROP POLICY IF EXISTS "Supervisors read scoped exams" ON public.exams;
+CREATE POLICY "Supervisors read scoped exams" ON public.exams
+  FOR SELECT TO authenticated USING (public.student_in_supervisor_scope(student_id));
+DROP POLICY IF EXISTS "Admins manage exams" ON public.exams;
+CREATE POLICY "Admins manage exams" ON public.exams
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+SELECT 'waqar scoring applied' AS status;
+-- ============================================================
+-- 13_open_slots_view.sql — المواعيد الشاغرة للطالبات
+-- الطالبة لا ترى حجوزات غيرها (RLS)، فكانت المواعيد المحجوزة تظهر
+-- شاغرة أمامها ثم يفشل الحجز. هذا العرض يتجاوز RLS بأمان لأنه
+-- لا يكشف إلا: الموعد شاغر أم لا + اسم المسمعة (معلومة عامة أصلًا).
+-- ============================================================
+DROP VIEW IF EXISTS public.v_open_slots;
+CREATE VIEW public.v_open_slots
+WITH (security_invoker = false) AS   -- بصلاحيات المالك عمدًا لتجاوز RLS
+SELECT s.id, s.weekday, s.start_time, s.end_time,
+       s.teacher_id, t.full_name AS teacher_name
+FROM public.availability_slots s
+JOIN public.teachers t ON t.id = s.teacher_id
+WHERE s.is_active
+  AND t.is_active
+  AND NOT EXISTS (
+    SELECT 1 FROM public.bookings b
+    WHERE b.slot_id = s.id AND b.status = 'active'
+  );
+
+GRANT SELECT ON public.v_open_slots TO authenticated;
+
+SELECT 'open slots view ready' AS status;
+-- ============================================================
 -- 90_seed_dev.sql — مقرأة الوقار (بيئة تطوير فقط — لا يُنفَّذ في الإنتاج)
 -- فصل حالي + 3 مسمعات بفتحات + 12 طالبة بحجوزات + أسبوعان من السجلات.
 -- المسارات مبذورة في 02. الحسابات تُنشأ بعده عبر scripts/seed-users.ts.
@@ -1710,7 +2053,7 @@ FROM generate_series(1, 10) i, generate_series(0, 13, 2) d;
 
 -- تسميع أسبوعي عند المسمعات (جلستان لكل طالبة محجوزة) بألحان متفاوتة
 INSERT INTO public.teacher_recitation_log
-  (student_id, teacher_id, date, from_surah, from_verse, to_surah, to_verse, lahn_jali_count, lahn_khafi_count)
+  (student_id, teacher_id, date, from_surah, from_verse, to_surah, to_verse, error_count, lahn_count)
 SELECT b.student_id, s.teacher_id,
        current_date - w.d,
        ((row_number() OVER ()) % 90)::int + 1, 1,

@@ -73,7 +73,7 @@ const navItems: NavItem[] = [
   // المشرفة
   { label: 'متابعة المسارات', href: '/supervisor', icon: <LayoutDashboard size={20} />, roles: ['supervisor'] },
   // الطالبة
-  { label: 'رحلتي', href: '/me', icon: <Home size={20} />, roles: ['student'] },
+  { label: 'رحلتي مع القرآن', href: '/me', icon: <Home size={20} />, roles: ['student'] },
   { label: 'سردي الذاتي', href: '/me/sard', icon: <BookOpen size={20} />, roles: ['student'] },
   { label: 'موعدي', href: '/me/booking', icon: <CalendarCheck size={20} />, roles: ['student'] },
   { label: 'سجلي', href: '/me/history', icon: <History size={20} />, roles: ['student'] },

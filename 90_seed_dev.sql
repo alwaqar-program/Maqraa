@@ -77,7 +77,7 @@ FROM generate_series(1, 10) i, generate_series(0, 13, 2) d;
 
 -- تسميع أسبوعي عند المسمعات (جلستان لكل طالبة محجوزة) بألحان متفاوتة
 INSERT INTO public.teacher_recitation_log
-  (student_id, teacher_id, date, from_surah, from_verse, to_surah, to_verse, lahn_jali_count, lahn_khafi_count)
+  (student_id, teacher_id, date, from_surah, from_verse, to_surah, to_verse, error_count, lahn_count)
 SELECT b.student_id, s.teacher_id,
        current_date - w.d,
        ((row_number() OVER ()) % 90)::int + 1, 1,

@@ -17,7 +17,7 @@ interface BookedStudent { id: string; full_name: string; booking_id: string; }
 interface TasmeeRow {
   id: string; date: string; student_name: string;
   from_surah: number; from_verse: number; to_surah: number; to_verse: number;
-  pages: number; lahn_jali_count: number; lahn_khafi_count: number;
+  pages: number; error_count: number; lahn_count: number;
   score: number; grade: string;
 }
 
@@ -29,8 +29,8 @@ export default function TasmeePage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [fromKey, setFromKey] = useState('');
   const [toKey, setToKey] = useState('');
-  const [jali, setJali] = useState(0);
-  const [khafi, setKhafi] = useState(0);
+  const [errors, setErrors] = useState(0);
+  const [lahn, setLahn] = useState(0);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function TasmeePage() {
         .select('id, students(id, full_name), availability_slots!inner(teacher_id)')
         .eq('status', 'active').eq('availability_slots.teacher_id', me.id),
       supabase.from('teacher_recitation_log')
-        .select('id, date, from_surah, from_verse, to_surah, to_verse, pages, lahn_jali_count, lahn_khafi_count, score, grade, students(full_name)')
+        .select('id, date, from_surah, from_verse, to_surah, to_verse, pages, error_count, lahn_count, score, grade, students(full_name)')
         .eq('teacher_id', me.id).eq('is_deleted', false)
         .order('date', { ascending: false }).limit(20),
     ]);
@@ -70,13 +70,13 @@ export default function TasmeePage() {
       student_id: studentId, teacher_id: teacherId, booking_id: booking, date,
       from_surah: from.surah, from_verse: from.verse,
       to_surah: to.surah, to_verse: to.verse,
-      lahn_jali_count: jali, lahn_khafi_count: khafi,
+      error_count: errors, lahn_count: lahn,
       notes: notes || null,
     });
     setSaving(false);
     if (error) { toast({ title: 'تعذر الحفظ', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'سُجّل التسميع' });
-    setFromKey(''); setToKey(''); setJali(0); setKhafi(0); setNotes('');
+    setFromKey(''); setToKey(''); setErrors(0); setLahn(0); setNotes('');
     fetchAll();
   };
 
@@ -114,16 +114,17 @@ export default function TasmeePage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>ألحان جلية <span className="text-muted-foreground">(−0.5)</span></Label>
-              <Input type="number" min={0} value={jali} onChange={e => setJali(Math.max(0, Number(e.target.value)))} />
+              <Label>عدد الأخطاء <span className="text-muted-foreground">(−0.25)</span></Label>
+              <Input type="number" min={0} value={errors} onChange={e => setErrors(Math.max(0, Number(e.target.value)))} />
             </div>
             <div className="space-y-2">
-              <Label>ألحان خفية <span className="text-muted-foreground">(−0.25)</span></Label>
-              <Input type="number" min={0} value={khafi} onChange={e => setKhafi(Math.max(0, Number(e.target.value)))} />
+              <Label>عدد اللحون <span className="text-muted-foreground">(−0.25)</span></Label>
+              <Input type="number" min={0} value={lahn} onChange={e => setLahn(Math.max(0, Number(e.target.value)))} />
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            الدرجة المتوقعة: <b>{Math.max(0, 20 - 0.5 * jali - 0.25 * khafi)}</b> / 20
+            الدرجة المتوقعة: <b>{Math.max(0, 20 - 0.25 * (errors + lahn))}</b> / 20
+            {' — '}التقدير: <b>{(errors + lahn) <= 2 ? 'ممتاز' : (errors + lahn) <= 4 ? 'جيد جدًا' : (errors + lahn) <= 6 ? 'جيد' : 'ضعيف'}</b>
           </p>
 
           <div className="space-y-2">

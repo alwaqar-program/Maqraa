@@ -32,6 +32,7 @@ import UsersPage from "./pages/admin/UsersPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 import MyPledgesPage from "./pages/student/MyPledgesPage";
 import TeacherExamsPage from "./pages/teacher/TeacherExamsPage";
+import TeacherStudentsPage from "./pages/teacher/TeacherStudentsPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -110,7 +111,7 @@ const App = () => (
             <Route path="/teacher/tasmee" element={<ProtectedRoute roles={['teacher']}><TasmeePage /></ProtectedRoute>} />
             <Route path="/teacher/attendance" element={<ProtectedRoute roles={['teacher']}><Placeholder title="الحضور" /></ProtectedRoute>} />
             <Route path="/teacher/exams" element={<ProtectedRoute roles={['teacher']}><TeacherExamsPage /></ProtectedRoute>} />
-            <Route path="/teacher/students" element={<ProtectedRoute roles={['teacher']}><Placeholder title="طالباتي" /></ProtectedRoute>} />
+            <Route path="/teacher/students" element={<ProtectedRoute roles={['teacher']}><TeacherStudentsPage /></ProtectedRoute>} />
             <Route path="/teacher/suggestions" element={<ProtectedRoute roles={['teacher']}><Placeholder title="اقتراحاتي" /></ProtectedRoute>} />
 
             {/* المشرفة */}

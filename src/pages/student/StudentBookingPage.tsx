@@ -56,17 +56,17 @@ export default function StudentBookingPage() {
     }
     setMyBooking(null);
 
-    // المواعيد المتاحة (النشطة غير المحجوزة)
+    // المواعيد الشاغرة فعلًا (عرض يتجاوز حجب حجوزات الأخريات) —
+    // الموعد المحجوز يختفي من القائمة، ولا يبقى تعارض إلا لمن حجزتا في اللحظة نفسها
     const { data: slotRows } = await supabase
-      .from('availability_slots')
-      .select('id, weekday, start_time, end_time, teachers(id, full_name), bookings(status)')
-      .eq('is_active', true)
+      .from('v_open_slots')
+      .select('id, weekday, start_time, end_time, teacher_id, teacher_name')
       .order('weekday').order('start_time');
     setSlots((slotRows || []).map((s: any) => ({
       id: s.id, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time,
-      teacher: { id: s.teachers?.id, full_name: s.teachers?.full_name ?? '—' },
-      taken: (s.bookings || []).some((b: any) => b.status === 'active'),
-    })).filter((s: OpenSlot) => !s.taken));
+      teacher: { id: s.teacher_id, full_name: s.teacher_name ?? '—' },
+      taken: false,
+    })));
     setLoading(false);
   }, []);
   useEffect(() => { fetchAll(); }, [fetchAll]);
