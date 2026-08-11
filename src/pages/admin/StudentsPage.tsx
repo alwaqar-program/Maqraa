@@ -26,6 +26,7 @@ interface Student {
   track_name?: string;
   is_active: boolean;
   user_id: string | null;
+  khatmat?: number;
 }
 interface Track { id: string; name: string; }
 
@@ -40,12 +41,22 @@ export default function StudentsPage() {
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
-    const [{ data: rows, error }, { data: trackRows }] = await Promise.all([
+    const [{ data: rows, error }, { data: trackRows }, { data: tasmee }, { data: sard }] = await Promise.all([
       supabase.from('students').select('*, tracks(name)').order('full_name'),
       supabase.from('tracks').select('id, name').eq('is_active', true).order('sort_order'),
+      supabase.from('teacher_recitation_log').select('student_id, pages').eq('is_deleted', false),
+      supabase.from('self_recitation_log').select('student_id, pages').eq('is_deleted', false),
     ]);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    setStudents((rows || []).map((r: any) => ({ ...r, track_name: r.tracks?.name })));
+    // الختمات = مجموع صفحات (التسميع + السرد) ÷ 604
+    const pagesBy: Record<string, number> = {};
+    [...(tasmee || []), ...(sard || [])].forEach((l: any) => {
+      pagesBy[l.student_id] = (pagesBy[l.student_id] ?? 0) + Number(l.pages || 0);
+    });
+    setStudents((rows || []).map((r: any) => ({
+      ...r, track_name: r.tracks?.name,
+      khatmat: Math.floor((pagesBy[r.id] ?? 0) / 604),
+    })));
     setTracks(trackRows || []);
     setLoading(false);
   }, [toast]);
@@ -98,6 +109,7 @@ export default function StudentsPage() {
     track: { get: r => r.track_name, type: 'text' },
     account: { get: r => !!r.user_id, type: 'boolean' },
     active: { get: r => r.is_active, type: 'boolean' },
+    khatmat: { get: r => r.khatmat, type: 'number' },
   };
   let filtered = students.filter(s =>
     !search || s.full_name.includes(search) || s.national_id.includes(search) || (s.phone ?? '').includes(search)
@@ -130,6 +142,7 @@ export default function StudentsPage() {
                   <SortableHead label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="الجوال" sortKey="phone" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="الختمات" sortKey="khatmat" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="حساب دخول" sortKey="account" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="نشطة" sortKey="active" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead />
@@ -137,13 +150,19 @@ export default function StudentsPage() {
               </TableHeader>
               <TableBody>
                 {filtered.map(s => (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id}
+                    className={(s.khatmat ?? 0) >= 1 ? 'bg-accent/15 hover:bg-accent/25' : undefined}>
                     <TableCell className="font-medium">
                       <Link to={`/students/${s.id}`} className="hover:text-info hover:underline">{s.full_name}</Link>
                     </TableCell>
                     <TableCell dir="ltr">{s.national_id}</TableCell>
                     <TableCell dir="ltr">{s.phone ?? '—'}</TableCell>
                     <TableCell>{s.track_name ?? '—'}</TableCell>
+                    <TableCell>
+                      {(s.khatmat ?? 0) >= 1
+                        ? <Badge className="bg-accent text-accent-foreground gap-1">🌿 {s.khatmat === 1 ? 'ختمة' : `${s.khatmat} ختمات`}</Badge>
+                        : <span className="text-muted-foreground text-sm">—</span>}
+                    </TableCell>
                     <TableCell>
                       {s.user_id ? <Badge variant="outline" className="text-success border-success">مفعّل</Badge>
                         : <Badge variant="outline" className="text-muted-foreground">بلا حساب</Badge>}
