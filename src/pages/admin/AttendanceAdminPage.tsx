@@ -5,8 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ClipboardCheck, Search } from 'lucide-react';
+import { ClipboardCheck, Search, ScanSearch } from 'lucide-react';
 
 interface Row {
   id: string; date: string; status: string; is_excused: boolean;
@@ -44,7 +45,24 @@ export default function AttendanceAdminPage() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const filtered = rows.filter(r => !search || r.student_name.includes(search));
-  const absences = filtered.filter(r => r.status === 'absent').length;
+  const absences = filtered.filter(r => r.status === 'absent' && !r.is_excused).length;
+
+  // فحص يدوي فوري: من لم تُسمِّع في موعدها اليوم → غياب تلقائي بدون عذر
+  const runAutoCheck = async () => {
+    const { data, error } = await supabase.rpc('auto_mark_absences', {
+      p_date: new Date().toISOString().slice(0, 10),
+    });
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else { toast({ title: `سُجّل ${data ?? 0} غياب تلقائي` }); fetchAll(); }
+  };
+
+  // تحويل الغياب إلى «بعذر» يُخرجه من العدّاد (والعكس)
+  const toggleExcused = async (r: Row) => {
+    const { error } = await supabase.from('session_attendance')
+      .update({ is_excused: !r.is_excused }).eq('id', r.id);
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else fetchAll();
+  };
 
   return (
     <div className="space-y-6">
@@ -63,7 +81,10 @@ export default function AttendanceAdminPage() {
             <Input className="pr-8 w-44" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
-        <Badge variant="outline" className="mb-1">{filtered.length} سجل — {absences} غياب</Badge>
+        <Badge variant="outline" className="mb-1">{filtered.length} سجل — {absences} غياب بدون عذر</Badge>
+        <Button variant="outline" className="gap-1 mb-0.5" onClick={runAutoCheck}>
+          <ScanSearch size={15} /> فحص غيابات اليوم
+        </Button>
       </div>
 
       <Card>
@@ -87,7 +108,13 @@ export default function AttendanceAdminPage() {
                     <TableCell>{r.teacher_name}</TableCell>
                     <TableCell>
                       <Badge className={STATUS[r.status]?.cls}>{STATUS[r.status]?.label ?? r.status}</Badge>
-                      {r.is_excused && <Badge variant="outline" className="mr-1">بعذر</Badge>}
+                      {r.status === 'absent' && (
+                        <Button variant="ghost" size="sm" className="mr-1 h-6 px-2 text-xs"
+                          title={r.is_excused ? 'إعادته غيابًا بدون عذر (يدخل العدّاد)' : 'اعتماده بعذر (يخرج من العدّاد)'}
+                          onClick={() => toggleExcused(r)}>
+                          {r.is_excused ? 'بعذر ✓' : 'بلا عذر'}
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{r.notes ?? '—'}</TableCell>
                   </TableRow>

@@ -59,14 +59,14 @@ export default function ReportsPage() {
       supabase.from('students').select('id, full_name, tracks(name, quota_pages_per_season)').eq('is_active', true),
       supabase.from('self_recitation_log').select('student_id, pages').gte('date', from).lte('date', to).eq('is_deleted', false),
       supabase.from('teacher_recitation_log').select('student_id, pages, score').gte('date', from).lte('date', to).eq('is_deleted', false),
-      supabase.from('session_attendance').select('student_id, status').gte('date', from).lte('date', to).eq('is_deleted', false),
+      supabase.from('session_attendance').select('student_id, status, is_excused').gte('date', from).lte('date', to).eq('is_deleted', false),
     ]);
     if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); setLoading(false); return; }
 
     setRows((students || []).map((s: any) => {
       const mySelf = (selfLogs || []).filter((x: any) => x.student_id === s.id);
       const myTasmee = (tasmee || []).filter((x: any) => x.student_id === s.id);
-      const myAbs = (att || []).filter((x: any) => x.student_id === s.id && x.status === 'absent').length;
+      const myAbs = (att || []).filter((x: any) => x.student_id === s.id && x.status === 'absent' && !x.is_excused).length;
       const selfPages = mySelf.reduce((a: number, x: any) => a + Number(x.pages || 0), 0);
       const teacherPages = myTasmee.reduce((a: number, x: any) => a + Number(x.pages || 0), 0);
       const quota = Number(s.tracks?.quota_pages_per_season ?? 0);

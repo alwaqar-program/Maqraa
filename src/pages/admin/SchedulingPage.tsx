@@ -58,7 +58,7 @@ export default function SchedulingPage() {
     }).eq('id', releasing.booking_id);
     setReleasing(null);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else { toast({ title: 'فُك الحجز — الفتحة شاغرة الآن' }); fetchAll(); }
+    else { toast({ title: 'أُلغي الحجز — الموعد شاغر الآن' }); fetchAll(); }
   };
 
   const booked = rows.filter(r => r.booking_id).length;
@@ -76,7 +76,7 @@ export default function SchedulingPage() {
         {[
           { label: 'الساعات الأسبوعية', value: totalHours },
           { label: 'مواعيد محجوزة', value: booked },
-          { label: 'فتحات شاغرة', value: vacant },
+          { label: 'مواعيد شاغرة', value: vacant },
         ].map(x => (
           <Card key={x.label}><CardContent className="pt-5 text-center">
             <p className="text-3xl font-display text-primary">{x.value}</p>
@@ -112,7 +112,7 @@ export default function SchedulingPage() {
                     <TableCell>
                       {r.booking_id && (
                         <Button variant="ghost" size="sm" className="gap-1" onClick={() => setReleasing(r)}>
-                          <Unlink size={14} /> فك الحجز
+                          <Unlink size={14} /> إلغاء الحجز
                         </Button>
                       )}
                     </TableCell>
@@ -127,15 +127,15 @@ export default function SchedulingPage() {
       <AlertDialog open={!!releasing} onOpenChange={open => !open && setReleasing(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>فك الحجز</AlertDialogTitle>
+            <AlertDialogTitle>إلغاء الحجز</AlertDialogTitle>
             <AlertDialogDescription>
-              سيُفك حجز {releasing?.student_name} من موعد {releasing && WEEKDAYS[releasing.weekday]}{' '}
-              {releasing && formatTime(releasing.start_time)} وتصبح الفتحة شاغرة، وتستطيع الطالبة حجز موعد جديد.
+              سيُلغى حجز {releasing?.student_name} من موعد {releasing && WEEKDAYS[releasing.weekday]}{' '}
+              {releasing && formatTime(releasing.start_time)} ويصبح الموعد شاغرًا، وتستطيع الطالبة حجز موعد جديد.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>تراجع</AlertDialogCancel>
-            <AlertDialogAction onClick={release}>فك الحجز</AlertDialogAction>
+            <AlertDialogAction onClick={release}>إلغاء الحجز</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

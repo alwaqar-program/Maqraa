@@ -10,7 +10,7 @@ export function formatTime(t: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-/** مدة الفتحة بالساعات */
+/** مدة الموعد بالساعات */
 export function slotHours(start: string, end: string): number {
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);

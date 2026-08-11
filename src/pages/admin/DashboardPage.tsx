@@ -58,7 +58,7 @@ export default function DashboardPage() {
     { label: 'وجه تسميع', value: stats.tasmeePages, icon: <Mic size={20} />, href: '/reports' },
     { label: 'وجه سرد ذاتي', value: stats.selfPages, icon: <BookOpen size={20} />, href: '/reports' },
     { label: 'ختمة مكافئة', value: stats.khatmahEquiv, icon: <Repeat size={20} />, href: '/reports' },
-    { label: 'فتحة شاغرة', value: stats.vacantSlots, icon: <CalendarClock size={20} />, href: '/scheduling' },
+    { label: 'موعد شاغر', value: stats.vacantSlots, icon: <CalendarClock size={20} />, href: '/scheduling' },
   ];
 
   return (

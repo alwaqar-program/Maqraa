@@ -80,7 +80,7 @@ export default function TeacherHomePage() {
 
       {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : sessions.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">
-          لا جلسات لك اليوم. مواعيدك حسب فتحات توفرك المحجوزة.
+          لا جلسات لك اليوم. مواعيدك حسب مواعيد توفرك المحجوزة.
         </CardContent></Card>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">

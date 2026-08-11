@@ -60,14 +60,14 @@ export default function TeacherAvailabilityPage() {
       teacher_id: teacherId, weekday: form.weekday,
       start_time: form.start_time, end_time: form.end_time,
     });
-    if (error) { toast({ title: 'تعذر إضافة الفتحة', description: error.message, variant: 'destructive' }); return; }
-    toast({ title: 'أُضيفت فتحة التوفر' });
+    if (error) { toast({ title: 'تعذر إضافة الموعد', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'أُضيف موعد التوفر' });
     setDialogOpen(false);
     fetchAll();
   };
 
   const removeSlot = async (s: SlotWithBooking) => {
-    if (s.booking) { toast({ title: 'الفتحة محجوزة — فكّي الحجز أولًا من صفحة جلساتي', variant: 'destructive' }); return; }
+    if (s.booking) { toast({ title: 'الموعد محجوز — ألغي الحجز أولًا من صفحة جلساتي', variant: 'destructive' }); return; }
     const { error } = await supabase.from('availability_slots').delete().eq('id', s.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else fetchAll();
@@ -91,7 +91,7 @@ export default function TeacherAvailabilityPage() {
           <CalendarClock className="text-accent" />
           <h1 className="text-2xl font-display">أوقات توفري</h1>
         </div>
-        <Button onClick={() => setDialogOpen(true)}><Plus size={16} className="ml-1" /> فتحة جديدة</Button>
+        <Button onClick={() => setDialogOpen(true)}><Plus size={16} className="ml-1" /> موعد جديد</Button>
       </div>
 
       {/* عداد الساعات مقابل الحدين */}
@@ -118,7 +118,7 @@ export default function TeacherAvailabilityPage() {
       <Card>
         <CardContent className="pt-6">
           {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : slots.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">لا فتحات بعد — أضيفي أول وقت متاح لتسميع طالباتك.</p>
+            <p className="text-muted-foreground text-center py-6">لا مواعيد بعد — أضيفي أول وقت متاح لتسميع طالباتك.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -156,7 +156,7 @@ export default function TeacherAvailabilityPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>فتحة توفر جديدة</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>موعد توفر جديد</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>اليوم</Label>

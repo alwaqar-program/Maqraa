@@ -10,8 +10,8 @@ import { Settings } from 'lucide-react';
 // الإعدادات القابلة للضبط — القيم تُقرأ من app_settings وتؤثر فورًا على القيود والواجهة
 const SETTING_DEFS: { key: string; label: string; hint: string }[] = [
   { key: 'teacher_min_hours_per_week', label: 'الحد الأدنى لساعات المسمعة أسبوعيًا', hint: 'تنبيه في صفحة توفرها إن نزلت عنه' },
-  { key: 'teacher_max_hours_per_week', label: 'الحد الأعلى لساعات المسمعة أسبوعيًا', hint: 'القاعدة ترفض فتحات تتجاوزه' },
-  { key: 'max_absences_per_season', label: 'حد الغيابات في الفصل', hint: 'بعذر أو بدون — التجاوز يُبرز تنبيهًا للإدارة' },
+  { key: 'teacher_max_hours_per_week', label: 'الحد الأعلى لساعات المسمعة أسبوعيًا', hint: 'القاعدة ترفض مواعيد تتجاوزه' },
+  { key: 'max_absences_per_season', label: 'حد الغيابات في الفصل', hint: 'يُحسب الغياب بدون عذر فقط — التجاوز يُبرز تنبيهًا للإدارة' },
 ];
 
 export default function SettingsPage() {

@@ -56,7 +56,7 @@ export default function StudentBookingPage() {
     }
     setMyBooking(null);
 
-    // الفتحات المتاحة (النشطة غير المحجوزة)
+    // المواعيد المتاحة (النشطة غير المحجوزة)
     const { data: slotRows } = await supabase
       .from('availability_slots')
       .select('id, weekday, start_time, end_time, teachers(id, full_name), bookings(status)')
@@ -77,7 +77,7 @@ export default function StudentBookingPage() {
     setConfirming(null);
     if (error) {
       const msg = error.message.includes('one_active_booking_per_slot')
-        ? 'سبقتك طالبة أخرى لهذه الفتحة — اختاري وقتًا آخر'
+        ? 'سبقتك طالبة أخرى لهذا الموعد — اختاري وقتًا آخر'
         : error.message;
       toast({ title: 'تعذر الحجز', description: msg, variant: 'destructive' });
       fetchAll();
@@ -126,7 +126,7 @@ export default function StudentBookingPage() {
             اختاري موعدًا واحدًا يناسبك — <b>يتكرر أسبوعيًا طوال الفصل ولا يمكن تغييره بعد التأكيد.</b>
           </p>
           {slots.length === 0 ? (
-            <Card><CardContent className="py-10 text-center text-muted-foreground">لا توجد فتحات شاغرة حاليًا — راجعي الإدارة.</CardContent></Card>
+            <Card><CardContent className="py-10 text-center text-muted-foreground">لا توجد مواعيد شاغرة حاليًا — راجعي الإدارة.</CardContent></Card>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {slots.map(s => (
