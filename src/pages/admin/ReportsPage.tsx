@@ -10,7 +10,8 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { FileBarChart, Download, Printer } from 'lucide-react';
+import { FileBarChart, Download, Printer, ScrollText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { exportToCsv, CsvColumnDef } from '@/lib/csv-utils';
 
 interface ReportRow {
@@ -137,6 +138,9 @@ export default function ReportsPage() {
         </Button>
         <Button variant="outline" className="gap-1" onClick={() => window.print()}>
           <Printer size={16} /> تصدير PDF
+        </Button>
+        <Button variant="outline" className="gap-1" asChild>
+          <Link to="/season-report"><ScrollText size={16} /> تقرير نهاية الفصل</Link>
         </Button>
       </div>
 

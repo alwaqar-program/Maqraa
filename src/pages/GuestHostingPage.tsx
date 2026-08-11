@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Paperclip, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import logoImg from '@/assets/logo-maqraa.png';
 
 /** بوابة الضيفة: تعبئ بيانات لقائها عبر رابط خاص دون تسجيل دخول */
@@ -15,6 +16,7 @@ export default function GuestHostingPage() {
   const { token } = useParams<{ token: string }>();
   const [found, setFound] = useState<boolean | null>(null);
   const [form, setForm] = useState({ title: '', host_name: '', event_date: '', description: '' });
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const { toast } = useToast();
@@ -35,9 +37,18 @@ export default function GuestHostingPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    // رفع المادة العلمية أولًا — المسار guest/{token}/... هو إذن الرفع
+    const paths: string[] = [];
+    for (const f of files) {
+      const path = `guest/${token}/${Date.now()}-${f.name}`;
+      const { error: upErr } = await supabase.storage.from('hostings').upload(path, f);
+      if (upErr) { toast({ title: `تعذر رفع ${f.name}`, description: upErr.message, variant: 'destructive' }); setSaving(false); return; }
+      paths.push(path);
+    }
     const { data, error } = await supabase.rpc('submit_hosting_by_token', {
       p_token: token, p_title: form.title.trim(), p_host_name: form.host_name.trim(),
       p_event_date: form.event_date || null, p_description: form.description.trim() || null,
+      p_attachments: paths,
     });
     setSaving(false);
     if (error || !data) { toast({ title: 'تعذر الحفظ', description: error?.message, variant: 'destructive' }); return; }
@@ -94,6 +105,22 @@ export default function GuestHostingPage() {
               <div className="space-y-2">
                 <Label>نبذة عن اللقاء</Label>
                 <Textarea rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>المادة العلمية (مرفقات — اختياري)</Label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="inline-flex items-center gap-1 border rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-accent">
+                    <Paperclip size={14} /> إرفاق ملف
+                    <input type="file" multiple hidden accept="image/*,.pdf,.doc,.docx,.pptx"
+                      onChange={e => setFiles([...files, ...Array.from(e.target.files || [])])} />
+                  </label>
+                  {files.map((f, i) => (
+                    <Badge key={i} variant="outline" className="gap-1">
+                      {f.name}
+                      <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={11} /></button>
+                    </Badge>
+                  ))}
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={saving}>{saving ? '...' : 'إرسال'}</Button>
             </form>
