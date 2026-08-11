@@ -81,6 +81,12 @@ export default function FormsAdminPage() {
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else fetchAll();
   };
+  const deleteQuestion = async (q: FormQuestion) => {
+    if (!window.confirm(`حذف سؤال «${q.label}» نهائيًا؟ إجاباته في الطلبات السابقة ستختفي من الأعمدة.`)) return;
+    const { error } = await supabase.from('form_questions').delete().eq('id', q.id);
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'حُذف السؤال' }); fetchAll(); }
+  };
   const updateQuestion = async (q: FormQuestion, patch: Partial<FormQuestion>) => {
     const { error } = await supabase.from('form_questions').update(patch).eq('id', q.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
@@ -293,6 +299,8 @@ export default function FormsAdminPage() {
                 </Select>
                 <button onClick={() => move(i, -1)} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp size={15} /></button>
                 <button onClick={() => move(i, 1)} disabled={i === questions.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown size={15} /></button>
+                <button onClick={() => deleteQuestion(q)} title="حذف نهائي"
+                  className="text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
               </div>
               {q.qtype !== 'text' && (
                 <div className="space-y-1">
