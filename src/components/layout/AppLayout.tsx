@@ -72,6 +72,7 @@ const navItems: NavItem[] = [
   { label: 'اقتراحاتي', href: '/teacher/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['teacher'] },
   // المشرفة
   { label: 'متابعة المسارات', href: '/supervisor', icon: <LayoutDashboard size={20} />, roles: ['supervisor'] },
+  { label: 'الاقتراحات', href: '/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['supervisor'] },
   // الطالبة
   { label: 'رحلتي مع القرآن', href: '/me', icon: <Home size={20} />, roles: ['student'] },
   { label: 'سردي الذاتي', href: '/me/sard', icon: <BookOpen size={20} />, roles: ['student'] },
@@ -79,6 +80,7 @@ const navItems: NavItem[] = [
   { label: 'سجلي', href: '/me/history', icon: <History size={20} />, roles: ['student'] },
   { label: 'تعهداتي', href: '/me/pledges', icon: <FileSignature size={20} />, roles: ['student'] },
   { label: 'الاستضافات', href: '/me/hostings', icon: <Presentation size={20} />, roles: ['student'] },
+  { label: 'اقتراحاتي', href: '/me/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['student'] },
 ];
 
 const roleLabels: Record<AppRole, string> = {

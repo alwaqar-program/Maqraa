@@ -1994,6 +1994,162 @@ ALTER TABLE public.availability_slots ADD CONSTRAINT no_overlapping_slots
 
 SELECT 'no-overlap constraint ready' AS status;
 -- ============================================================
+-- 15_suggestions.sql — الاقتراحات
+-- مساحة حرة: عنوان + وصف + مرفقات، يرسلها الطالبات والمسمعات
+-- وتصل للمشرفات ومديرة النظام (قراءة فقط لديهن، وكل مرسلة ترى اقتراحاتها).
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.suggestions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_by uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  body text NOT NULL,
+  attachments text[] NOT NULL DEFAULT '{}',   -- مسارات الملفات في مخزن suggestions
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_suggestions_created ON public.suggestions (created_at DESC);
+ALTER TABLE public.suggestions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated create own suggestion" ON public.suggestions;
+CREATE POLICY "Authenticated create own suggestion" ON public.suggestions
+  FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
+DROP POLICY IF EXISTS "Owners read own suggestions" ON public.suggestions;
+CREATE POLICY "Owners read own suggestions" ON public.suggestions
+  FOR SELECT TO authenticated USING (created_by = auth.uid());
+DROP POLICY IF EXISTS "Admins and supervisors read suggestions" ON public.suggestions;
+CREATE POLICY "Admins and supervisors read suggestions" ON public.suggestions
+  FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'supervisor'));
+DROP POLICY IF EXISTS "Admins delete suggestions" ON public.suggestions;
+CREATE POLICY "Admins delete suggestions" ON public.suggestions
+  FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+
+-- مخزن المرفقات (خاص — الوصول عبر روابط موقعة)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('suggestions', 'suggestions', false)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Suggestion attachments upload" ON storage.objects;
+CREATE POLICY "Suggestion attachments upload" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'suggestions' AND owner = auth.uid());
+DROP POLICY IF EXISTS "Suggestion attachments read" ON storage.objects;
+CREATE POLICY "Suggestion attachments read" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'suggestions'
+    AND (owner = auth.uid()
+         OR public.has_role(auth.uid(), 'admin')
+         OR public.has_role(auth.uid(), 'supervisor'))
+  );
+
+-- اسم المرسلة ودورها للعرض (يتجاوز RLS بأمان — أسماء فقط)
+CREATE OR REPLACE FUNCTION public.suggestion_author(p_user uuid)
+RETURNS TABLE (author_name text, author_role text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(
+           (SELECT st.full_name FROM public.students st WHERE st.user_id = p_user LIMIT 1),
+           (SELECT t.full_name FROM public.teachers t WHERE t.user_id = p_user LIMIT 1),
+           (SELECT u.email::text FROM auth.users u WHERE u.id = p_user)
+         ) AS author_name,
+         CASE
+           WHEN EXISTS (SELECT 1 FROM public.students st WHERE st.user_id = p_user) THEN 'طالبة'
+           WHEN EXISTS (SELECT 1 FROM public.teachers t WHERE t.user_id = p_user) THEN 'مسمعة'
+           ELSE 'أخرى'
+         END AS author_role;
+$$;
+
+SELECT 'suggestions ready' AS status;
+-- ============================================================
+-- 16_hostings.sql — الاستضافات
+-- الإدارة تنشئ لقاء (عنوان، من قدّمته، متى، وصف، مرفقات المادة العلمية)
+-- أو ترسل رابطًا خاصًا للضيفة تعبئ بياناته بنفسها (/guest/:token)،
+-- والطالبات يطّلعن على المادة ويعبئن نموذج قياس الرضا (تقييم 1-5 + تعليق).
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.hostings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL DEFAULT '',
+  host_name text NOT NULL DEFAULT '',          -- من قدّمت اللقاء
+  event_date date,
+  description text,
+  attachments text[] NOT NULL DEFAULT '{}',    -- المادة العلمية (مخزن hostings)
+  guest_token uuid NOT NULL DEFAULT gen_random_uuid(),  -- رابط تعبئة الضيفة
+  guest_filled_at timestamptz,
+  is_published boolean NOT NULL DEFAULT true,  -- تظهر للطالبات
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hostings_token ON public.hostings (guest_token);
+ALTER TABLE public.hostings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins manage hostings" ON public.hostings;
+CREATE POLICY "Admins manage hostings" ON public.hostings
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "Authenticated read published hostings" ON public.hostings;
+CREATE POLICY "Authenticated read published hostings" ON public.hostings
+  FOR SELECT TO authenticated USING (is_published);
+
+-- قياس الرضا
+CREATE TABLE IF NOT EXISTS public.hosting_feedback (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  hosting_id uuid NOT NULL REFERENCES public.hostings(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  rating int NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (hosting_id, student_id)
+);
+ALTER TABLE public.hosting_feedback ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Students submit own feedback" ON public.hosting_feedback;
+CREATE POLICY "Students submit own feedback" ON public.hosting_feedback
+  FOR INSERT TO authenticated WITH CHECK (student_id = public.current_student_id());
+DROP POLICY IF EXISTS "Students read own feedback" ON public.hosting_feedback;
+CREATE POLICY "Students read own feedback" ON public.hosting_feedback
+  FOR SELECT TO authenticated USING (student_id = public.current_student_id());
+DROP POLICY IF EXISTS "Admins and supervisors read feedback" ON public.hosting_feedback;
+CREATE POLICY "Admins and supervisors read feedback" ON public.hosting_feedback
+  FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'supervisor'));
+
+-- مخزن المادة العلمية — عام للقراءة (مادة تعليمية)، الرفع للإدارة فقط
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('hostings', 'hostings', true)
+ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "Hosting material upload" ON storage.objects;
+CREATE POLICY "Hosting material upload" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'hostings' AND public.has_role(auth.uid(), 'admin'));
+
+-- ------------------------------------------------------------
+-- بوابة الضيفة (بلا تسجيل دخول): قراءة وتعبئة عبر الرمز فقط
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_hosting_by_token(p_token uuid)
+RETURNS TABLE (id uuid, title text, host_name text, event_date date, description text, guest_filled_at timestamptz)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT h.id, h.title, h.host_name, h.event_date, h.description, h.guest_filled_at
+  FROM public.hostings h WHERE h.guest_token = p_token;
+$$;
+
+CREATE OR REPLACE FUNCTION public.submit_hosting_by_token(
+  p_token uuid, p_title text, p_host_name text, p_event_date date, p_description text
+) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE public.hostings
+  SET title = p_title, host_name = p_host_name, event_date = p_event_date,
+      description = p_description, guest_filled_at = now(), updated_at = now()
+  WHERE guest_token = p_token;
+  RETURN FOUND;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.get_hosting_by_token(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_hosting_by_token(uuid, text, text, date, text) TO anon, authenticated;
+
+SELECT 'hostings ready' AS status;
+-- ============================================================
 -- 90_seed_dev.sql — مقرأة الوقار (بيئة تطوير فقط — لا يُنفَّذ في الإنتاج)
 -- فصل حالي + 3 مسمعات بفتحات + 12 طالبة بحجوزات + أسبوعان من السجلات.
 -- المسارات مبذورة في 02. الحسابات تُنشأ بعده عبر scripts/seed-users.ts.
