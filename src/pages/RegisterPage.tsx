@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2 } from 'lucide-react';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
-import { useFormSettings } from '@/lib/form-settings';
+import { useFormSettings, headerUrl } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 interface Track { id: string; name: string; juz_count: number; sort_order: number; }
@@ -95,7 +95,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-xl mx-auto space-y-6">
         <div className="text-center space-y-4">
-          <img src={headerImg} alt="مقرأة الوقار — تعاهدوا القرآن" className="w-full rounded-2xl shadow-sm" />
+          <img src={headerUrl(config) ?? headerImg} alt="مقرأة الوقار — تعاهدوا القرآن" className="w-full rounded-2xl shadow-sm" />
           <h1 className="text-2xl font-display">{config.title}</h1>
           <p className="text-muted-foreground text-sm">{config.welcome}</p>
         </div>

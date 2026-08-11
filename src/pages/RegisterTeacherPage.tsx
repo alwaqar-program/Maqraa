@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import headerImg from '@/assets/header.png';
-import { useFormSettings } from '@/lib/form-settings';
+import { useFormSettings, headerUrl } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 const hijriToday = () => {
@@ -93,7 +93,7 @@ export default function RegisterTeacherPage() {
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center space-y-4">
-          <img src={headerImg} alt="مقرأة الوقار — تعاهدوا القرآن"
+          <img src={headerUrl(config) ?? headerImg} alt="مقرأة الوقار — تعاهدوا القرآن"
             className="w-full rounded-2xl shadow-sm" />
           <h1 className="text-2xl font-display">اتفاقية المسمعات في مقرأة الوقار</h1>
         </div>

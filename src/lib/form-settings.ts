@@ -65,7 +65,13 @@ export const FORM_DEFAULTS = {
   },
 };
 
-export type FormConfig<K extends FormKey> = (typeof FORM_DEFAULTS)[K];
+export type FormConfig<K extends FormKey> = (typeof FORM_DEFAULTS)[K] & { header_path?: string };
+
+/** رابط صورة الترويسة المرفوعة — أو null فتُستخدم الصورة الافتراضية المضمنة */
+export function headerUrl(config: { header_path?: string }): string | null {
+  if (!config.header_path) return null;
+  return supabase.storage.from('form-assets').getPublicUrl(config.header_path).data.publicUrl;
+}
 
 /** يجلب إعدادات النموذج وأسئلته الإضافية النشطة — مع الافتراضيات احتياطًا */
 export function useFormSettings<K extends FormKey>(key: K) {

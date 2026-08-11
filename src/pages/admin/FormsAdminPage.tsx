@@ -10,8 +10,9 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown } from 'lucide-react';
-import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption } from '@/lib/form-settings';
+import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp } from 'lucide-react';
+import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl } from '@/lib/form-settings';
+import headerDefault from '@/assets/header.png';
 import { useUrlState } from '@/lib/use-url-state';
 import { WEEKDAYS } from '@/lib/schedule';
 
@@ -47,6 +48,28 @@ export default function FormsAdminPage() {
     setSaving(false);
     if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'حُفظ — التعديل ساري فورًا على الرابط العام' });
+  };
+
+  // ---------- صورة الترويسة ----------
+  const uploadHeader = async (file: File) => {
+    const path = `${key}-header-${Date.now()}.${file.name.split('.').pop()}`;
+    const { error: upErr } = await supabase.storage.from('form-assets').upload(path, file);
+    if (upErr) { toast({ title: 'تعذر رفع الصورة', description: upErr.message, variant: 'destructive' }); return; }
+    const newConfig = { ...config, header_path: path };
+    setConfig(newConfig);
+    const { error } = await supabase.from('form_settings')
+      .upsert({ form_key: key, config: newConfig, updated_at: new Date().toISOString() });
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else toast({ title: 'حُدّثت صورة الترويسة — سارية فورًا' });
+  };
+  const resetHeader = async () => {
+    const newConfig = { ...config, header_path: undefined };
+    delete newConfig.header_path;
+    setConfig(newConfig);
+    const { error } = await supabase.from('form_settings')
+      .upsert({ form_key: key, config: newConfig, updated_at: new Date().toISOString() });
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else toast({ title: 'عادت الصورة الافتراضية' });
   };
 
   // ---------- الأسئلة الإضافية ----------
@@ -138,6 +161,28 @@ export default function FormsAdminPage() {
                   onChange={e => setConfig({ ...config, closed_message: e.target.value })} />
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* صورة الترويسة */}
+      {key !== 'hosting_feedback' && (
+        <Card>
+          <CardHeader><CardTitle className="text-base font-body">صورة الترويسة</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <img src={headerUrl(config) ?? headerDefault} alt="ترويسة النموذج"
+              className="w-full rounded-xl border" />
+            <div className="flex gap-2">
+              <label className="inline-flex items-center gap-1 border rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-accent">
+                <ImageUp size={15} /> رفع صورة جديدة
+                <input type="file" hidden accept="image/png,image/jpeg,image/webp"
+                  onChange={e => e.target.files?.[0] && uploadHeader(e.target.files[0])} />
+              </label>
+              {config.header_path && (
+                <Button variant="ghost" size="sm" onClick={resetHeader}>الرجوع للافتراضية</Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">يُفضل عرض 2000px تقريبًا بصيغة PNG — تسري فورًا بعد الرفع.</p>
           </CardContent>
         </Card>
       )}
