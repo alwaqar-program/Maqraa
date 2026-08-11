@@ -91,110 +91,139 @@ export default function RegisterPage() {
     );
   }
 
+  // فاصل قسم بعلامة الحزب المصحفية — توقيع النموذج
+  const SectionHead = ({ title, hint }: { title: string; hint?: string }) => (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-2.5">
+        <span className="text-accent text-2xl leading-none select-none" aria-hidden="true">۞</span>
+        <h2 className="font-display text-xl text-primary">{title}</h2>
+        <span className="flex-1 border-t border-accent/30" aria-hidden="true" />
+      </div>
+      {hint && <p className="text-xs text-muted-foreground pr-9">{hint}</p>}
+    </div>
+  );
+
+  const pill = (active: boolean) =>
+    `flex items-center gap-2 border rounded-xl px-3 py-2.5 cursor-pointer transition-colors ${
+      active ? 'border-accent bg-accent/10 shadow-sm' : 'border-border hover:border-accent/60 hover:bg-accent/5'
+    }`;
+
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="max-w-xl mx-auto space-y-6">
-        <div className="text-center space-y-4">
-          <img src={headerUrl(config) ?? headerImg} alt="مقرأة الوقار — تعاهدوا القرآن" className="w-full rounded-2xl shadow-sm" />
-          <h1 className="text-2xl font-display">{config.title}</h1>
-          <p className="text-muted-foreground text-sm">{config.welcome}</p>
+    <div className="min-h-screen bg-background py-6 px-4 sm:py-10">
+      <div className="max-w-2xl mx-auto space-y-5">
+        {/* الترويسة */}
+        <div className="text-center space-y-3">
+          <img src={headerUrl(config) ?? headerImg} alt="مقرأة الوقار — تعاهدوا القرآن"
+            className="w-full rounded-2xl shadow-sm" />
+          <h1 className="text-2xl sm:text-3xl font-display">{config.title}</h1>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">{config.welcome}</p>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={submit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="name">الاســم الربــاعـي <span className="text-destructive">*</span></Label>
-                <Input id="name" required value={fullName} onChange={e => setFullName(e.target.value)} />
-              </div>
+        <form onSubmit={submit}>
+          <Card className="overflow-hidden">
+            <CardContent className="p-0 divide-y divide-border/70">
 
-              <div className="space-y-2">
-                <Label htmlFor="nid">رقم الهوية <span className="text-destructive">*</span></Label>
-                <Input id="nid" required dir="ltr" inputMode="numeric" maxLength={10}
-                  value={nationalId} onChange={e => setNationalId(e.target.value)} />
-              </div>
+              {/* ۞ بياناتك */}
+              <section className="px-5 sm:px-8 py-6 space-y-4">
+                <SectionHead title="بياناتك" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">الاسم الرباعي <span className="text-destructive">*</span></Label>
+                  <Input id="name" required value={fullName} onChange={e => setFullName(e.target.value)} />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nid">رقم الهوية <span className="text-destructive">*</span></Label>
+                    <Input id="nid" required dir="ltr" inputMode="numeric" maxLength={10}
+                      value={nationalId} onChange={e => setNationalId(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone">رقم الجوال <span className="text-destructive">*</span></Label>
+                    <Input id="phone" required dir="ltr" inputMode="tel" placeholder="05xxxxxxxx"
+                      value={phone} onChange={e => setPhone(e.target.value)} />
+                  </div>
+                </div>
+              </section>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">رقم الجوال <span className="text-destructive">*</span></Label>
-                <Input id="phone" required dir="ltr" inputMode="tel" placeholder="05xxxxxxxx"
-                  value={phone} onChange={e => setPhone(e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>المســار <span className="text-destructive">*</span></Label>
-                <RadioGroup dir="rtl" value={trackId} onValueChange={setTrackId} className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {/* ۞ مسارك */}
+              <section className="px-5 sm:px-8 py-6 space-y-4">
+                <SectionHead title="مسارك" />
+                <RadioGroup dir="rtl" value={trackId} onValueChange={setTrackId}
+                  className="grid sm:grid-cols-2 gap-2.5">
                   {tracks.map(t => (
-                    <Label key={t.id} htmlFor={`track-${t.id}`}
-                      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${trackId === t.id ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
+                    <Label key={t.id} htmlFor={`track-${t.id}`} className={pill(trackId === t.id)}>
                       <RadioGroupItem id={`track-${t.id}`} value={t.id} />
-                      <span className="text-sm">{t.name}</span>
+                      <span className="text-sm font-medium">{t.name}</span>
                     </Label>
                   ))}
                 </RadioGroup>
-              </div>
+              </section>
 
-              <div className="space-y-2">
-                <Label>المواعيد المناسبة</Label>
-                <p className="text-xs text-muted-foreground">{config.times_note}</p>
-                <div className="grid gap-2">
+              {/* ۞ مواعيدك */}
+              <section className="px-5 sm:px-8 py-6 space-y-4">
+                <SectionHead title="مواعيدك" hint={config.times_note} />
+                <div className="grid sm:grid-cols-2 gap-2.5">
                   {config.day_options.map(d => (
-                    <Label key={d.value} htmlFor={`day-${d.value}`}
-                      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${days.includes(d.value) ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
+                    <Label key={d.value} htmlFor={`day-${d.value}`} className={pill(days.includes(d.value))}>
                       <Checkbox id={`day-${d.value}`} checked={days.includes(d.value)}
                         onCheckedChange={() => toggleDay(d.value)} />
                       <span className="text-sm">{d.label}</span>
                     </Label>
                   ))}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>الـفـتـرة الأنـسـب</Label>
-                <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-3">
-                  {[{ v: 'morning', l: 'صباح' }, { v: 'evening', l: 'مساء' }].map(o => (
-                    <Label key={o.v} htmlFor={`p-${o.v}`}
-                      className={`flex items-center gap-2 border rounded-lg px-4 py-2.5 cursor-pointer transition-colors ${period === o.v ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
-                      <RadioGroupItem id={`p-${o.v}`} value={o.v} />
-                      <span className="text-sm">{o.l}</span>
-                    </Label>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sugg">مقترحاتك وملاحظاتك</Label>
-                <p className="text-xs text-muted-foreground">{config.suggestions_note}</p>
-                <Textarea id="sugg" rows={3} value={suggestions} onChange={e => setSuggestions(e.target.value)} />
-              </div>
-
-              <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
-
-              {config.absence_policy?.trim() && (
-                <div className="border border-accent/40 bg-accent/5 rounded-lg p-4 space-y-1">
-                  <p className="font-display text-primary">نظام الغياب والالتزام</p>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.absence_policy}</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Label className="text-sm text-muted-foreground shrink-0">الفترة الأنسب لك:</Label>
+                  <RadioGroup dir="rtl" value={period} onValueChange={v => setPeriod(v as any)} className="flex gap-2.5">
+                    {[{ v: 'morning', l: '🌤 صباح' }, { v: 'evening', l: '🌙 مساء' }].map(o => (
+                      <Label key={o.v} htmlFor={`p-${o.v}`} className={pill(period === o.v)}>
+                        <RadioGroupItem id={`p-${o.v}`} value={o.v} className="sr-only" />
+                        <span className="text-sm">{o.l}</span>
+                      </Label>
+                    ))}
+                  </RadioGroup>
                 </div>
-              )}
+              </section>
 
-              <Label htmlFor="pledge"
-                className={`flex items-center gap-2 border rounded-lg px-3 py-3 cursor-pointer transition-colors ${pledge ? 'border-accent bg-accent/10' : 'hover:border-accent/50'}`}>
-                <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
-                <span className="text-sm font-medium">{config.pledge_text}</span>
-              </Label>
+              {/* ۞ عهدك وملاحظاتك */}
+              <section className="px-5 sm:px-8 py-6 space-y-4">
+                <SectionHead title="عهدك وملاحظاتك" />
 
-              {config.important_notes?.trim() && (
-                <div className="border rounded-lg p-4 space-y-1 bg-muted/40">
-                  <p className="font-display text-primary">ملاحظات مهمة</p>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.important_notes}</p>
+                <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
+
+                {config.absence_policy?.trim() && (
+                  <div className="border border-accent/40 bg-accent/5 rounded-xl p-4 space-y-1">
+                    <p className="font-display text-primary">نظام الغياب والالتزام</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.absence_policy}</p>
+                  </div>
+                )}
+
+                <Label htmlFor="pledge" className={pill(pledge) + ' py-3.5'}>
+                  <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
+                  <span className="text-sm font-medium">{config.pledge_text}</span>
+                </Label>
+
+                {config.important_notes?.trim() && (
+                  <div className="border rounded-xl p-4 space-y-1 bg-muted/40">
+                    <p className="font-display text-primary">ملاحظات مهمة</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{config.important_notes}</p>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="sugg">مقترحاتك وملاحظاتك <span className="text-muted-foreground text-xs font-normal">— {config.suggestions_note}</span></Label>
+                  <Textarea id="sugg" rows={2} value={suggestions} onChange={e => setSuggestions(e.target.value)} />
                 </div>
-              )}
 
-              <Button type="submit" className="w-full" disabled={saving}>
-                {saving ? '...' : 'إرسال التسجيل'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <Button type="submit" size="lg" className="w-full h-12 text-base shadow-sm" disabled={saving}>
+                  {saving ? 'جارٍ الإرسال...' : 'إرسال التسجيل'}
+                </Button>
+              </section>
+            </CardContent>
+          </Card>
+        </form>
+
+        <p className="text-center text-xs text-muted-foreground pb-2">
+          مقرأة الوقار — «كان عمله ديمة»
+        </p>
       </div>
     </div>
   );
