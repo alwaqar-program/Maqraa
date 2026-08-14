@@ -7,6 +7,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
@@ -30,7 +34,7 @@ interface Teacher {
   booked?: number;
 }
 
-interface SlotRow { id?: string; weekday: number; start_time: string; end_time: string; booked?: boolean }
+interface SlotRow { id?: string; weekday: number; start_time: string; end_time: string; booked?: boolean; studentName?: string }
 
 interface Agreement {
   id: string; full_name: string; agreement_date: string;
@@ -48,6 +52,7 @@ export default function TeachersPage() {
   const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '' });
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
+  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
@@ -94,13 +99,16 @@ export default function TeachersPage() {
       phone: t.phone ?? '', email: t.email ?? '', meeting_link: t.meeting_link ?? '',
     });
     const { data } = await supabase.from('availability_slots')
-      .select('id, weekday, start_time, end_time, bookings(id, status)')
+      .select('id, weekday, start_time, end_time, bookings(id, status, students(full_name))')
       .eq('teacher_id', t.id).order('weekday').order('start_time');
-    const rows: SlotRow[] = (data || []).map((s: any) => ({
-      id: s.id, weekday: s.weekday,
-      start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
-      booked: (s.bookings || []).some((b: any) => b.status === 'active'),
-    }));
+    const rows: SlotRow[] = (data || []).map((s: any) => {
+      const active = (s.bookings || []).find((b: any) => b.status === 'active');
+      return {
+        id: s.id, weekday: s.weekday,
+        start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
+        booked: !!active, studentName: active?.students?.full_name,
+      };
+    });
     setSlots(rows); setOrigSlots(rows);
     setDialogOpen(true);
   };
@@ -331,14 +339,17 @@ export default function TeachersPage() {
                     <TimeSelect className="w-28" value={s.start_time} onChange={v => update({ start_time: v })} />
                     <span className="text-muted-foreground text-sm">إلى</span>
                     <TimeSelect className="w-28" value={s.end_time} onChange={v => update({ end_time: v })} />
-                    {s.booked ? (
-                      <Badge variant="outline" className="mr-auto text-warning border-warning">محجوز — لا يُحذف</Badge>
-                    ) : (
-                      <button type="button" className="text-muted-foreground hover:text-destructive mr-auto"
-                        onClick={() => setSlots(slots.filter((_, j) => j !== i))}>
+                    <span className="mr-auto flex items-center gap-2">
+                      {s.booked && (
+                        <Badge variant="outline" className="text-warning border-warning">
+                          محجوز{s.studentName ? ` — ${s.studentName}` : ''}
+                        </Badge>
+                      )}
+                      <button type="button" className="text-muted-foreground hover:text-destructive"
+                        onClick={() => s.booked ? setConfirmDeleteIdx(i) : setSlots(slots.filter((_, j) => j !== i))}>
                         <Trash2 size={15} />
                       </button>
-                    )}
+                    </span>
                   </div>
                 );
               })}
@@ -352,6 +363,27 @@ export default function TeachersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* تأكيد حذف موعد محجوز */}
+      <AlertDialog open={confirmDeleteIdx !== null} onOpenChange={open => !open && setConfirmDeleteIdx(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف موعد محجوز</AlertDialogTitle>
+            <AlertDialogDescription>
+              هذا الموعد محجوز من {confirmDeleteIdx !== null ? (slots[confirmDeleteIdx]?.studentName ?? 'طالبة') : ''}.
+              حذفه يلغي حجزها وتصبح بلا موعد — ستظهر مميزة بـ«بلا موعد» في صفحة الطالبات حتى تحجز من جديد.
+              الحذف يُنفذ عند «حفظ التعديل».
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>تراجع</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (confirmDeleteIdx !== null) setSlots(slots.filter((_, j) => j !== confirmDeleteIdx));
+              setConfirmDeleteIdx(null);
+            }}>حذف الموعد</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
