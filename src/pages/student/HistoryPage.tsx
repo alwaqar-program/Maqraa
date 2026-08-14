@@ -10,7 +10,7 @@ import { surahNameOf } from '@/lib/mushaf';
 interface LogRow {
   id: string; date: string;
   from_surah: number; from_verse: number; to_surah: number; to_verse: number;
-  pages: number; score?: number; grade?: string; teacher_name?: string;
+  pages: number; teacher_name?: string;
 }
 
 export default function HistoryPage() {
@@ -27,8 +27,9 @@ export default function HistoryPage() {
         supabase.from('self_recitation_log')
           .select('id, date, from_surah, from_verse, to_surah, to_verse, pages')
           .eq('student_id', me.id).eq('is_deleted', false).order('date', { ascending: false }).limit(100),
+        // الطالبة ترى سجل التسميع فقط — بلا درجة ولا أخطاء (قرار إداري)
         supabase.from('teacher_recitation_log')
-          .select('id, date, from_surah, from_verse, to_surah, to_verse, pages, score, grade, teachers(full_name)')
+          .select('id, date, from_surah, from_verse, to_surah, to_verse, pages, teachers(full_name)')
           .eq('student_id', me.id).eq('is_deleted', false).order('date', { ascending: false }).limit(100),
         supabase.from('session_attendance')
           .select('id, date, status')
@@ -65,8 +66,7 @@ export default function HistoryPage() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>التاريخ</TableHead><TableHead>النطاق</TableHead>
-                  <TableHead>الصفحات</TableHead><TableHead>الدرجة</TableHead>
-                  <TableHead>التقدير</TableHead><TableHead>المسمعة</TableHead>
+                  <TableHead>الصفحات</TableHead><TableHead>المسمعة</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {tasmeeRows.map(r => (
@@ -74,8 +74,6 @@ export default function HistoryPage() {
                       <TableCell>{r.date}</TableCell>
                       <TableCell className="whitespace-nowrap">{range(r)}</TableCell>
                       <TableCell>{r.pages}</TableCell>
-                      <TableCell>{r.score}</TableCell>
-                      <TableCell><Badge variant={r.grade === 'ممتاز' ? 'default' : 'outline'}>{r.grade}</Badge></TableCell>
                       <TableCell>{r.teacher_name}</TableCell>
                     </TableRow>
                   ))}
