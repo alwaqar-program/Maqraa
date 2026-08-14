@@ -12,8 +12,10 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, GraduationCap, FileSignature, Check, X } from 'lucide-react';
-import { WEEKDAYS } from '@/lib/schedule';
+import { Plus, Pencil, GraduationCap, FileSignature, Check, X, Trash2 } from 'lucide-react';
+import { WEEKDAYS, slotHours } from '@/lib/schedule';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TimeSelect } from '@/components/TimeSelect';
 
 interface Teacher {
   id: string;
@@ -27,6 +29,8 @@ interface Teacher {
   total_hours?: number;
   booked?: number;
 }
+
+interface SlotRow { id?: string; weekday: number; start_time: string; end_time: string; booked?: boolean }
 
 interface Agreement {
   id: string; full_name: string; agreement_date: string;
@@ -42,6 +46,8 @@ export default function TeachersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
   const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '' });
+  const [slots, setSlots] = useState<SlotRow[]>([]);
+  const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
@@ -78,31 +84,78 @@ export default function TeachersPage() {
   const openCreate = () => {
     setEditing(null);
     setForm({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '' });
+    setSlots([]); setOrigSlots([]);
     setDialogOpen(true);
   };
-  const openEdit = (t: Teacher) => {
+  const openEdit = async (t: Teacher) => {
     setEditing(t);
     setForm({
       full_name: t.full_name, national_id: t.national_id ?? '',
       phone: t.phone ?? '', email: t.email ?? '', meeting_link: t.meeting_link ?? '',
     });
+    const { data } = await supabase.from('availability_slots')
+      .select('id, weekday, start_time, end_time, bookings(id, status)')
+      .eq('teacher_id', t.id).order('weekday').order('start_time');
+    const rows: SlotRow[] = (data || []).map((s: any) => ({
+      id: s.id, weekday: s.weekday,
+      start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
+      booked: (s.bookings || []).some((b: any) => b.status === 'active'),
+    }));
+    setSlots(rows); setOrigSlots(rows);
     setDialogOpen(true);
   };
 
+  const slotsTotalHours = Math.round(slots.reduce((a, s) =>
+    a + Math.max(0, slotHours(s.start_time, s.end_time)), 0) * 10) / 10;
+
   const handleSave = async () => {
     if (!form.full_name.trim()) { toast({ title: 'الاسم مطلوب', variant: 'destructive' }); return; }
+    if (slots.some(s => !s.start_time || !s.end_time || s.end_time <= s.start_time)) {
+      toast({ title: 'هناك موعد غير مكتمل أو نهايته قبل بدايته', variant: 'destructive' }); return;
+    }
     const payload = {
       full_name: form.full_name, national_id: form.national_id || null,
       phone: form.phone || null, email: form.email || null,
       meeting_link: form.meeting_link || null,
     };
-    const q = editing
-      ? supabase.from('teachers').update(payload).eq('id', editing.id)
-      : supabase.from('teachers').insert(payload);
-    const { error } = await q;
-    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
-    toast({ title: editing ? 'تم تحديث المسمعة' : 'تمت إضافة المسمعة' });
-    setDialogOpen(false);
+    let teacherId = editing?.id;
+    if (editing) {
+      const { error } = await supabase.from('teachers').update(payload).eq('id', editing.id);
+      if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+    } else {
+      const { data, error } = await supabase.from('teachers').insert(payload).select('id').single();
+      if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+      teacherId = data.id;
+    }
+
+    // مزامنة أوقات التوفر: حذف المحذوف أولًا (لتجنب تعارض التراكب) ثم تعديل/إضافة
+    const keptIds = slots.filter(s => s.id).map(s => s.id);
+    const removed = origSlots.filter(o => o.id && !keptIds.includes(o.id));
+    let slotError: string | null = null;
+    if (removed.length) {
+      const { error } = await supabase.from('availability_slots').delete().in('id', removed.map(r => r.id));
+      if (error) slotError = error.message;
+    }
+    for (const s of slots) {
+      if (!s.id) {
+        const { error } = await supabase.from('availability_slots')
+          .insert({ teacher_id: teacherId, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time });
+        if (error) slotError = slotError ?? error.message;
+      } else {
+        const o = origSlots.find(x => x.id === s.id);
+        if (o && (o.weekday !== s.weekday || o.start_time !== s.start_time || o.end_time !== s.end_time)) {
+          const { error } = await supabase.from('availability_slots')
+            .update({ weekday: s.weekday, start_time: s.start_time, end_time: s.end_time }).eq('id', s.id);
+          if (error) slotError = slotError ?? error.message;
+        }
+      }
+    }
+    if (slotError) {
+      toast({ title: 'حُفظت البيانات لكن تعذر حفظ بعض المواعيد', description: slotError, variant: 'destructive' });
+    } else {
+      toast({ title: editing ? 'تم تحديث المسمعة ومواعيدها' : 'تمت إضافة المسمعة' });
+      setDialogOpen(false);
+    }
     fetchAll();
   };
 
@@ -230,7 +283,7 @@ export default function TeachersPage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? 'تعديل المسمعة' : 'مسمعة جديدة'}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -255,6 +308,46 @@ export default function TeachersPage() {
               <Label>رابط الاجتماع الثابت</Label>
               <Input dir="ltr" placeholder="https://zoom.us/j/..." value={form.meeting_link} onChange={e => setForm({ ...form, meeting_link: e.target.value })} />
             </div>
+
+            {/* أوقات التوفر — تُحفظ في availability_slots مع زر الحفظ */}
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label>أوقات التوفر (مواعيد التسميع)</Label>
+                {slots.length > 0 && (
+                  <span className="text-xs text-muted-foreground">المجموع: {slotsTotalHours} ساعة أسبوعيًا</span>
+                )}
+              </div>
+              {slots.map((s, i) => {
+                const update = (patch: Partial<SlotRow>) =>
+                  setSlots(slots.map((x, j) => j === i ? { ...x, ...patch } : x));
+                return (
+                  <div key={s.id ?? `new-${i}`} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
+                    <Select value={String(s.weekday)} onValueChange={v => update({ weekday: Number(v) })}>
+                      <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {WEEKDAYS.map((d, w) => <SelectItem key={w} value={String(w)}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <TimeSelect className="w-28" value={s.start_time} onChange={v => update({ start_time: v })} />
+                    <span className="text-muted-foreground text-sm">إلى</span>
+                    <TimeSelect className="w-28" value={s.end_time} onChange={v => update({ end_time: v })} />
+                    {s.booked ? (
+                      <Badge variant="outline" className="mr-auto text-warning border-warning">محجوز — لا يُحذف</Badge>
+                    ) : (
+                      <button type="button" className="text-muted-foreground hover:text-destructive mr-auto"
+                        onClick={() => setSlots(slots.filter((_, j) => j !== i))}>
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <Button type="button" variant="outline" size="sm" className="gap-1"
+                onClick={() => setSlots([...slots, { weekday: 0, start_time: '16:00', end_time: '17:00' }])}>
+                <Plus size={14} /> إضافة موعد
+              </Button>
+            </div>
+
             <Button className="w-full" onClick={handleSave}>{editing ? 'حفظ التعديل' : 'إضافة'}</Button>
           </div>
         </DialogContent>
