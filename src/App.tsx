@@ -102,7 +102,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
   const { user, loading, roles: userRoles, homePath } = useAuth();
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <img src={logoImg} alt="شعار مقرأة الوقار" className="w-16 h-16 object-contain mx-auto" />
           <p className="text-muted-foreground text-sm">جارٍ التحميل...</p>

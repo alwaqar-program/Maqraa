@@ -91,7 +91,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
 
   if (config.is_open === false) {
     return (
-      <div className={`${preview ? '' : 'min-h-screen'} flex items-center justify-center bg-background p-4`}>
+      <div className={`${preview ? '' : 'min-h-screen'} flex items-center justify-center p-4`}>
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-10 pb-8 space-y-4">
             <p className="text-4xl">🔒</p>
@@ -104,7 +104,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-10 pb-8 space-y-4">
             <CheckCircle2 size={48} className="mx-auto text-success" />
@@ -134,7 +134,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     }`;
 
   return (
-    <div className={`${preview ? '' : 'min-h-screen py-6 px-4 sm:py-10'} bg-background`}>
+    <div className={preview ? '' : 'min-h-screen py-6 px-4 sm:py-10'}>
       <div className="max-w-2xl mx-auto space-y-5">
         {/* الترويسة */}
         <div className="text-center space-y-3">

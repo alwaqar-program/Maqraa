@@ -58,7 +58,7 @@ export default function GuestHostingPage() {
   if (found === null) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">جارٍ التحميل...</div>;
   if (found === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center"><CardContent className="py-10">
           <p className="text-muted-foreground">الرابط غير صالح — تواصلي مع إدارة المقرأة.</p>
         </CardContent></Card>
@@ -67,7 +67,7 @@ export default function GuestHostingPage() {
   }
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center"><CardContent className="pt-10 pb-8 space-y-3">
           <CheckCircle2 size={48} className="mx-auto text-success" />
           <h1 className="text-2xl font-display">شكرًا لك 🌿</h1>
@@ -78,7 +78,7 @@ export default function GuestHostingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
+    <div className="min-h-screen py-8 px-4">
       <div className="max-w-lg mx-auto space-y-6">
         <div className="text-center space-y-2">
           <img src={logoImg} alt="شعار مقرأة الوقار" className="mx-auto w-24 object-contain" />

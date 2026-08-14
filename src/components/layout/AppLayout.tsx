@@ -107,7 +107,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const filteredItems = navItems.filter(item => item.roles.some(r => roles.includes(r)));
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex">
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 bg-foreground/20 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
