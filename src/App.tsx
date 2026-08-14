@@ -42,6 +42,10 @@ import MonthlyReportPage from "./pages/admin/MonthlyReportPage";
 import SeasonReportPage from "./pages/admin/SeasonReportPage";
 import RegisterTeacherPage from "./pages/RegisterTeacherPage";
 import FormsAdminPage from "./pages/admin/FormsAdminPage";
+import CirclesPage from "./pages/admin/CirclesPage";
+import StudentsArchivePage from "./pages/admin/StudentsArchivePage";
+import MyCirclePage from "./pages/student/MyCirclePage";
+import SupervisorPage from "./pages/supervisor/SupervisorPage";
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -151,6 +155,9 @@ const App = () => (
             <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><Placeholder title="ملف الطالبة" /></ProtectedRoute>} />
             <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><TeachersPage /></ProtectedRoute>} />
             <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><ApplicantsPage /></ProtectedRoute>} />
+            <Route path="/circles" element={<ProtectedRoute roles={['admin']}><CirclesPage /></ProtectedRoute>} />
+            <Route path="/students-archive" element={<ProtectedRoute roles={['admin']}><StudentsArchivePage /></ProtectedRoute>} />
+            {/* الجدولة القديمة (حجوزات فردية) — أبقيت الرابط للاطلاع على التاريخ فقط */}
             <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><SchedulingPage /></ProtectedRoute>} />
             <Route path="/recitation" element={<ProtectedRoute roles={['admin']}><RecitationAdminPage /></ProtectedRoute>} />
             <Route path="/attendance" element={<ProtectedRoute roles={['admin']}><AttendanceAdminPage /></ProtectedRoute>} />
@@ -180,12 +187,14 @@ const App = () => (
             <Route path="/teacher/suggestions" element={<ProtectedRoute roles={['teacher']}><SuggestionBoxPage /></ProtectedRoute>} />
 
             {/* المشرفة */}
-            <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']}><Placeholder title="متابعة المسارات" /></ProtectedRoute>} />
+            <Route path="/supervisor" element={<ProtectedRoute roles={['supervisor']}><SupervisorPage /></ProtectedRoute>} />
 
             {/* الطالبة */}
             <Route path="/me" element={<ProtectedRoute roles={['student']}><StudentHomePage /></ProtectedRoute>} />
             <Route path="/me/sard" element={<ProtectedRoute roles={['student']}><SardPage /></ProtectedRoute>} />
-            <Route path="/me/booking" element={<ProtectedRoute roles={['student']}><StudentBookingPage /></ProtectedRoute>} />
+            <Route path="/me/circle" element={<ProtectedRoute roles={['student']}><MyCirclePage /></ProtectedRoute>} />
+            {/* الحجز الذاتي القديم أُلغي — التوزيع إداري بالحلقات */}
+            <Route path="/me/booking" element={<ProtectedRoute roles={['student']}><MyCirclePage /></ProtectedRoute>} />
             <Route path="/me/history" element={<ProtectedRoute roles={['student']}><HistoryPage /></ProtectedRoute>} />
             <Route path="/me/pledges" element={<ProtectedRoute roles={['student']}><MyPledgesPage /></ProtectedRoute>} />
             <Route path="/me/hostings" element={<ProtectedRoute roles={['student']}><StudentHostingsPage /></ProtectedRoute>} />

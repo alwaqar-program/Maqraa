@@ -14,7 +14,9 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Users, Search } from 'lucide-react';
+import { Plus, Pencil, Users, Search, UserMinus, Archive } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 
 interface Student {
@@ -27,6 +29,7 @@ interface Student {
   track_name?: string;
   is_active: boolean;
   user_id: string | null;
+  status?: string;
   khatmat?: number;
   booking?: string | null;
 }
@@ -40,6 +43,9 @@ export default function StudentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
   const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', track_id: '' });
+  // انسحاب/استبعاد — يبقى سجلها كاملًا وتنتقل لصفحة الأرشيف
+  const [leaving, setLeaving] = useState<Student | null>(null);
+  const [leaveForm, setLeaveForm] = useState({ kind: 'withdrawn', date: new Date().toISOString().slice(0, 10), reason: '' });
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
@@ -111,6 +117,23 @@ export default function StudentsPage() {
     else fetchAll();
   };
 
+  const confirmLeave = async () => {
+    if (!leaving) return;
+    if (!leaveForm.reason.trim() && leaveForm.kind === 'excluded') {
+      toast({ title: 'سبب الاستبعاد مطلوب', variant: 'destructive' }); return;
+    }
+    const { error } = await supabase.from('students').update({
+      status: leaveForm.kind, status_date: leaveForm.date,
+      status_reason: leaveForm.reason.trim() || null, is_active: false,
+    }).eq('id', leaving.id);
+    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+    // تحرير مقعدها من حلقتها — سجلاتها (تسميع/حضور/اختبارات) تبقى كاملة
+    await supabase.from('circle_members').delete().eq('student_id', leaving.id);
+    toast({ title: leaveForm.kind === 'withdrawn' ? `سُجّل انسحاب ${leaving.full_name}` : `استُبعدت ${leaving.full_name}` });
+    setLeaving(null);
+    fetchAll();
+  };
+
   const { sortKey, sortDir, toggleSort } = useTableSort();
   const SORTS: Record<string, { get: (r: Student) => unknown; type: SortType }> = {
     name: { get: r => r.full_name, type: 'text' },
@@ -122,8 +145,10 @@ export default function StudentsPage() {
     active: { get: r => r.is_active, type: 'boolean' },
     khatmat: { get: r => r.khatmat, type: 'number' },
   };
+  // المنسحبات والمستبعدات في صفحة الأرشيف — هنا النشطات فقط
   let filtered = students.filter(s =>
-    !search || s.full_name.includes(search) || s.national_id.includes(search) || (s.phone ?? '').includes(search)
+    ((s.status ?? 'active') === 'active') &&
+    (!search || s.full_name.includes(search) || s.national_id.includes(search) || (s.phone ?? '').includes(search))
   );
   if (sortKey && SORTS[sortKey]) filtered = sortRows(filtered, SORTS[sortKey].get, sortDir, SORTS[sortKey].type);
 
@@ -135,7 +160,12 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-display">الطالبات</h1>
           <Badge variant="outline">{students.length}</Badge>
         </div>
-        <Button onClick={openCreate}><Plus size={16} className="ml-1" /> طالبة جديدة</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-1" asChild>
+            <Link to="/students-archive"><Archive size={15} /> المنسحبات والمستبعدات</Link>
+          </Button>
+          <Button onClick={openCreate}><Plus size={16} className="ml-1" /> طالبة جديدة</Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm">
@@ -190,7 +220,13 @@ export default function StudentsPage() {
                         : <Badge variant="outline" className="text-muted-foreground">بلا حساب</Badge>}
                     </TableCell>
                     <TableCell><Switch checked={s.is_active} onCheckedChange={() => toggleActive(s)} /></TableCell>
-                    <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Pencil size={16} /></Button></TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Pencil size={16} /></Button>
+                      <Button variant="ghost" size="icon" title="انسحاب / استبعاد" className="text-muted-foreground hover:text-destructive"
+                        onClick={() => { setLeaving(s); setLeaveForm({ kind: 'withdrawn', date: new Date().toISOString().slice(0, 10), reason: '' }); }}>
+                        <UserMinus size={16} />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -233,6 +269,39 @@ export default function StudentsPage() {
               </div>
             </div>
             <Button className="w-full" onClick={handleSave}>{editing ? 'حفظ التعديل' : 'إضافة'}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* انسحاب / استبعاد */}
+      <Dialog open={!!leaving} onOpenChange={open => !open && setLeaving(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>انسحاب / استبعاد — {leaving?.full_name}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <RadioGroup dir="rtl" value={leaveForm.kind} onValueChange={v => setLeaveForm({ ...leaveForm, kind: v })}
+              className="flex gap-4">
+              <Label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="withdrawn" /> انسحاب (بطلبها)
+              </Label>
+              <Label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="excluded" /> استبعاد (قرار إداري — كالغياب)
+              </Label>
+            </RadioGroup>
+            <div className="space-y-2 max-w-48">
+              <Label>التاريخ</Label>
+              <Input type="date" value={leaveForm.date} onChange={e => setLeaveForm({ ...leaveForm, date: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>السبب {leaveForm.kind === 'excluded' && <span className="text-destructive">*</span>}</Label>
+              <Textarea rows={2} value={leaveForm.reason}
+                onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              يُحرَّر مقعدها من حلقتها، وتنتقل لصفحة «المنسحبات والمستبعدات» مع بقاء كامل سجلها (تسميع، حضور، اختبارات) محفوظًا. يمكن إعادة تفعيلها من الأرشيف.
+            </p>
+            <Button variant="destructive" className="w-full" onClick={confirmLeave}>
+              {leaveForm.kind === 'withdrawn' ? 'تسجيل الانسحاب' : 'تسجيل الاستبعاد'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

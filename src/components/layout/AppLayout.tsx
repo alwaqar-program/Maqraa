@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
   { label: 'الطالبات', href: '/students', icon: <Users size={20} />, roles: ['admin'] },
   { label: 'المسمعات', href: '/teachers', icon: <GraduationCap size={20} />, roles: ['admin'] },
   { label: 'المتقدمات', href: '/applicants', icon: <UserPlus size={20} />, roles: ['admin'] },
-  { label: 'الجدولة والحجوزات', href: '/scheduling', icon: <CalendarClock size={20} />, roles: ['admin'] },
+  { label: 'الحلقات', href: '/circles', icon: <CalendarClock size={20} />, roles: ['admin'] },
   { label: 'التسميع', href: '/recitation', icon: <Mic size={20} />, roles: ['admin'] },
   { label: 'الحضور', href: '/attendance', icon: <ClipboardCheck size={20} />, roles: ['admin'] },
   { label: 'الاختبارات', href: '/exams', icon: <FileCheck size={20} />, roles: ['admin'] },
@@ -75,12 +75,12 @@ const navItems: NavItem[] = [
   { label: 'طالباتي', href: '/teacher/students', icon: <Users size={20} />, roles: ['teacher'] },
   { label: 'اقتراحاتي', href: '/teacher/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['teacher'] },
   // المشرفة
-  { label: 'متابعة المسارات', href: '/supervisor', icon: <LayoutDashboard size={20} />, roles: ['supervisor'] },
+  { label: 'متابعة الحلقات', href: '/supervisor', icon: <LayoutDashboard size={20} />, roles: ['supervisor'] },
   { label: 'الاقتراحات', href: '/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['supervisor'] },
   // الطالبة
   { label: 'رحلتي مع القرآن', href: '/me', icon: <Home size={20} />, roles: ['student'] },
   { label: 'سردي الذاتي', href: '/me/sard', icon: <BookOpen size={20} />, roles: ['student'] },
-  { label: 'موعدي', href: '/me/booking', icon: <CalendarCheck size={20} />, roles: ['student'] },
+  { label: 'حلقتي', href: '/me/circle', icon: <CalendarCheck size={20} />, roles: ['student'] },
   { label: 'سجلي', href: '/me/history', icon: <History size={20} />, roles: ['student'] },
   { label: 'تعهداتي', href: '/me/pledges', icon: <FileSignature size={20} />, roles: ['student'] },
   { label: 'الاستضافات', href: '/me/hostings', icon: <Presentation size={20} />, roles: ['student'] },
