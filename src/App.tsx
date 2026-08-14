@@ -43,6 +43,7 @@ import SeasonReportPage from "./pages/admin/SeasonReportPage";
 import RegisterTeacherPage from "./pages/RegisterTeacherPage";
 import FormsAdminPage from "./pages/admin/FormsAdminPage";
 import CirclesPage from "./pages/admin/CirclesPage";
+import CirclesReportPage from "./pages/admin/CirclesReportPage";
 import StudentsArchivePage from "./pages/admin/StudentsArchivePage";
 import MyCirclePage from "./pages/student/MyCirclePage";
 import SupervisorPage from "./pages/supervisor/SupervisorPage";
@@ -156,6 +157,7 @@ const App = () => (
             <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><TeachersPage /></ProtectedRoute>} />
             <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><ApplicantsPage /></ProtectedRoute>} />
             <Route path="/circles" element={<ProtectedRoute roles={['admin']}><CirclesPage /></ProtectedRoute>} />
+            <Route path="/circles-report" element={<ProtectedRoute roles={['admin', 'supervisor', 'report_viewer']}><CirclesReportPage /></ProtectedRoute>} />
             <Route path="/students-archive" element={<ProtectedRoute roles={['admin']}><StudentsArchivePage /></ProtectedRoute>} />
             {/* الجدولة القديمة (حجوزات فردية) — أبقيت الرابط للاطلاع على التاريخ فقط */}
             <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><SchedulingPage /></ProtectedRoute>} />

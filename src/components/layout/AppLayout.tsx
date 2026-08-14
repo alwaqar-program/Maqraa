@@ -50,6 +50,7 @@ const navItems: NavItem[] = [
   { label: 'المسمعات', href: '/teachers', icon: <GraduationCap size={20} />, roles: ['admin'] },
   { label: 'المتقدمات', href: '/applicants', icon: <UserPlus size={20} />, roles: ['admin'] },
   { label: 'الحلقات', href: '/circles', icon: <CalendarClock size={20} />, roles: ['admin'] },
+  { label: 'تقرير الحلقات', href: '/circles-report', icon: <CalendarCheck size={20} />, roles: ['admin', 'supervisor', 'report_viewer'] },
   { label: 'التسميع', href: '/recitation', icon: <Mic size={20} />, roles: ['admin'] },
   { label: 'الحضور', href: '/attendance', icon: <ClipboardCheck size={20} />, roles: ['admin'] },
   { label: 'الاختبارات', href: '/exams', icon: <FileCheck size={20} />, roles: ['admin'] },
