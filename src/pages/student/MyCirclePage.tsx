@@ -7,7 +7,7 @@ import { WEEKDAYS, formatTime } from '@/lib/schedule';
 
 interface MyCircle {
   number: number; weekday: number; start_time: string; end_time: string;
-  minutes: number; teacher_name: string; meeting_link: string | null;
+  minutes: number; my_time: string | null; teacher_name: string; meeting_link: string | null;
 }
 
 /** حلقة الطالبة — التوزيع إداري (لا حجز ذاتي) */
@@ -20,12 +20,13 @@ export default function MyCirclePage() {
       const { data: me } = await supabase.from('students').select('id').limit(1).maybeSingle();
       if (!me) { setLoading(false); return; }
       const { data } = await supabase.from('circle_members')
-        .select('minutes, circles(number, weekday, start_time, end_time, is_active, teachers(full_name, meeting_link))')
+        .select('minutes, start_time, circles(number, weekday, start_time, end_time, is_active, teachers(full_name, meeting_link))')
         .eq('student_id', me.id).maybeSingle();
       const c: any = data?.circles;
       if (c) setCircle({
         number: c.number, weekday: c.weekday, start_time: c.start_time, end_time: c.end_time,
-        minutes: (data as any).minutes, teacher_name: c.teachers?.full_name ?? '—',
+        minutes: (data as any).minutes, my_time: (data as any).start_time,
+        teacher_name: c.teachers?.full_name ?? '—',
         meeting_link: c.teachers?.meeting_link ?? null,
       });
       setLoading(false);
@@ -54,6 +55,9 @@ export default function MyCirclePage() {
                 {WEEKDAYS[circle.weekday]} {formatTime(circle.start_time)} – {formatTime(circle.end_time)}
               </Badge>
               <Badge variant="outline" className="text-sm px-3 py-1">مدة تسميعك: {circle.minutes} دقيقة</Badge>
+              {circle.my_time && (
+                <Badge className="text-sm px-3 py-1">وقتك: {formatTime(circle.my_time)}</Badge>
+              )}
             </div>
             {circle.meeting_link && (
               <a href={circle.meeting_link} target="_blank" rel="noreferrer"

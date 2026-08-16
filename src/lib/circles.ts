@@ -26,3 +26,25 @@ export function choiceLabel(rank: number | null | undefined): string {
 
 /** أسباب الغياب والتعويض المعتمدة */
 export const ATTENDANCE_REASONS = ['مرض', 'نوم', 'ظرف عائلي', 'ظرف عمل', 'نسيان'] as const;
+
+/** "07:30" + 20 → "07:50" */
+export function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.slice(0, 5).split(':').map(Number);
+  const total = h * 60 + m + mins;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** أوقات كل ٥ دقائق داخل نافذة الحلقة — لتعديل وقت الطالبة يدويًا */
+export function timeOptionsWithin(start: string, end: string, step = 5): string[] {
+  const out: string[] = [];
+  for (let t = start.slice(0, 5); t < end.slice(0, 5); t = addMinutes(t, step)) out.push(t);
+  return out;
+}
+
+/** فئة المتبقي للختمة (بالصفحات، الختمة 604) — كتظليل النموذج السابق */
+export function remainingCategory(remainingPages: number): { label: string; cls: string } {
+  if (remainingPages <= 10) return { label: 'متبقي حزب فأقل', cls: 'bg-orange-100 dark:bg-orange-950/40' };
+  if (remainingPages <= 20) return { label: 'متبقي جزء فأقل', cls: 'bg-pink-100 dark:bg-pink-950/40' };
+  if (remainingPages <= 60) return { label: 'متبقي ٣ أجزاء فأقل', cls: 'bg-sky-100 dark:bg-sky-950/40' };
+  return { label: 'متبقي أكثر من ٣ أجزاء', cls: 'bg-green-100 dark:bg-green-950/40' };
+}

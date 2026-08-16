@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { TimeSelect } from '@/components/TimeSelect';
-import { trackMinutes, durationMinutes, choiceLabel } from '@/lib/circles';
+import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin } from '@/lib/circles';
 import { useFormSettings, DayOption } from '@/lib/form-settings';
 
 interface Circle {
@@ -23,12 +23,13 @@ interface Circle {
 }
 interface Member {
   id: string; circle_id: string; student_id: string; minutes: number; choice_rank: number | null;
+  start_time: string | null;
   student_name?: string; track_name?: string;
 }
 interface Teacher { id: string; full_name: string; }
 interface Supervisor { id: string; full_name: string; }
 interface Proposal { student_id: string; student_name: string; track_name: string; minutes: number;
-  circle_id: string; circle_number: number; choice_rank: number; }
+  circle_id: string; circle_number: number; choice_rank: number; start_time: string; }
 
 export default function CirclesPage() {
   const [circles, setCircles] = useState<Circle[]>([]);
@@ -137,9 +138,18 @@ export default function CirclesPage() {
       toast({ title: `لا تتسع الحلقة ${target.number} لدقائقها (${m.minutes}د)`, variant: 'destructive' }); return;
     }
     const { error } = await supabase.from('circle_members')
-      .update({ circle_id: targetId, choice_rank: null, added_by: 'نقل يدوي' }).eq('id', m.id);
+      .update({
+        circle_id: targetId, choice_rank: null, added_by: 'نقل يدوي',
+        // وقتها الجديد: بعد آخر دقائق مستهلكة في الحلقة الهدف
+        start_time: addMinutes(target.start_time, usedMinutes(target.id)),
+      }).eq('id', m.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else { toast({ title: `نُقلت ${m.student_name} إلى الحلقة ${target.number}` }); fetchAll(); }
+  };
+  const updateMemberTime = async (m: Member, time: string) => {
+    const { error } = await supabase.from('circle_members').update({ start_time: time }).eq('id', m.id);
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    else fetchAll();
   };
   const removeMember = async (m: Member) => {
     const { error } = await supabase.from('circle_members').delete().eq('id', m.id);
@@ -168,6 +178,7 @@ export default function CirclesPage() {
     }
     const { error } = await supabase.from('circle_members').insert({
       circle_id: addingTo.id, student_id: st.id, minutes: st.minutes, choice_rank: null, added_by: 'إضافة يدوية',
+      start_time: addMinutes(addingTo.start_time, usedMinutes(addingTo.id)),
     });
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else { toast({ title: `أُضيفت ${st.full_name}` }); setAddingTo(null); fetchAll(); }
@@ -212,9 +223,13 @@ export default function CirclesPage() {
         return String(a.app.created_at).localeCompare(String(b.app.created_at));
       });
 
-    // السعة المتبقية لكل حلقة نشطة (تُستهلك أثناء المحاكاة)
+    // السعة المتبقية لكل حلقة نشطة (تُستهلك أثناء المحاكاة) + الوقت التالي الشاغر
     const remaining: Record<string, number> = {};
-    circles.filter(c => c.is_active).forEach(c => { remaining[c.id] = capacity(c) - usedMinutes(c.id); });
+    const nextStart: Record<string, string> = {};
+    circles.filter(c => c.is_active).forEach(c => {
+      remaining[c.id] = capacity(c) - usedMinutes(c.id);
+      nextStart[c.id] = addMinutes(c.start_time, usedMinutes(c.id));
+    });
 
     const overlaps = (c: Circle, w: { start: string; end: string }) =>
       c.start_time.slice(0, 5) < w.end && w.start < c.end_time.slice(0, 5);
@@ -244,9 +259,11 @@ export default function CirclesPage() {
         const chosen = candidates[0];
         if (chosen) {
           remaining[chosen.id] -= st.minutes;
+          const t = nextStart[chosen.id];
+          nextStart[chosen.id] = addMinutes(t, st.minutes);
           out.push({
             student_id: st.id, student_name: st.name, track_name: st.track, minutes: st.minutes,
-            circle_id: chosen.id, circle_number: chosen.number, choice_rank: rank,
+            circle_id: chosen.id, circle_number: chosen.number, choice_rank: rank, start_time: t,
           });
           placed = true;
         }
@@ -261,6 +278,7 @@ export default function CirclesPage() {
     const rows = proposals.map(p => ({
       circle_id: p.circle_id, student_id: p.student_id,
       minutes: p.minutes, choice_rank: p.choice_rank, added_by: 'توزيع تلقائي',
+      start_time: p.start_time,
     }));
     for (let i = 0; i < rows.length; i += 400) {
       const { error } = await supabase.from('circle_members').insert(rows.slice(i, i + 400));
@@ -347,6 +365,17 @@ export default function CirclesPage() {
                             <div className="space-y-1.5">
                               {list.map(m => (
                                 <div key={m.id} className="flex items-center gap-2 flex-wrap bg-background border rounded-lg px-3 py-1.5 text-sm">
+                                  {/* وقت الطالبة داخل نافذة الحلقة — تعديله بيد مدير النظام */}
+                                  <Select value={m.start_time?.slice(0, 5) ?? ''} onValueChange={v => updateMemberTime(m, v)}>
+                                    <SelectTrigger className="h-7 w-24 text-xs shrink-0">
+                                      <SelectValue placeholder="الوقت؟" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-64">
+                                      {timeOptionsWithin(c.start_time, c.end_time).map(t => (
+                                        <SelectItem key={t} value={t}>{formatTime(t)}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   <span className="font-medium">{m.student_name}</span>
                                   <span className="text-muted-foreground">{m.track_name} — {m.minutes}د</span>
                                   <Badge variant="outline">{choiceLabel(m.choice_rank)}</Badge>
@@ -476,7 +505,7 @@ export default function CirclesPage() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>الطالبة</TableHead><TableHead>المسار</TableHead>
-                  <TableHead>الحلقة</TableHead><TableHead>الاختيار</TableHead>
+                  <TableHead>الحلقة</TableHead><TableHead>وقتها</TableHead><TableHead>الاختيار</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {proposals.map(p => (
@@ -484,6 +513,7 @@ export default function CirclesPage() {
                       <TableCell className="font-medium">{p.student_name}</TableCell>
                       <TableCell>{p.track_name} ({p.minutes}د)</TableCell>
                       <TableCell>حلقة {p.circle_number}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatTime(p.start_time)}</TableCell>
                       <TableCell><Badge variant={p.choice_rank === 1 ? 'default' : 'outline'}>{choiceLabel(p.choice_rank)}</Badge></TableCell>
                     </TableRow>
                   ))}

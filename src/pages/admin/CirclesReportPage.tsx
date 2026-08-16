@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { CalendarCheck2, Printer } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
+import { remainingCategory } from '@/lib/circles';
 
 // رموز التقرير: الحضور نخلة، التعويض سعفة، الغياب الشجرة الصفراء (ورق الخريف)
 const SYMBOL: Record<string, string> = { present: '🌴', makeup: '🌿', absent: '🍂' };
@@ -18,7 +19,7 @@ const arNum = (n: number) => n.toLocaleString('ar-EG');
 interface Circle {
   id: string; number: number; weekday: number; start_time: string; end_time: string;
   teacher_id: string; teacher_name: string;
-  members: { student_id: string; student_name: string }[];
+  members: { student_id: string; student_name: string; phone: string | null; start_time: string | null }[];
 }
 interface AttRow { student_id: string; date: string; status: string; reason: string | null }
 
@@ -40,6 +41,7 @@ export default function CirclesReportPage() {
   const [weekAtt, setWeekAtt] = useState<AttRow[]>([]);
   const [termAtt, setTermAtt] = useState<AttRow[]>([]);
   const [termCircle, setTermCircle] = useState('');
+  const [pagesBy, setPagesBy] = useState<Record<string, number>>({});
   const [season, setSeason] = useState<{ name: string; start_date: string; end_date: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -52,7 +54,7 @@ export default function CirclesReportPage() {
     (async () => {
       const [{ data: cs, error }, { data: se }] = await Promise.all([
         supabase.from('circles')
-          .select('id, number, weekday, start_time, end_time, teacher_id, teachers(full_name), circle_members(student_id, students(full_name))')
+          .select('id, number, weekday, start_time, end_time, teacher_id, teachers(full_name), circle_members(student_id, start_time, students(full_name, phone))')
           .eq('is_active', true).order('number'),
         supabase.from('seasons').select('name, start_date, end_date').eq('is_current', true).maybeSingle(),
       ]);
@@ -63,9 +65,20 @@ export default function CirclesReportPage() {
         teacher_name: c.teachers?.full_name ?? '—',
         members: (c.circle_members || []).map((m: any) => ({
           student_id: m.student_id, student_name: m.students?.full_name ?? '—',
+          phone: m.students?.phone ?? null, start_time: m.start_time,
         })),
       })));
       setSeason(se || null);
+      // منجز كل طالبة (تسميع + سرد) — لتلوين المتبقي للختمة في شبكة التوزيع
+      const [{ data: tas }, { data: sard }] = await Promise.all([
+        supabase.from('teacher_recitation_log').select('student_id, pages').eq('is_deleted', false).range(0, 9999),
+        supabase.from('self_recitation_log').select('student_id, pages').eq('is_deleted', false).range(0, 9999),
+      ]);
+      const pb: Record<string, number> = {};
+      [...(tas || []), ...(sard || [])].forEach((l: any) => {
+        pb[l.student_id] = (pb[l.student_id] ?? 0) + Number(l.pages || 0);
+      });
+      setPagesBy(pb);
       setLoading(false);
     })();
   }, [toast]);
@@ -135,6 +148,7 @@ export default function CirclesReportPage() {
           <TabsList className="print:hidden">
             <TabsTrigger value="weekly">الأسبوعي</TabsTrigger>
             <TabsTrigger value="term">تراكمي الترم (متابعة الطالبة)</TabsTrigger>
+            <TabsTrigger value="grid">توزيع الطالبات</TabsTrigger>
           </TabsList>
 
           {/* ---------- التقرير الأسبوعي ---------- */}
@@ -248,6 +262,60 @@ export default function CirclesReportPage() {
                   )}
                 </CardContent>
               </Card>
+            )}
+          </TabsContent>
+
+          {/* ---------- شبكة توزيع الطالبات (كنموذج الترم السابق) ---------- */}
+          <TabsContent value="grid" className="space-y-4">
+            <div className="flex flex-wrap gap-3 text-xs print:text-black">
+              {[604, 50, 15, 8].map(r => {
+                const cat = remainingCategory(r);
+                return <span key={r} className={`${cat.cls} border rounded px-2 py-0.5`}>{cat.label}</span>;
+              })}
+            </div>
+            {circles.length === 0 ? (
+              <p className="text-muted-foreground text-sm">لا حلقات نشطة.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="flex gap-3 items-start min-w-max pb-2">
+                  {Object.values(
+                    circles.reduce((acc: Record<string, { teacher: string; list: Circle[] }>, c) => {
+                      (acc[c.teacher_id] ??= { teacher: c.teacher_name, list: [] }).list.push(c);
+                      return acc;
+                    }, {})
+                  ).map(g => (
+                    <div key={g.teacher} className="w-56 shrink-0 border rounded-xl overflow-hidden print:break-inside-avoid">
+                      <p className="bg-primary text-primary-foreground text-center font-display py-1.5">
+                        أ.{g.teacher}
+                      </p>
+                      {[...g.list].sort((a, b) => a.weekday - b.weekday).map(c => (
+                        <div key={c.id} className="border-t">
+                          <p className="bg-muted/60 text-center text-xs py-1">
+                            حلقة {arNum(c.number)} — {WEEKDAYS[c.weekday]} {formatTime(c.start_time)}–{formatTime(c.end_time)}
+                          </p>
+                          {c.members.length === 0 ? (
+                            <p className="text-center text-xs text-muted-foreground py-2">—</p>
+                          ) : [...c.members]
+                            .sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? ''))
+                            .map(m => {
+                              const remaining = Math.max(0, 604 - (pagesBy[m.student_id] ?? 0));
+                              const cat = remainingCategory(remaining);
+                              return (
+                                <div key={m.student_id} className={`${cat.cls} border-t px-2 py-1.5 text-xs leading-snug`}
+                                  title={`${cat.label} (${remaining} صفحة)`}>
+                                  <p className="font-medium">
+                                    {m.start_time ? `${formatTime(m.start_time)} — ` : ''}{m.student_name}
+                                  </p>
+                                  {m.phone && <p dir="ltr" className="text-left text-muted-foreground">{m.phone}</p>}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </TabsContent>
         </Tabs>
