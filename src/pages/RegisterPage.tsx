@@ -381,7 +381,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                         onCheckedChange={() => setSelectedSlots(prev => prev.includes(CUSTOM_KEY)
                           ? prev.filter(x => x !== CUSTOM_KEY)
                           : [...prev, CUSTOM_KEY])} />
-                      <span className="text-sm">آخر — موعد يناسبني غير المعروض</span>
+                      <span className="text-sm">موعد آخر</span>
                     </Label>
                     {selectedSlots.includes(CUSTOM_KEY) && (
                       <Textarea rows={2} value={customText} onChange={e => setCustomText(e.target.value)}
