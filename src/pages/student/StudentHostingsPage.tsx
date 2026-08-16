@@ -115,6 +115,10 @@ export default function StudentHostingsPage() {
                             </button>
                           ))}
                         </div>
+                        {/* مشروطة بالتقييم — تظهر تحت النجوم مباشرة */}
+                        <ExtraQuestions questions={questions} answers={extraByHosting[h.id] ?? {}}
+                          onChange={a => setExtraByHosting({ ...extraByHosting, [h.id]: a })}
+                          baseAnswers={{ rating: String(d.rating || '') }} anchor="rating" />
                         <Textarea rows={2} placeholder={config.comment_placeholder} value={d.comment}
                           onChange={e => setDrafts({ ...drafts, [h.id]: { ...d, comment: e.target.value } })} />
                         <ExtraQuestions questions={questions} answers={extraByHosting[h.id] ?? {}}

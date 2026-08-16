@@ -15,6 +15,7 @@ import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye,
 import { FORM_DEFAULTS, FormKey, FormQuestion, headerUrl, BASE_FIELDS } from '@/lib/form-settings';
 import { useUrlState } from '@/lib/use-url-state';
 import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
+import { anchorField } from '@/components/forms/ExtraQuestions';
 import headerDefault from '@/assets/header.png';
 
 const FORM_LABELS: Record<FormKey, { label: string; url: string }> = {
@@ -381,6 +382,16 @@ export default function FormsAdminPage() {
                         </Select>
                       </>
                     )}
+                    {/* أين سيظهر: تحت الحقل المشروط به، أو في قسم الملاحظات */}
+                    {(() => {
+                      const a = anchorField(q, questions);
+                      const f = a ? BASE_FIELDS[key].find(b => b.key === a) : null;
+                      return (
+                        <span className="text-[11px] text-muted-foreground">
+                          {f ? `يظهر تحت «${f.label}» مباشرة` : 'يظهر في قسم الملاحظات'}
+                        </span>
+                      );
+                    })()}
                   </div>
                 );
               })()}

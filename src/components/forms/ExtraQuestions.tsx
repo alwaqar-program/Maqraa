@@ -21,6 +21,20 @@ export function isVisible(q: FormQuestion, answers: ExtraAnswers, base: BaseAnsw
   return true;
 }
 
+/** الحقل المدمج الذي يتبعه السؤال — مباشرة أو عبر سلسلة شروط (سؤال يعتمد على سؤال).
+ *  null = غير مشروط بحقل مدمج، فمكانه الافتراضي في قسم الملاحظات. */
+export function anchorField(q: FormQuestion, all: FormQuestion[]): string | null {
+  const seen = new Set<string>();
+  let cur: FormQuestion | undefined = q;
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    if (!cur.depends_value) return null;
+    if (cur.depends_field) return cur.depends_field;
+    cur = cur.depends_on ? all.find(x => x.id === cur!.depends_on) : undefined;
+  }
+  return null;
+}
+
 /** يتحقق أن كل الأسئلة الإلزامية الظاهرة مجابة — يعيد نص السؤال الناقص أو null */
 export function missingRequired(
   questions: FormQuestion[], answers: ExtraAnswers, base: BaseAnswers = {},
@@ -34,11 +48,13 @@ export function missingRequired(
 }
 
 /** الأسئلة الإضافية المعرفة من لوحة الإدارة — تُعرض بترتيبها وتُخزن إجاباتها مع الطلب */
-export default function ExtraQuestions({ questions, answers, onChange, baseAnswers }: {
+export default function ExtraQuestions({ questions, answers, onChange, baseAnswers, anchor = null }: {
   questions: FormQuestion[];
   answers: ExtraAnswers;
   onChange: (a: ExtraAnswers) => void;
   baseAnswers?: BaseAnswers;
+  /** يعرض فقط أسئلة هذا الحقل المدمج (تُوضع تحته مباشرة)؛ null = غير المشروطة بحقل مدمج */
+  anchor?: string | null;
 }) {
   // تغيّر حقل مدمج (كالمسار) قد يُخفي سؤالًا مُجابًا — تُمسح إجابته كي لا تُرسل
   useEffect(() => {
@@ -61,7 +77,9 @@ export default function ExtraQuestions({ questions, answers, onChange, baseAnswe
 
   return (
     <>
-      {questions.filter(q => isVisible(q, answers, baseAnswers)).map(q => q.qtype === 'note' ? (
+      {questions
+        .filter(q => anchorField(q, questions) === anchor && isVisible(q, answers, baseAnswers))
+        .map(q => q.qtype === 'note' ? (
         // فقرة إرشادية — نص فقط بلا إجابة
         <p key={q.id} className="border border-accent/40 bg-accent/5 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap">
           {q.label}

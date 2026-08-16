@@ -283,6 +283,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                     );
                   })}
                 </RadioGroup>
+                {/* أسئلة/فقرات مشروطة بالمسار — تظهر تحته مباشرة */}
+                <ExtraQuestions questions={questions} answers={extra} onChange={setExtra}
+                  baseAnswers={baseAnswers} anchor="track" />
               </section>
 
               {/* ۞ مواعيدك */}
@@ -407,6 +410,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                       </Label>
                     ))}
                   </RadioGroup>
+                  {/* مشروطة بالفترة الأنسب */}
+                  <ExtraQuestions questions={questions} answers={extra} onChange={setExtra}
+                    baseAnswers={baseAnswers} anchor="period" />
                 </div>
               </section>
 
@@ -435,6 +441,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                   <Checkbox id="pledge" checked={pledge} onCheckedChange={v => setPledge(v === true)} />
                   <span className="text-sm font-medium">{config.pledge_text}</span>
                 </Label>
+
+                {/* مشروطة بالتعهد */}
+                <ExtraQuestions questions={questions} answers={extra} onChange={setExtra}
+                  baseAnswers={baseAnswers} anchor="pledge" />
 
                 <div className="space-y-1.5">
                   <Label htmlFor="sugg">{config.suggestions_title}</Label>

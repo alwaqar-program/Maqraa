@@ -36,6 +36,8 @@ export function HostingFeedbackPreview({ config, questions }: { config: any; que
           </button>
         ))}
       </div>
+      <ExtraQuestions questions={questions} answers={extra} onChange={setExtra}
+        baseAnswers={{ rating: String(rating || '') }} anchor="rating" />
       <Textarea disabled rows={2} placeholder={config.comment_placeholder} />
       <ExtraQuestions questions={questions} answers={extra} onChange={setExtra}
         baseAnswers={{ rating: String(rating || '') }} />
