@@ -7,16 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save, RefreshCw } from 'lucide-react';
-import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl, genSlotLabel } from '@/lib/form-settings';
-import { TimeSelect } from '@/components/TimeSelect';
+import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
+import { FORM_DEFAULTS, FormKey, FormQuestion, headerUrl } from '@/lib/form-settings';
 import { useUrlState } from '@/lib/use-url-state';
-import { WEEKDAYS } from '@/lib/schedule';
 import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
 import headerDefault from '@/assets/header.png';
 
@@ -39,13 +36,7 @@ export default function FormsAdminPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const { toast } = useToast();
-
-  useEffect(() => {
-    supabase.from('tracks').select('id, name').eq('is_active', true).order('sort_order')
-      .then(({ data }) => setTracks(data || []));
-  }, []);
 
   const fetchAll = useCallback(async () => {
     const [{ data: row }, { data: qs }] = await Promise.all([
@@ -62,31 +53,6 @@ export default function FormsAdminPage() {
   // كل التعديلات محلية (مسودة) — لا تصل النموذج العام قبل «حفظ»
   const patchConfig = (patch: object) => { setConfig({ ...config, ...patch }); setDirty(true); };
 
-  // مواعيد التسجيل هي نفسها مواعيد المسمعات — تُعكس من أوقات توفرهن بدل إدخالها مرتين.
-  // القائمة الأساسية للمسمعات العامات (غير المعينات على مسار) فقط، وخياراتها يوم واحد
-  // دائمًا — لا دوري فيها؛ الدوري حصري لقائمة المسار المخصص (الختمة الدورية)
-  const syncFromTeachers = async () => {
-    const { data, error } = await supabase.from('availability_slots')
-      .select('weekday, start_time, end_time, teacher_id, teachers!inner(is_active, track_id)')
-      .eq('teachers.is_active', true)
-      .is('teachers.track_id', null);
-    if (error) { toast({ title: 'تعذر جلب مواعيد المسمعات', description: error.message, variant: 'destructive' }); return; }
-    if (!data?.length) { toast({ title: 'لا مواعيد لمسمعات عامات بعد', description: 'أضيفي أوقات التوفر من صفحة المسمعات أولًا', variant: 'destructive' }); return; }
-
-    const seen = new Set<string>();
-    const opts: DayOption[] = [];
-    data.forEach((s: any) => {
-      const start = s.start_time.slice(0, 5), end = s.end_time.slice(0, 5);
-      const k = `${s.weekday}|${start}|${end}`;
-      if (seen.has(k)) return;   // مسمعتان بنفس اليوم والوقت = خيار واحد
-      seen.add(k);
-      opts.push({ value: s.weekday, start, end, label: genSlotLabel(s.weekday, start, end) });
-    });
-
-    opts.sort((a, b) => a.value - b.value || (a.start ?? '').localeCompare(b.start ?? ''));
-    patchConfig({ day_options: opts });
-    toast({ title: `عُكست ${opts.length} خيارات من مواعيد المسمعات العامات`, description: 'راجعيها ثم اضغطي «حفظ» لاعتمادها' });
-  };
   const patchQuestion = (id: string, patch: Partial<DraftQuestion>) => {
     setQuestions(qs => qs.map(q => q.id === id ? { ...q, ...patch } : q));
     setDirty(true);
@@ -244,42 +210,12 @@ export default function FormsAdminPage() {
               <Field label="عنوان قسم المسار" value={config.section_track_title} onChange={v => patchConfig({ section_track_title: v })} />
               <Field label="عنوان قسم المواعيد" value={config.section_times_title} onChange={v => patchConfig({ section_times_title: v })} />
               <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <Label>خيارات المواعيد المعروضة <span className="text-muted-foreground text-xs">— اختاري اليوم والوقت والنص يُكتب تلقائيًا</span></Label>
-                  <Button type="button" variant="outline" size="sm" className="gap-1" onClick={syncFromTeachers}>
-                    <RefreshCw size={13} /> عكس مواعيد المسمعات
-                  </Button>
-                </div>
-                <SlotOptionsEditor options={(config.day_options as DayOption[]) ?? []}
-                  onChange={v => patchConfig({ day_options: v })} />
-              </div>
-
-              {/* مواعيد مختلفة لمسارات محددة (مثل «ختمة دورية») */}
-              <div className="space-y-2 border border-dashed rounded-lg p-3">
-                <Label>مواعيد خاصة بمسارات محددة <span className="text-muted-foreground text-xs">— الطالبة التي تختار أحد هذه المسارات ترى القائمة أدناه بدل المواعيد الأساسية</span></Label>
-                <div className="flex flex-wrap gap-2">
-                  {tracks.map(t => {
-                    const on = ((config.special_track_ids as string[]) ?? []).includes(t.id);
-                    return (
-                      <label key={t.id}
-                        className={`flex items-center gap-2 border rounded-lg px-3 py-1.5 text-sm cursor-pointer transition-colors ${on ? 'border-accent bg-accent/10' : 'hover:border-accent/60'}`}>
-                        <Checkbox checked={on} onCheckedChange={() => {
-                          const cur: string[] = (config.special_track_ids as string[]) ?? [];
-                          patchConfig({ special_track_ids: on ? cur.filter(x => x !== t.id) : [...cur, t.id] });
-                        }} />
-                        {t.name}
-                      </label>
-                    );
-                  })}
-                </div>
-                {((config.special_track_ids as string[]) ?? []).length > 0 ? (
-                  <SlotOptionsEditor allowDaily options={(config.special_day_options as DayOption[]) ?? []}
-                    onChange={v => patchConfig({ special_day_options: v })} />
-                ) : (
-                  <p className="text-xs text-muted-foreground">لم يُحدد مسار — الجميع يرى المواعيد الأساسية.</p>
-                )}
-              </div>
+              {/* المواعيد تُقرأ مباشرة من أوقات المسمعات — لا إدخال يدوي هنا */}
+              <p className="text-xs text-muted-foreground border border-dashed rounded-lg px-3 py-2.5">
+                خيارات المواعيد تُقرأ تلقائيًا من أوقات توفر المسمعات (صفحة المسمعات):
+                طالبة المسار المرتبط بمسمعة ترى مواعيدها فقط، والبقية يرون مواعيد المسمعات العامات.
+                الموعد الدوري يظهر خيارًا واحدًا «يوميًا من ... إلى ...».
+              </p>
               <Field label="عنوان قسم العهد" value={config.section_pledge_title} onChange={v => patchConfig({ section_pledge_title: v })} />
               <Field label="عنوان صندوق نظام الغياب" value={config.absence_policy_title} onChange={v => patchConfig({ absence_policy_title: v })} />
               <Field label="نص نظام الغياب (قبل التعهد — فارغ = مخفي)" rows={4}
@@ -396,60 +332,6 @@ export default function FormsAdminPage() {
 
 // ---------- محررات صغيرة ----------
 
-/** محرر قائمة خيارات المواعيد — والنص يتولد تلقائيًا.
- *  allowDaily (لقائمة الختمة الدورية فقط): يتيح الدوري «من يوم إلى يوم» —
- *  الخيارات العادية يوم واحد دائمًا، لا دوري فيها أبدًا */
-function SlotOptionsEditor({ options, onChange, allowDaily }: {
-  options: DayOption[]; onChange: (next: DayOption[]) => void; allowDaily?: boolean;
-}) {
-  const update = (i: number, patch: Partial<DayOption>) => {
-    const next = [...options];
-    const merged = { ...next[i], ...patch, daily: undefined };
-    if (!allowDaily) merged.to = undefined;
-    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '', merged.to) || merged.label;
-    next[i] = merged;
-    onChange(next);
-  };
-  return (
-    <div className="space-y-1.5">
-      {options.map((d, i) => (
-        <div key={i} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
-          <Select value={String(d.value)} onValueChange={v => update(i, { value: Number(v) })}>
-            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {/* «إلى يوم» للدوري — يظهر فقط في قائمة المسار المخصص */}
-          {allowDaily && (
-            <Select value={d.to != null ? String(d.to) : (d.daily ? '6' : 'single')}
-              onValueChange={v => update(i, { to: v === 'single' ? undefined : Number(v) })}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="single">— يوم واحد —</SelectItem>
-                {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>إلى {w}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-          <TimeSelect className="w-32" value={d.start} onChange={v => update(i, { start: v })} />
-          <span className="text-muted-foreground text-sm">إلى</span>
-          <TimeSelect className="w-32" value={d.end} onChange={v => update(i, { end: v })} />
-          <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
-            {d.label || '—'}
-          </span>
-          <button type="button" className="text-muted-foreground hover:text-destructive mr-auto"
-            onClick={() => onChange(options.filter((_, j) => j !== i))}>
-            <Trash2 size={15} />
-          </button>
-        </div>
-      ))}
-      <Button type="button" variant="outline" size="sm" className="gap-1"
-        onClick={() => onChange([...options, { value: 0, start: '05:00', end: '07:00', label: genSlotLabel(0, '05:00', '07:00') }])}>
-        <Plus size={14} /> إضافة خيار
-      </Button>
-    </div>
-  );
-}
 function Field({ label, value, onChange, rows }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
     <div className="space-y-1.5">

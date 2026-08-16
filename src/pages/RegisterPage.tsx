@@ -93,18 +93,13 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
       ? prev.filter(x => x !== slotKey(d))
       : [...prev, slotKey(d)]);
 
-  // مصدر المواعيد حسب المسار المختار:
-  // 1) مسار له قائمة خاصة يدوية (مثل «ختمة دورية») → القائمة الخاصة
-  // 2) مسار مرتبط بمسمعة → مواعيد حلقات مسمعته فقط
-  // 3) غير ذلك → مواعيد حلقات المسمعات غير المعينات على مسار — وإن لا حلقات بعد فالقائمة اليدوية
-  const isSpecialTrack = ((config.special_track_ids as string[]) ?? []).includes(trackId);
+  // مصدر المواعيد حسب المسار المختار — يُقرأ حيًا من أوقات المسمعات:
+  // مسار مرتبط بمسمعة → مواعيدها فقط؛ وغير ذلك → مواعيد المسمعات غير المعينات على مسار.
+  // القائمة اليدوية المحفوظة احتياط صامت فقط إن لم توجد مواعيد بعد
   const linkedRows = circleTimes.filter(r => r.track_id && r.track_id === trackId);
   const generalRows = circleTimes.filter(r => !r.track_id);
   const liveOptions = deriveOptions(trackId && linkedRows.length > 0 ? linkedRows : generalRows);
-  const activeOptions: DayOption[] =
-    isSpecialTrack && (config.special_day_options ?? []).length > 0 ? config.special_day_options
-    : liveOptions.length > 0 ? liveOptions
-    : config.day_options;
+  const activeOptions: DayOption[] = liveOptions.length > 0 ? liveOptions : config.day_options;
 
   // عند تبديل المسار: أزيلي المواعيد المختارة التي لم تعد معروضة
   useEffect(() => {
