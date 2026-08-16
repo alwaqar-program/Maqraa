@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Route } from 'lucide-react';
+import { trackMinutes } from '@/lib/circles';
 
 interface Track {
   id: string;
@@ -89,6 +90,7 @@ export default function TracksPage() {
                   <TableHead>الأجزاء</TableHead>
                   <TableHead>نصاب الفصل (صفحة)</TableHead>
                   <TableHead>نصاب الجلسة تقريبًا (÷14)</TableHead>
+                  <TableHead>دقائق الموعد (صفحة = دقيقتان)</TableHead>
                   <TableHead>نشط</TableHead>
                   <TableHead />
                 </TableRow>
@@ -100,6 +102,7 @@ export default function TracksPage() {
                     <TableCell>{t.juz_count}</TableCell>
                     <TableCell>{t.quota_pages_per_season}</TableCell>
                     <TableCell className="text-muted-foreground">{Math.round(t.quota_pages_per_season / 14)} صفحة</TableCell>
+                    <TableCell className="font-medium">{trackMinutes(t)} دقيقة</TableCell>
                     <TableCell><Switch checked={t.is_active} onCheckedChange={() => toggleActive(t)} /></TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(t)}><Pencil size={16} /></Button>

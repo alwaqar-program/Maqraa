@@ -31,6 +31,7 @@ import {
   ScrollText,
   Home,
   FileEdit,
+  ListOrdered,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logoAlwaqar from '@/assets/logo-alwaqar.png';
@@ -49,6 +50,7 @@ const navItems: NavItem[] = [
   { label: 'الطالبات', href: '/students', icon: <Users size={20} />, roles: ['admin'] },
   { label: 'المسمعات', href: '/teachers', icon: <GraduationCap size={20} />, roles: ['admin'] },
   { label: 'المتقدمات', href: '/applicants', icon: <UserPlus size={20} />, roles: ['admin'] },
+  { label: 'فرز الطالبات', href: '/sorting', icon: <ListOrdered size={20} />, roles: ['admin'] },
   { label: 'الحلقات', href: '/circles', icon: <CalendarClock size={20} />, roles: ['admin'] },
   { label: 'تقرير الحلقات', href: '/circles-report', icon: <CalendarCheck size={20} />, roles: ['admin', 'supervisor', 'report_viewer'] },
   { label: 'التسميع', href: '/recitation', icon: <Mic size={20} />, roles: ['admin'] },

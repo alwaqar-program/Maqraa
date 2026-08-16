@@ -14,8 +14,9 @@ import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
 import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
+import { trackMinutes, sessionPages, slotCapacity } from '@/lib/circles';
 
-interface Track { id: string; name: string; juz_count: number; sort_order: number; }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; sort_order: number; }
 
 /** preview: يُمرَّر من صفحة «النماذج» لعرض المسودة بنفس الصفحة الحقيقية (الإرسال معطل) */
 export default function RegisterPage({ preview }: { preview?: { config: any; questions: FormQuestion[] } }) {
@@ -41,13 +42,18 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
 
   // أوقات توفر المسمعات النشطات (عرض عام آمن) — مصدر المواعيد الحي بدل الإدخال اليدوي المكرر
   const [circleTimes, setCircleTimes] = useState<{ weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean }[]>([]);
+  // حمل كل موعد: مجموع دقائق من اخترنه **أولوية أولى** (عرض مجمَّع بلا بيانات شخصية)
+  const [slotLoad, setSlotLoad] = useState<{ label: string; track_id: string | null; used_minutes: number }[]>([]);
+  const [loadReady, setLoadReady] = useState(false);
 
   useEffect(() => {
-    supabase.from('tracks').select('id, name, juz_count, sort_order')
+    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, sort_order')
       .eq('is_active', true).order('sort_order')
       .then(({ data }) => setTracks(data || []));
     supabase.from('v_public_circle_times' as any).select('*')
       .then(({ data }) => setCircleTimes((data as any) || []));
+    supabase.from('v_public_slot_load' as any).select('*')
+      .then(({ data }) => { setSlotLoad((data as any) || []); setLoadReady(true); });
   }, []);
 
   /** مواعيد المسمعات → خيارات فريدة بنص عربي مولد:
@@ -98,16 +104,42 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   // القائمة اليدوية المحفوظة احتياط صامت فقط إن لم توجد مواعيد بعد
   const linkedRows = circleTimes.filter(r => r.track_id && r.track_id === trackId);
   const generalRows = circleTimes.filter(r => !r.track_id);
-  const liveOptions = deriveOptions(trackId && linkedRows.length > 0 ? linkedRows : generalRows);
+  const isLinkedPool = Boolean(trackId && linkedRows.length > 0);
+  const poolRows = isLinkedPool ? linkedRows : generalRows;
+  const liveOptions = deriveOptions(poolRows);
   const activeOptions: DayOption[] = liveOptions.length > 0 ? liveOptions : config.day_options;
 
-  // عند تبديل المسار: أزيلي المواعيد المختارة التي لم تعد معروضة
+  // ---- سعة المواعيد بالدقائق (صفحة = دقيقتان) ----
+  // دقائق الطالبة في موعدها حسب مسارها، والمتبقي في كل موعد = سعة نوافذ مسمعاته
+  // ناقص دقائق من اخترنه أولوية أولى. الاكتفاء نسبي: موعد ممتلئ لمسار الختمة قد يتسع لخمسة أجزاء.
+  const myTrack = tracks.find(t => t.id === trackId);
+  const myMinutes = trackId ? trackMinutes(myTrack) : 0;
+  // المسارات المرتبطة بمسمعات — الطالبات في المجموعة العامة يتشاركن المواعيد نفسها
+  const linkedTrackIds = new Set(circleTimes.map(r => r.track_id).filter(Boolean) as string[]);
+  const usedOf = (label: string) => slotLoad
+    .filter(l => l.label === label
+      && (isLinkedPool ? l.track_id === trackId : !l.track_id || !linkedTrackIds.has(l.track_id)))
+    .reduce((a, l) => a + Number(l.used_minutes || 0), 0);
+
+  /** المتبقي بالدقائق في الخيار — null إن لم يوجد مصدر سعة (قائمة احتياطية) فلا نقفل شيئًا */
+  const remainingOf = (d: DayOption): number | null => {
+    if (liveOptions.length === 0 || !d.start || !d.end) return null;
+    const cap = slotCapacity(poolRows, { days: optionDays(d), start: d.start, end: d.end });
+    if (!cap) return null;
+    return cap - usedOf(d.label);
+  };
+  const isFullFor = (d: DayOption): boolean => {
+    const rem = remainingOf(d);
+    return rem !== null && myMinutes > 0 && rem < myMinutes;
+  };
+
+  // عند تبديل المسار (أو وصول بيانات السعة): أزيلي المواعيد التي لم تعد معروضة أو لم تعد تتسع
   useEffect(() => {
-    const valid = new Set(activeOptions.map(slotKey));
+    const valid = new Set(activeOptions.filter(d => !isFullFor(d)).map(slotKey));
     setSelectedSlots(prev => prev.filter(k => valid.has(k)));
     setActiveDay(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackId]);
+  }, [trackId, loadReady, circleTimes.length]);
 
   // الخيارات الدورية (نفس الوقت عدة أيام) تظهر دائمًا؛ والباقي بأزرار الأيام
   const dailyOptions = activeOptions.filter(d => optionDays(d).length > 1);
@@ -257,6 +289,14 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
               <section className="px-5 sm:px-8 py-6 space-y-4">
                 <SectionHead title={config.section_times_title} hint={config.times_note} />
 
+                {/* مسارك يحدد المدة التي تحجزينها في الموعد — والمواعيد الممتلئة تُقفل تبعًا لها */}
+                {myMinutes > 0 && liveOptions.length > 0 && (
+                  <p className="text-xs border border-accent/30 bg-accent/5 rounded-lg px-3 py-2">
+                    مسارك «{myTrack?.name}» يحتاج <b>{myMinutes} دقيقة</b> في الموعد الواحد
+                    ({sessionPages(myTrack)} صفحة × دقيقتان) — لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
+                  </p>
+                )}
+
                 {/* اختيار اليوم أولا (يُخفى إن كانت كل الخيارات يومية) */}
                 {showDayButtons && (
                 <div className="flex items-center gap-2 flex-wrap">
@@ -290,14 +330,29 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                 {/* أوقات اليوم المختار (أو الكل) + اليومية دائمًا */}
                 {showGrid ? (
                   <div className="grid sm:grid-cols-2 gap-2.5">
-                    {visibleOptions.map((d, i) => (
-                      <Label key={`${d.value}-${i}`} htmlFor={`slot-${d.value}-${i}`}
-                        className={pill(selectedSlots.includes(slotKey(d)))}>
-                        <Checkbox id={`slot-${d.value}-${i}`} checked={selectedSlots.includes(slotKey(d))}
-                          onCheckedChange={() => toggleSlot(d)} />
-                        <span className="text-sm">{d.label}</span>
-                      </Label>
-                    ))}
+                    {visibleOptions.map((d, i) => {
+                      const rem = remainingOf(d);
+                      const full = isFullFor(d);
+                      return (
+                        <Label key={`${d.value}-${i}`} htmlFor={`slot-${d.value}-${i}`}
+                          className={`${pill(selectedSlots.includes(slotKey(d)))} ${full ? 'opacity-55 cursor-not-allowed bg-muted/40' : ''}`}
+                          onClick={full ? e => e.preventDefault() : undefined}>
+                          <Checkbox id={`slot-${d.value}-${i}`} disabled={full}
+                            checked={selectedSlots.includes(slotKey(d))}
+                            onCheckedChange={() => !full && toggleSlot(d)} />
+                          <span className="text-sm flex-1">
+                            {d.label}
+                            {full ? (
+                              <span className="block text-xs text-destructive mt-0.5">
+                                مكتمل — مسارك يحتاج {myMinutes} دقيقة ولم يبقَ سوى {Math.max(0, rem ?? 0)}
+                              </span>
+                            ) : rem !== null && (
+                              <span className="block text-xs text-muted-foreground mt-0.5">متبقٍ {rem} دقيقة</span>
+                            )}
+                          </span>
+                        </Label>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground border border-dashed rounded-xl px-4 py-3 text-center">

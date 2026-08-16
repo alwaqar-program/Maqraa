@@ -1,12 +1,44 @@
-// منطق الحلقات المشترك: دقائق الطالبة حسب مسارها، سعة الحلقة، ونص رقم الاختيار
+// منطق الحلقات المشترك: دقائق الطالبة حسب مسارها، سعة الموعد، ونص رقم الاختيار
 
-/** دقائق التسميع الأسبوعية حسب المسار: ٥أجزاء=10د، ١٠=20د، ٢٠=40د، ختمة=60د */
-export function trackMinutes(juzCount: number | null | undefined): number {
-  const j = Number(juzCount ?? 0);
-  if (j <= 5) return 10;
-  if (j <= 10) return 20;
-  if (j <= 20) return 40;
-  return 60;
+/** عدد جلسات الفصل — كما في صفحة المسارات (نصاب الفصل ÷ ١٤ = نصاب الجلسة) */
+export const SESSIONS_PER_SEASON = 14;
+/** تسميع الصفحة الواحدة يأخذ دقيقتين (نظيره في القاعدة: app_settings.minutes_per_page) */
+export const MINUTES_PER_PAGE = 2;
+
+/** مسار كما يصل من القاعدة، أو عدد أجزائه فقط (توافق مع نداءات قديمة) */
+export type TrackLike =
+  | { quota_pages_per_season?: number | null; juz_count?: number | null }
+  | number | null | undefined;
+
+/** صفحات الجلسة الواحدة: نصاب الفصل ÷ عدد الجلسات — ٧ / ١٤ / ٢٩ / ٤٣ للمسارات المعتمدة */
+export function sessionPages(track: TrackLike): number {
+  if (track && typeof track === 'object' && track.quota_pages_per_season != null) {
+    return Math.max(1, Math.round(Number(track.quota_pages_per_season) / SESSIONS_PER_SEASON));
+  }
+  const juz = Number((typeof track === 'number' ? track : track?.juz_count) ?? 0);
+  if (juz <= 5) return 7;
+  if (juz <= 10) return 14;
+  if (juz <= 20) return 29;
+  return 43;
+}
+
+/** دقائق الطالبة في موعدها = صفحات الجلسة × دقيقتان (٧ص→١٤د، ١٤ص→٢٨د، ٢٩ص→٥٨د، ٤٣ص→٨٦د) */
+export function trackMinutes(track: TrackLike): number {
+  return sessionPages(track) * MINUTES_PER_PAGE;
+}
+
+/** صف توفر: يوم ووقت — مصدره v_public_circle_times أو availability_slots */
+export interface TimeRow { weekday: number; start_time: string; end_time: string }
+
+/** سعة الموعد بالدقائق = مجموع نوافذ كل المسمعات التي تعرضه
+ *  (الخيار الواحد قد يمثل عدة مسمعات بنفس اليوم والوقت، والدوري يمتد لعدة أيام) */
+export function slotCapacity(rows: TimeRow[], opt: { days: number[]; start?: string; end?: string }): number {
+  if (!opt.start || !opt.end) return 0;
+  return rows
+    .filter(r => opt.days.includes(r.weekday)
+      && r.start_time.slice(0, 5) === opt.start!.slice(0, 5)
+      && r.end_time.slice(0, 5) === opt.end!.slice(0, 5))
+    .reduce((a, r) => a + durationMinutes(r.start_time, r.end_time), 0);
 }
 
 /** مدة الحلقة بالدقائق من وقتي البداية والنهاية "HH:MM" */
@@ -34,8 +66,9 @@ export function addMinutes(time: string, mins: number): string {
   return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
-/** أوقات كل ٥ دقائق داخل نافذة الحلقة — لتعديل وقت الطالبة يدويًا */
-export function timeOptionsWithin(start: string, end: string, step = 5): string[] {
+/** أوقات كل دقيقتين داخل نافذة الحلقة — لتعديل وقت الطالبة يدويًا
+ *  (الخطوة دقيقتان لأن الأوقات المولَّدة تتراكم بمضاعفات ١٤/٢٨/٥٨/٨٦) */
+export function timeOptionsWithin(start: string, end: string, step = 2): string[] {
   const out: string[] = [];
   for (let t = start.slice(0, 5); t < end.slice(0, 5); t = addMinutes(t, step)) out.push(t);
   return out;
