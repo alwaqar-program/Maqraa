@@ -35,7 +35,7 @@ interface Teacher {
   booked?: number;
 }
 
-interface SlotRow { key: string; id?: string; weekday: number; start_time: string; end_time: string; booked?: boolean; studentName?: string }
+interface SlotRow { key: string; id?: string; weekday: number; start_time: string; end_time: string; is_daily?: boolean; booked?: boolean; studentName?: string }
 
 const DAILY_DAYS = [1, 2, 3, 4, 5, 6];   // الاثنين → السبت
 let slotKeySeq = 0;
@@ -59,7 +59,25 @@ export default function TeachersPage() {
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<{ keys: string[]; names: string[] } | null>(null);
+  const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
   const { toast } = useToast();
+
+  // حذف مسمعة: قاعدة البيانات تمنع الحذف إن كان لها سجلات (حلقات/تسميع/حضور/اختبارات)
+  const confirmDeleteTeacher = async () => {
+    const t = deletingTeacher;
+    if (!t) return;
+    const { error } = await supabase.from('teachers').delete().eq('id', t.id);
+    setDeletingTeacher(null);
+    if (error) {
+      const friendly = error.code === '23503' || error.message.includes('foreign key') || error.message.includes('violates')
+        ? 'لها سجلات مرتبطة (حلقة أو تسميع أو حضور أو اختبارات) — الحذف ممنوع حفاظًا على السجلات. عطّليها بمفتاح «نشطة» بدلًا من ذلك.'
+        : error.message;
+      toast({ title: `تعذر حذف ${t.full_name}`, description: friendly, variant: 'destructive' });
+    } else {
+      toast({ title: `حُذفت ${t.full_name} نهائيًا` });
+    }
+    fetchAll();
+  };
 
   const fetchAll = useCallback(async () => {
     const [{ data: rows, error }, { data: hours }, { data: bookings }, { data: agr }] = await Promise.all([
@@ -111,12 +129,12 @@ export default function TeachersPage() {
       track_id: t.track_id ?? '',
     });
     const { data } = await supabase.from('availability_slots')
-      .select('id, weekday, start_time, end_time, bookings(id, status, students(full_name))')
+      .select('id, weekday, start_time, end_time, is_daily, bookings(id, status, students(full_name))')
       .eq('teacher_id', t.id).order('weekday').order('start_time');
     const rows: SlotRow[] = (data || []).map((s: any) => {
       const active = (s.bookings || []).find((b: any) => b.status === 'active');
       return {
-        key: s.id, id: s.id, weekday: s.weekday,
+        key: s.id, id: s.id, weekday: s.weekday, is_daily: !!s.is_daily,
         start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
         booked: !!active, studentName: active?.students?.full_name,
       };
@@ -166,7 +184,7 @@ export default function TeachersPage() {
     for (const s of slots) {
       if (!s.id) {
         const { error } = await supabase.from('availability_slots')
-          .insert({ teacher_id: teacherId, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time });
+          .insert({ teacher_id: teacherId, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time, is_daily: s.is_daily ?? false });
         if (error) slotError = slotError ?? error.message;
       } else {
         const o = origSlots.find(x => x.id === s.id);
@@ -300,7 +318,13 @@ export default function TeachersPage() {
                         : <Badge variant="outline" className="text-muted-foreground">بلا حساب</Badge>}
                     </TableCell>
                     <TableCell><Switch checked={t.is_active} onCheckedChange={() => toggleActive(t)} /></TableCell>
-                    <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(t)}><Pencil size={16} /></Button></TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(t)}><Pencil size={16} /></Button>
+                      <Button variant="ghost" size="icon" title="حذف المسمعة" className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeletingTeacher(t)}>
+                        <Trash2 size={16} />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -355,9 +379,10 @@ export default function TeachersPage() {
                 )}
               </div>
               {(() => {
-                // الموعد الدوري = نفس الوقت أيامًا متتالية (من يوم إلى يوم) — يُعرض صفًا واحدًا ويُخزن صفًا لكل يوم
+                // الموعد الدوري = صفوف موسومة is_daily بنفس الوقت — يُعرض صفًا واحدًا (من/إلى) ويُخزن صفًا لكل يوم.
+                // مواعيد الأيام العادية لا تُجمع أبدًا حتى لو تتابعت أيامها (روان/نورة: الجمعة+السبت موعدا يوم)
                 const byTime: Record<string, SlotRow[]> = {};
-                slots.forEach(s => { (byTime[`${s.start_time}|${s.end_time}`] ??= []).push(s); });
+                slots.filter(s => s.is_daily).forEach(s => { (byTime[`${s.start_time}|${s.end_time}`] ??= []).push(s); });
                 const grouped = new Set<string>();
                 const groups: { range: boolean; rows: SlotRow[] }[] = [];
                 Object.values(byTime).forEach(rows => {
@@ -372,6 +397,8 @@ export default function TeachersPage() {
                     if (run.length && r.weekday !== run[run.length - 1].weekday + 1) flush();
                     run.push(r);
                   });
+                  // صف دوري وحيد (بقية أيامه حُذفت) يبقى معروضًا كمجموعة من/إلى ليوم واحد
+                  if (run.length === 1) { groups.push({ range: true, rows: run }); run.forEach(r => grouped.add(r.key)); run = []; }
                   flush();
                 });
                 slots.forEach(s => { if (!grouped.has(s.key)) groups.push({ range: false, rows: [s] }); });
@@ -395,7 +422,8 @@ export default function TeachersPage() {
                   const kept = rows.filter(r => days.includes(r.weekday));
                   const have = new Set(kept.map(r => r.weekday));
                   const added: SlotRow[] = days.filter(d => !have.has(d)).map(d => ({
-                    key: newSlotKey(), weekday: d, start_time: rows[0].start_time, end_time: rows[0].end_time,
+                    key: newSlotKey(), weekday: d, is_daily: true,
+                    start_time: rows[0].start_time, end_time: rows[0].end_time,
                   }));
                   setSlots([...slots.filter(x => !rows.some(r => r.key === x.key)), ...kept, ...added]);
                 };
@@ -456,7 +484,7 @@ export default function TeachersPage() {
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="gap-1"
                   onClick={() => setSlots([...slots,
-                    ...DAILY_DAYS.map(w => ({ key: newSlotKey(), weekday: w, start_time: '16:00', end_time: '17:00' }))])}>
+                    ...DAILY_DAYS.map(w => ({ key: newSlotKey(), weekday: w, is_daily: true, start_time: '16:00', end_time: '17:00' }))])}>
                   <Plus size={14} /> إضافة موعد دوري
                 </Button>
               </div>

@@ -63,45 +63,43 @@ export default function FormsAdminPage() {
   const patchConfig = (patch: object) => { setConfig({ ...config, ...patch }); setDirty(true); };
 
   // مواعيد التسجيل هي نفسها مواعيد المسمعات — تُعكس من أوقات توفرهن بدل إدخالها مرتين.
-  // المتتالية الأيام بنفس الوقت عند المسمعة نفسها تُطوى خيارًا دوريًا واحدًا (من يوم إلى يوم)
+  // الموسومة «دورية» (is_daily) فقط تُطوى خيارًا دوريًا واحدًا (من يوم إلى يوم)،
+  // ومواعيد الأيام العادية تبقى خيارات مفردة حتى لو تتابعت أيامها
   const syncFromTeachers = async () => {
     const { data, error } = await supabase.from('availability_slots')
-      .select('weekday, start_time, end_time, teacher_id, teachers!inner(is_active)')
+      .select('weekday, start_time, end_time, is_daily, teacher_id, teachers!inner(is_active)')
       .eq('teachers.is_active', true);
     if (error) { toast({ title: 'تعذر جلب مواعيد المسمعات', description: error.message, variant: 'destructive' }); return; }
     if (!data?.length) { toast({ title: 'لا مواعيد للمسمعات بعد', description: 'أضيفي أوقات التوفر من صفحة المسمعات أولًا', variant: 'destructive' }); return; }
 
-    // أيام كل (مسمعة + وقت)
+    const seen = new Set<string>();
+    const opts: DayOption[] = [];
+
+    // مواعيد الأيام العادية: خيار لكل يوم+وقت (مكرر المسمعات = خيار واحد)
+    data.filter((s: any) => !s.is_daily).forEach((s: any) => {
+      const start = s.start_time.slice(0, 5), end = s.end_time.slice(0, 5);
+      const k = `${s.weekday}|${s.weekday}|${start}|${end}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      opts.push({ value: s.weekday, start, end, label: genSlotLabel(s.weekday, start, end) });
+    });
+
+    // الدورية: أيام كل (مسمعة + وقت) تُطوى مدى من/إلى
     const byTeacherTime: Record<string, { start: string; end: string; days: number[] }> = {};
-    data.forEach((s: any) => {
+    data.filter((s: any) => s.is_daily).forEach((s: any) => {
       const start = s.start_time.slice(0, 5), end = s.end_time.slice(0, 5);
       const k = `${s.teacher_id}|${start}|${end}`;
       (byTeacherTime[k] ??= { start, end, days: [] }).days.push(s.weekday);
     });
-
-    const seen = new Set<string>();
-    const opts: DayOption[] = [];
     Object.values(byTeacherTime).forEach(({ start, end, days }) => {
       const sorted = [...new Set(days)].sort((a, b) => a - b);
-      // تقطيع الأيام إلى متتاليات: متتالية ≥2 = خيار دوري، ويوم مفرد = خيار عادي
-      let run: number[] = [];
-      const flush = () => {
-        if (!run.length) return;
-        const from = run[0], to = run[run.length - 1];
-        const k = `${from}|${to}|${start}|${end}`;
-        if (!seen.has(k)) {
-          seen.add(k);
-          opts.push(run.length >= 2
-            ? { value: from, to, start, end, label: genSlotLabel(from, start, end, to) }
-            : { value: from, start, end, label: genSlotLabel(from, start, end) });
-        }
-        run = [];
-      };
-      sorted.forEach(d => {
-        if (run.length && d !== run[run.length - 1] + 1) flush();
-        run.push(d);
-      });
-      flush();
+      const from = sorted[0], to = sorted[sorted.length - 1];
+      const k = `${from}|${to}|${start}|${end}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      opts.push(to !== from
+        ? { value: from, to, start, end, label: genSlotLabel(from, start, end, to) }
+        : { value: from, start, end, label: genSlotLabel(from, start, end) });
     });
 
     opts.sort((a, b) => a.value - b.value || (a.start ?? '').localeCompare(b.start ?? ''));
