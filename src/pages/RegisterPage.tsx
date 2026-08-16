@@ -86,6 +86,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     return out;
   };
 
+  // خيار «آخر»: متاح لطالبات المسار المرتبط بمسمعة مخصصة — تكتب فيه موعدها المقترح
+  const CUSTOM_KEY = '-1|آخر';
+  const [customText, setCustomText] = useState('');
+
   const slotKey = (d: { value: number; label: string }) => `${d.value}|${d.label}`;
   const moveSlot = (i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -136,7 +140,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   // عند تبديل المسار (أو وصول بيانات السعة): أزيلي المواعيد التي لم تعد معروضة أو لم تعد تتسع
   useEffect(() => {
     const valid = new Set(activeOptions.filter(d => !isFullFor(d)).map(slotKey));
-    setSelectedSlots(prev => prev.filter(k => valid.has(k)));
+    // «آخر» يبقى ما دام المسار مرتبطًا بمسمعة، ويُمسح نصه إن لم يعد متاحًا
+    setSelectedSlots(prev => prev.filter(k => valid.has(k) || (k === CUSTOM_KEY && isLinkedPool)));
+    if (!isLinkedPool) setCustomText('');
     setActiveDay(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackId, loadReady, circleTimes.length]);
@@ -166,6 +172,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     if (!trackId) { toast({ title: 'اختاري المسار', variant: 'destructive' }); return; }
     const missing = missingRequired(questions, extra, baseAnswers);
     if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
+    if (selectedSlots.includes(CUSTOM_KEY) && !customText.trim()) {
+      toast({ title: 'اكتبي الموعد المناسب لك في خانة «آخر»', variant: 'destructive' }); return;
+    }
     setSaving(true);
     const { error } = await supabase.from('applicants').insert({
       full_name: fullName.trim(),
@@ -173,8 +182,12 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
       phone: phone.trim(),
       attendance_pledge: pledge,
       track_id: trackId,
-      preferred_days: [...new Set(selectedSlots.map(k => Number(k.split('|')[0])))].sort(),
-      preferred_slots: selectedSlots.map(k => k.split('|').slice(1).join('|')),
+      // «آخر» ليس يومًا محددًا — يُستثنى من الأيام ويُحفظ نصه ضمن الأولويات بترتيبه
+      preferred_days: [...new Set(selectedSlots.filter(k => k !== CUSTOM_KEY)
+        .map(k => Number(k.split('|')[0])))].sort(),
+      preferred_slots: selectedSlots.map(k => k === CUSTOM_KEY
+        ? `آخر: ${customText.trim()}`
+        : k.split('|').slice(1).join('|')),
       preferred_period: period || null,
       suggestions: suggestions.trim() || null,
       ...(Object.keys(extra).length ? { extra_answers: extra } : {}),
@@ -360,6 +373,23 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                   </p>
                 )}
 
+                {/* «آخر» — لطالبات المسار المرتبط بمسمعة مخصصة: تكتب موعدها المقترح */}
+                {isLinkedPool && (
+                  <div className="space-y-2">
+                    <Label htmlFor="slot-custom" className={pill(selectedSlots.includes(CUSTOM_KEY))}>
+                      <Checkbox id="slot-custom" checked={selectedSlots.includes(CUSTOM_KEY)}
+                        onCheckedChange={() => setSelectedSlots(prev => prev.includes(CUSTOM_KEY)
+                          ? prev.filter(x => x !== CUSTOM_KEY)
+                          : [...prev, CUSTOM_KEY])} />
+                      <span className="text-sm">آخر — موعد يناسبني غير المعروض</span>
+                    </Label>
+                    {selectedSlots.includes(CUSTOM_KEY) && (
+                      <Textarea rows={2} value={customText} onChange={e => setCustomText(e.target.value)}
+                        placeholder="اكتبي اليوم والوقت الأنسب لك — مثال: الأحد والثلاثاء من ٩ إلى ١١ مساءً" />
+                    )}
+                  </div>
+                )}
+
                 {/* مواعيدك بترتيب الأولوية */}
                 {selectedSlots.length > 0 && (
                   <div className="border border-accent/30 bg-accent/5 rounded-xl p-3 space-y-1.5">
@@ -385,7 +415,11 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                         <span className="w-6 h-6 shrink-0 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center">
                           {(i + 1).toLocaleString('ar-EG')}
                         </span>
-                        <span className="text-sm flex-1">{k.split('|').slice(1).join('|')}</span>
+                        <span className="text-sm flex-1">
+                          {k === CUSTOM_KEY
+                            ? `آخر${customText.trim() ? `: ${customText.trim()}` : ''}`
+                            : k.split('|').slice(1).join('|')}
+                        </span>
                         <button type="button" onClick={() => moveSlot(i, -1)} disabled={i === 0}
                           className="text-muted-foreground hover:text-foreground disabled:opacity-25"><ChevronUp size={16} /></button>
                         <button type="button" onClick={() => moveSlot(i, 1)} disabled={i === selectedSlots.length - 1}
