@@ -9,17 +9,18 @@ import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { trackMinutes, slotCapacity, durationMinutes, TimeRow } from '@/lib/circles';
 import { genSlotLabel, optionDays, DayOption } from '@/lib/form-settings';
 
-interface Row { weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean; teacher_name?: string }
-interface Track { id: string; name: string; juz_count: number; quota_pages_per_season: number; seconds_per_page?: number }
+interface Row { weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean; teacher_id?: string; teacher_name?: string }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season: number; seconds_per_page?: number; sessions_per_week?: number }
 interface Applicant {
   id: string; full_name: string; phone: string | null; track_id: string | null;
   preferred_slots: string[]; preferred_period: string | null; created_at: string; status: string;
+  sort_teacher_id?: string | null; sort_slot_label?: string | null;   // إسناد يدوي محفوظ (سحب وإفلات)
 }
-interface Seat { applicant: Applicant; track: Track | undefined; minutes: number; overflow: boolean }
+interface Seat { applicant: Applicant; track: Track | undefined; minutes: number; overflow: boolean; pinned: boolean }
 /** حلقة مسمعة واحدة في يوم واحد — وحدة العرض في التقويم */
 interface Event {
   key: string; day: number; start: string; end: string;
-  teacher: string; label: string; pool: string | null;
+  teacherId: string; teacher: string; label: string; pool: string | null;
   capacity: number; seats: Seat[];
   lane: number; lanes: number;
 }
@@ -51,7 +52,7 @@ export default function SortingPage() {
         supabase.from('availability_slots')
           .select('weekday, start_time, end_time, is_daily, teachers(full_name, track_id, is_active)')
           .range(0, 1999),
-        supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page')
+        supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week')
           .eq('is_active', true).order('sort_order'),
         supabase.from('applicants')
           .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status')

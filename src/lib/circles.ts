@@ -7,8 +7,17 @@ export const SECONDS_PER_PAGE = 100;
 
 /** مسار كما يصل من القاعدة، أو عدد أجزائه فقط (توافق مع نداءات قديمة) */
 export type TrackLike =
-  | { quota_pages_per_season?: number | null; juz_count?: number | null; seconds_per_page?: number | null }
+  | {
+      quota_pages_per_season?: number | null; juz_count?: number | null;
+      seconds_per_page?: number | null; sessions_per_week?: number | null;
+    }
   | number | null | undefined;
+
+/** جلسات الطالبة أسبوعيًا في هذا المسار (١ للأسبوعي، ٥–٦ لليومي) */
+export function trackSessionsPerWeek(track: TrackLike): number {
+  const n = track && typeof track === 'object' ? Number(track.sessions_per_week ?? 0) : 0;
+  return n > 0 ? n : 1;
+}
 
 /** ثواني الصفحة لهذا المسار (عمود tracks.seconds_per_page) */
 export function trackSeconds(track: TrackLike): number {
@@ -22,10 +31,14 @@ export function paceLabel(seconds: number): string {
   return m ? `${m}:${String(s).padStart(2, '0')}` : `${s} ثانية`;
 }
 
-/** صفحات الجلسة الواحدة: نصاب الفصل ÷ عدد الجلسات — ٧ / ١٤ / ٢٩ / ٤٣ للمسارات المعتمدة */
+/** صفحات الجلسة الواحدة = نصاب الفصل ÷ (أسابيع الفصل × جلسات الأسبوع).
+ *  المسار الأسبوعي: ٧ / ١٤ / ٢٩ / ٤٣ — واليومي يُقسَّم أيضًا على أيامه
+ *  (ختمة أسبوعية ٦٠٤ص في ٦ جلسات ⇒ نحو ١٠١ صفحة للجلسة لا ٦٠٤). */
 export function sessionPages(track: TrackLike): number {
   if (track && typeof track === 'object' && track.quota_pages_per_season != null) {
-    return Math.max(1, Math.round(Number(track.quota_pages_per_season) / SESSIONS_PER_SEASON));
+    return Math.max(1, Math.round(
+      Number(track.quota_pages_per_season) / SESSIONS_PER_SEASON / trackSessionsPerWeek(track)
+    ));
   }
   const juz = Number((typeof track === 'number' ? track : track?.juz_count) ?? 0);
   if (juz <= 5) return 7;

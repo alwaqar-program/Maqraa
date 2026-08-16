@@ -16,7 +16,7 @@ import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel, opti
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 import { trackMinutes, sessionPages, slotCapacity, trackSeconds, paceLabel } from '@/lib/circles';
 
-interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; seconds_per_page?: number; sort_order: number; }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; seconds_per_page?: number; sessions_per_week?: number; sort_order: number; }
 
 /** preview: يُمرَّر من صفحة «النماذج» لعرض المسودة بنفس الصفحة الحقيقية (الإرسال معطل) */
 export default function RegisterPage({ preview }: { preview?: { config: any; questions: FormQuestion[] } }) {
@@ -47,7 +47,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const [loadReady, setLoadReady] = useState(false);
 
   useEffect(() => {
-    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sort_order')
+    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week, sort_order')
       .eq('is_active', true).order('sort_order')
       .then(({ data }) => setTracks(data || []));
     supabase.from('v_public_circle_times' as any).select('*')

@@ -17,6 +17,7 @@ interface Track {
   juz_count: number;
   quota_pages_per_season: number;
   seconds_per_page?: number;
+  sessions_per_week?: number;
   sort_order: number;
   is_active: boolean;
 }
@@ -26,7 +27,7 @@ export default function TracksPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Track | null>(null);
-  const [form, setForm] = useState({ name: '', juz_count: 5, quota_pages_per_season: 100, seconds_per_page: 100, sort_order: 0 });
+  const [form, setForm] = useState({ name: '', juz_count: 5, quota_pages_per_season: 100, seconds_per_page: 100, sessions_per_week: 1, sort_order: 0 });
   const { toast } = useToast();
 
   const fetchTracks = async () => {
@@ -39,14 +40,14 @@ export default function TracksPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', juz_count: 5, quota_pages_per_season: 100, seconds_per_page: 100, sort_order: tracks.length + 1 });
+    setForm({ name: '', juz_count: 5, quota_pages_per_season: 100, seconds_per_page: 100, sessions_per_week: 1, sort_order: tracks.length + 1 });
     setDialogOpen(true);
   };
   const openEdit = (t: Track) => {
     setEditing(t);
     setForm({
       name: t.name, juz_count: t.juz_count, quota_pages_per_season: t.quota_pages_per_season,
-      seconds_per_page: Number(t.seconds_per_page ?? 100), sort_order: t.sort_order,
+      seconds_per_page: Number(t.seconds_per_page ?? 100), sessions_per_week: Number(t.sessions_per_week ?? 1), sort_order: t.sort_order,
     });
     setDialogOpen(true);
   };
@@ -93,7 +94,8 @@ export default function TracksPage() {
                   <TableHead>المسار</TableHead>
                   <TableHead>الأجزاء</TableHead>
                   <TableHead>نصاب الفصل (صفحة)</TableHead>
-                  <TableHead>نصاب الجلسة تقريبًا (÷14)</TableHead>
+                  <TableHead>جلسات الأسبوع</TableHead>
+                  <TableHead>صفحات الجلسة</TableHead>
                   <TableHead>سرعة الصفحة</TableHead>
                   <TableHead>دقائق الموعد</TableHead>
                   <TableHead>نشط</TableHead>
@@ -106,7 +108,8 @@ export default function TracksPage() {
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell>{t.juz_count}</TableCell>
                     <TableCell>{t.quota_pages_per_season}</TableCell>
-                    <TableCell className="text-muted-foreground">{Math.round(t.quota_pages_per_season / 14)} صفحة</TableCell>
+                    <TableCell>{t.sessions_per_week ?? 1}</TableCell>
+                    <TableCell className="text-muted-foreground">{sessionPages(t)} صفحة</TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {paceLabel(trackSeconds(t))} <span className="text-xs">({trackSeconds(t)} ثانية)</span>
                     </TableCell>
@@ -143,17 +146,28 @@ export default function TracksPage() {
                   onChange={e => setForm({ ...form, quota_pages_per_season: Number(e.target.value) })} />
               </div>
             </div>
-            {/* سرعة التسميع لهذا المسار — تحدد الدقائق التي تحجزها الطالبة في موعدها */}
-            <div className="space-y-2">
-              <Label>ثواني تسميع الصفحة الواحدة</Label>
-              <Input type="number" min={5} step={5} value={form.seconds_per_page}
-                onChange={e => setForm({ ...form, seconds_per_page: Number(e.target.value) })} />
-              <p className="text-xs text-muted-foreground">
-                {paceLabel(form.seconds_per_page || 100)} للصفحة —
-                نصاب الجلسة {sessionPages({ quota_pages_per_season: form.quota_pages_per_season })} صفحة ⇒
-                <b> {trackMinutes({ quota_pages_per_season: form.quota_pages_per_season, seconds_per_page: form.seconds_per_page })} دقيقة</b> تحجزها الطالبة في موعدها (تُقرَّب لأعلى دقيقة)
-              </p>
+            {/* جلسات الأسبوع وسرعة التسميع — معًا تحددان دقائق الطالبة في الموعد الواحد */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>جلسات الأسبوع</Label>
+                <Input type="number" min={1} max={7} value={form.sessions_per_week}
+                  onChange={e => setForm({ ...form, sessions_per_week: Number(e.target.value) })} />
+                <p className="text-xs text-muted-foreground">١ للمسار الأسبوعي، ٦ للمسار اليومي</p>
+              </div>
+              <div className="space-y-2">
+                <Label>ثواني تسميع الصفحة الواحدة</Label>
+                <Input type="number" min={5} step={5} value={form.seconds_per_page}
+                  onChange={e => setForm({ ...form, seconds_per_page: Number(e.target.value) })} />
+                <p className="text-xs text-muted-foreground">{paceLabel(form.seconds_per_page || 100)} للصفحة</p>
+              </div>
             </div>
+            <p className="text-xs border border-accent/30 bg-accent/5 rounded-lg px-3 py-2 leading-relaxed">
+              نصاب الفصل {form.quota_pages_per_season} صفحة ÷ ١٤ أسبوعًا ÷ {form.sessions_per_week || 1} جلسة ={' '}
+              <b>{sessionPages({ quota_pages_per_season: form.quota_pages_per_season, sessions_per_week: form.sessions_per_week })} صفحة للجلسة</b> ×{' '}
+              {paceLabel(form.seconds_per_page || 100)} ⇒{' '}
+              <b>{trackMinutes({ quota_pages_per_season: form.quota_pages_per_season, seconds_per_page: form.seconds_per_page, sessions_per_week: form.sessions_per_week })} دقيقة</b>{' '}
+              تحجزها الطالبة في الموعد الواحد (تُقرَّب لأعلى دقيقة)
+            </p>
             <Button className="w-full" onClick={handleSave}>{editing ? 'حفظ التعديل' : 'إضافة'}</Button>
           </div>
         </DialogContent>
