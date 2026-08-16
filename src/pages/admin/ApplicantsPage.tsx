@@ -157,7 +157,7 @@ export default function ApplicantsPage() {
                   <TableHead>ملاحظات</TableHead>
                   {extraQs.filter(q => q.is_active).map(q => <TableHead key={q.id}>{q.label}</TableHead>)}
                   <SortableHead label="سُجّل في" sortKey="created" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
-                  {tab === 'pending' && <TableHead />}
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,17 +171,7 @@ export default function ApplicantsPage() {
                     }}
                     className={a.student_id ? 'cursor-pointer' : undefined}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                    <TableCell className="font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        {a.full_name}
-                        {a.student_id && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6" title="ملف الطالبة"
-                            onClick={() => navigate(`/students/${a.student_id}`)}>
-                            <Eye size={14} />
-                          </Button>
-                        )}
-                      </span>
-                    </TableCell>
+                    <TableCell className="font-medium">{a.full_name}</TableCell>
                     <TableCell dir="ltr">{a.national_id ?? '—'}</TableCell>
                     <TableCell dir="ltr">{a.phone}</TableCell>
                     <TableCell>{a.track_name ?? '—'}</TableCell>
@@ -200,18 +190,26 @@ export default function ApplicantsPage() {
                       <TableCell key={q.id} className="text-sm">{answerText(a.extra_answers[q.id])}</TableCell>
                     ))}
                     <TableCell className="text-sm text-muted-foreground">{a.created_at.slice(0, 10)}</TableCell>
-                    {tab === 'pending' && (
-                      <TableCell className="whitespace-nowrap">
-                        <Button size="sm" variant="outline" className="gap-1 ml-2"
-                          onClick={() => setAction({ a, type: 'accept' })}>
-                          <Check size={14} /> قبول
+                    <TableCell className="whitespace-nowrap">
+                      {a.student_id && (
+                        <Button variant="ghost" size="icon" title="ملف الطالبة"
+                          onClick={() => navigate(`/students/${a.student_id}`)}>
+                          <Eye size={16} />
                         </Button>
-                        <Button size="sm" variant="ghost" className="gap-1 text-destructive"
-                          onClick={() => setAction({ a, type: 'reject' })}>
-                          <X size={14} /> رفض
-                        </Button>
-                      </TableCell>
-                    )}
+                      )}
+                      {tab === 'pending' && (
+                        <>
+                          <Button size="sm" variant="outline" className="gap-1 ml-2"
+                            onClick={() => setAction({ a, type: 'accept' })}>
+                            <Check size={14} /> قبول
+                          </Button>
+                          <Button size="sm" variant="ghost" className="gap-1 text-destructive"
+                            onClick={() => setAction({ a, type: 'reject' })}>
+                            <X size={14} /> رفض
+                          </Button>
+                        </>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

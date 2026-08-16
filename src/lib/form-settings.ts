@@ -16,7 +16,8 @@ export interface FormQuestion {
   is_active: boolean;
 }
 
-export interface DayOption { value: number; label: string; start?: string; end?: string; }
+/** daily: موعد يومي بنفس الوقت من الاثنين إلى السبت (للختمة الدورية ونحوها) بدل يوم واحد */
+export interface DayOption { value: number; label: string; start?: string; end?: string; daily?: boolean; }
 
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 const arNum = (n: number | string) => String(n).replace(/\d/g, d => AR_DIGITS[Number(d)]);
@@ -37,14 +38,16 @@ export function arTimeLabel(t: string): string {
   return `${text} ${period}`;
 }
 
-/** يولد نص الموعد تلقائيًا: «الأحد ٥–٧ صباحًا» أو «الأحد ١١ صباحًا – ١ مساءً» */
-export function genSlotLabel(weekday: number, start: string, end: string): string {
-  if (!start || !end) return WEEKDAY_NAMES[weekday] ?? '';
+/** يولد نص الموعد تلقائيًا: «الأحد ٥–٧ صباحًا» أو «الأحد ١١ صباحًا – ١ مساءً»
+ *  daily: «يوميًا من الاثنين إلى السبت ٥–٧ صباحًا» */
+export function genSlotLabel(weekday: number, start: string, end: string, daily?: boolean): string {
+  const prefix = daily ? 'يوميًا من الاثنين إلى السبت' : (WEEKDAY_NAMES[weekday] ?? '');
+  if (!start || !end) return prefix;
   const a = arTime(start), b = arTime(end);
   const times = a.period === b.period
     ? `${a.text}–${b.text} ${a.period}`
     : `${a.text} ${a.period} – ${b.text} ${b.period}`;
-  return `${WEEKDAY_NAMES[weekday]} ${times}`;
+  return `${prefix} ${times}`;
 }
 
 export const FORM_DEFAULTS = {

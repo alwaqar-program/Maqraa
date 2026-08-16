@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
+import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save, RefreshCw } from 'lucide-react';
 import { FORM_DEFAULTS, FormKey, FormQuestion, DayOption, headerUrl, genSlotLabel } from '@/lib/form-settings';
 import { TimeSelect } from '@/components/TimeSelect';
 import { useUrlState } from '@/lib/use-url-state';
@@ -61,6 +61,26 @@ export default function FormsAdminPage() {
 
   // كل التعديلات محلية (مسودة) — لا تصل النموذج العام قبل «حفظ»
   const patchConfig = (patch: object) => { setConfig({ ...config, ...patch }); setDirty(true); };
+
+  // مواعيد التسجيل هي نفسها مواعيد حلقات المسمعات — توليدها من الحلقات النشطة بدل إدخالها مرتين
+  const syncFromCircles = async () => {
+    const { data, error } = await supabase.from('circles')
+      .select('weekday, start_time, end_time').eq('is_active', true)
+      .order('weekday').order('start_time');
+    if (error) { toast({ title: 'تعذر جلب الحلقات', description: error.message, variant: 'destructive' }); return; }
+    if (!data?.length) { toast({ title: 'لا حلقات نشطة', description: 'أنشئي الحلقات أولًا من صفحة الحلقات', variant: 'destructive' }); return; }
+    const seen = new Set<string>();
+    const opts: DayOption[] = [];
+    data.forEach((c: any) => {
+      const start = c.start_time.slice(0, 5), end = c.end_time.slice(0, 5);
+      const k = `${c.weekday}|${start}|${end}`;
+      if (seen.has(k)) return;   // حلقتان بنفس اليوم والوقت (مسمعتان) = خيار واحد
+      seen.add(k);
+      opts.push({ value: c.weekday, start, end, label: genSlotLabel(c.weekday, start, end) });
+    });
+    patchConfig({ day_options: opts });
+    toast({ title: `وُلّدت ${opts.length} خيارات من الحلقات النشطة`, description: 'راجعيها ثم اضغطي «حفظ» لاعتمادها' });
+  };
   const patchQuestion = (id: string, patch: Partial<DraftQuestion>) => {
     setQuestions(qs => qs.map(q => q.id === id ? { ...q, ...patch } : q));
     setDirty(true);
@@ -219,7 +239,12 @@ export default function FormsAdminPage() {
               <Field label="عنوان قسم المواعيد" value={config.section_times_title} onChange={v => patchConfig({ section_times_title: v })} />
               <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
               <div className="space-y-1.5">
-                <Label>خيارات المواعيد المعروضة <span className="text-muted-foreground text-xs">— اختاري اليوم والوقت والنص يُكتب تلقائيًا</span></Label>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Label>خيارات المواعيد المعروضة <span className="text-muted-foreground text-xs">— اختاري اليوم والوقت والنص يُكتب تلقائيًا</span></Label>
+                  <Button type="button" variant="outline" size="sm" className="gap-1" onClick={syncFromCircles}>
+                    <RefreshCw size={13} /> توليد من الحلقات
+                  </Button>
+                </div>
                 <SlotOptionsEditor options={(config.day_options as DayOption[]) ?? []}
                   onChange={v => patchConfig({ day_options: v })} />
               </div>
@@ -243,7 +268,7 @@ export default function FormsAdminPage() {
                   })}
                 </div>
                 {((config.special_track_ids as string[]) ?? []).length > 0 ? (
-                  <SlotOptionsEditor options={(config.special_day_options as DayOption[]) ?? []}
+                  <SlotOptionsEditor allowDaily options={(config.special_day_options as DayOption[]) ?? []}
                     onChange={v => patchConfig({ special_day_options: v })} />
                 ) : (
                   <p className="text-xs text-muted-foreground">لم يُحدد مسار — الجميع يرى المواعيد الأساسية.</p>
@@ -365,12 +390,15 @@ export default function FormsAdminPage() {
 
 // ---------- محررات صغيرة ----------
 
-/** محرر قائمة خيارات المواعيد (يوم + من/إلى والنص يتولد) — يُستخدم للأساسية والخاصة بمسار */
-function SlotOptionsEditor({ options, onChange }: { options: DayOption[]; onChange: (next: DayOption[]) => void }) {
+/** محرر قائمة خيارات المواعيد (يوم + من/إلى والنص يتولد) — يُستخدم للأساسية والخاصة بمسار
+ *  allowDaily: يتيح خيار «يوميًا من الاثنين إلى السبت» بنفس الوقت (للختمة الدورية) */
+function SlotOptionsEditor({ options, onChange, allowDaily }: {
+  options: DayOption[]; onChange: (next: DayOption[]) => void; allowDaily?: boolean;
+}) {
   const update = (i: number, patch: Partial<DayOption>) => {
     const next = [...options];
     const merged = { ...next[i], ...patch };
-    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '') || merged.label;
+    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '', merged.daily) || merged.label;
     next[i] = merged;
     onChange(next);
   };
@@ -378,15 +406,25 @@ function SlotOptionsEditor({ options, onChange }: { options: DayOption[]; onChan
     <div className="space-y-1.5">
       {options.map((d, i) => (
         <div key={i} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
-          <Select value={String(d.value)} onValueChange={v => update(i, { value: Number(v) })}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {d.daily ? (
+            <span className="text-sm border rounded-md px-3 py-2 bg-muted/40 whitespace-nowrap">الاثنين–السبت</span>
+          ) : (
+            <Select value={String(d.value)} onValueChange={v => update(i, { value: Number(v) })}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <TimeSelect className="w-32" value={d.start} onChange={v => update(i, { start: v })} />
           <span className="text-muted-foreground text-sm">إلى</span>
           <TimeSelect className="w-32" value={d.end} onChange={v => update(i, { end: v })} />
+          {allowDaily && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox checked={!!d.daily} onCheckedChange={v => update(i, { daily: v === true })} />
+              يوميًا (٢–٦)
+            </label>
+          )}
           <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
             {d.label || '—'}
           </span>

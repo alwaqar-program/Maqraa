@@ -14,12 +14,12 @@ import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus }
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { TimeSelect } from '@/components/TimeSelect';
 import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin } from '@/lib/circles';
-import { useFormSettings, DayOption } from '@/lib/form-settings';
+import { useFormSettings, DayOption, genSlotLabel } from '@/lib/form-settings';
 
 interface Circle {
   id: string; number: number; teacher_id: string; supervisor_id: string | null;
   weekday: number; start_time: string; end_time: string; is_active: boolean;
-  teacher_name?: string; supervisor_name?: string;
+  teacher_name?: string; supervisor_name?: string; teacher_track_id?: string | null;
 }
 interface Member {
   id: string; circle_id: string; student_id: string; minutes: number; choice_rank: number | null;
@@ -53,7 +53,7 @@ export default function CirclesPage() {
 
   const fetchAll = useCallback(async () => {
     const [{ data: cs, error }, { data: ms }, { data: ts }, { data: svs }] = await Promise.all([
-      supabase.from('circles').select('*, teachers(full_name), supervisors(full_name)').order('number'),
+      supabase.from('circles').select('*, teachers(full_name, track_id), supervisors(full_name)').order('number'),
       supabase.from('circle_members').select('*, students(full_name, tracks(name))'),
       supabase.from('teachers').select('id, full_name').eq('is_active', true).order('full_name'),
       supabase.from('supervisors').select('id, full_name').eq('is_active', true).order('full_name'),
@@ -61,6 +61,7 @@ export default function CirclesPage() {
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setCircles((cs || []).map((c: any) => ({
       ...c, teacher_name: c.teachers?.full_name, supervisor_name: c.supervisors?.full_name,
+      teacher_track_id: c.teachers?.track_id ?? null,
     })));
     setMembers((ms || []).map((m: any) => ({
       ...m, student_name: m.students?.full_name, track_name: m.students?.tracks?.name,
@@ -187,19 +188,27 @@ export default function CirclesPage() {
   // ---------- التوزيع التلقائي ----------
   // خريطة نص الخيار (كما خزنته الطالبة في أولوياتها) → يوم ونافذة زمنية
   const optionWindows = useMemo(() => {
-    const map: Record<string, { weekday: number; start: string; end: string }> = {};
+    const map: Record<string, { days: number[]; start: string; end: string }> = {};
     // الأساسية + الخاصة بمسارات (ختمة دورية...) — كلها نصوص محتملة في أولويات الطالبات
+    // الخيار اليومي (daily) يطابق أي يوم من الاثنين إلى السبت
     [...((config.day_options as DayOption[]) ?? []), ...((config.special_day_options as DayOption[]) ?? [])].forEach(d => {
-      if (d.label && d.start && d.end) map[d.label] = { weekday: d.value, start: d.start, end: d.end };
+      if (d.label && d.start && d.end)
+        map[d.label] = { days: d.daily ? [1, 2, 3, 4, 5, 6] : [d.value], start: d.start, end: d.end };
+    });
+    // والنصوص المشتقة مباشرة من الحلقات (النموذج يولدها حيًا من v_public_circle_times)
+    circles.filter(c => c.is_active).forEach(c => {
+      const start = c.start_time.slice(0, 5), end = c.end_time.slice(0, 5);
+      const label = genSlotLabel(c.weekday, start, end);
+      if (!map[label]) map[label] = { days: [c.weekday], start, end };
     });
     return map;
-  }, [config.day_options, config.special_day_options]);
+  }, [config.day_options, config.special_day_options, circles]);
 
   const buildDistribution = async () => {
     setDistributing(true);
     const [{ data: students }, { data: applicants }] = await Promise.all([
       supabase.from('students')
-        .select('id, full_name, national_id, is_active, status, tracks(name, juz_count)')
+        .select('id, full_name, national_id, is_active, status, track_id, tracks(name, juz_count)')
         .eq('is_active', true).range(0, 1999),
       supabase.from('applicants')
         .select('national_id, created_at, preferred_slots, preferred_period')
@@ -212,7 +221,7 @@ export default function CirclesPage() {
     const queue = (students || [])
       .filter((s: any) => !inCircle.has(s.id) && (s.status ?? 'active') === 'active')
       .map((s: any) => ({
-        id: s.id, name: s.full_name, track: s.tracks?.name ?? '—',
+        id: s.id, name: s.full_name, track: s.tracks?.name ?? '—', track_id: s.track_id ?? null,
         minutes: trackMinutes(s.tracks?.juz_count),
         app: appBy[s.national_id] ?? null,
       }))
@@ -235,6 +244,11 @@ export default function CirclesPage() {
     const overlaps = (c: Circle, w: { start: string; end: string }) =>
       c.start_time.slice(0, 5) < w.end && w.start < c.end_time.slice(0, 5);
     const periodOf = (c: Circle) => (c.start_time.slice(0, 5) < '12:00' ? 'morning' : 'evening');
+    // مسمعة المسار: طالبة المسار المرتبط بمسمعة → حلقات مسمعته فقط؛
+    // وغيرها → حلقات المسمعات غير المعينات على مسار
+    const linkedTrackIds = new Set(circles.filter(c => c.is_active && c.teacher_track_id).map(c => c.teacher_track_id));
+    const teacherOk = (c: Circle, stTrackId: string | null) =>
+      stTrackId && linkedTrackIds.has(stTrackId) ? c.teacher_track_id === stTrackId : !c.teacher_track_id;
 
     const out: Proposal[] = [];
     const skipped: { name: string; why: string }[] = [];
@@ -262,7 +276,7 @@ export default function CirclesPage() {
         const w = optionWindows[prefs[rank - 1]];
         if (!w) continue;   // خيار قديم لم يعد معروضًا
         const candidates = preferPeriod(
-          circles.filter(c => c.is_active && c.weekday === w.weekday && overlaps(c, w) && remaining[c.id] >= st.minutes),
+          circles.filter(c => c.is_active && teacherOk(c, st.track_id) && w.days.includes(c.weekday) && overlaps(c, w) && remaining[c.id] >= st.minutes),
           st.app?.preferred_period ?? null,
         );
         if (candidates[0]) { take(st, candidates[0], rank); placed = true; }
@@ -274,7 +288,7 @@ export default function CirclesPage() {
     // فترتها المفضلة إن عُرفت، ثم الحلقة الأكثر سعة متبقية (موازنة الحلقات)
     for (const st of leftover) {
       const candidates = preferPeriod(
-        circles.filter(c => c.is_active && remaining[c.id] >= st.minutes)
+        circles.filter(c => c.is_active && teacherOk(c, st.track_id) && remaining[c.id] >= st.minutes)
           .sort((a, b) => remaining[b.id] - remaining[a.id] || a.number - b.number),
         st.app?.preferred_period ?? null,
       );

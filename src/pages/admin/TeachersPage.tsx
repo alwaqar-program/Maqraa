@@ -28,6 +28,7 @@ interface Teacher {
   phone: string | null;
   email: string | null;
   meeting_link: string | null;
+  track_id: string | null;
   is_active: boolean;
   user_id: string | null;
   total_hours?: number;
@@ -49,7 +50,8 @@ export default function TeachersPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
-  const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '' });
+  const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '', track_id: '' });
+  const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
@@ -86,9 +88,14 @@ export default function TeachersPage() {
     ? sortRows(teachers, SORTS[sortKey].get, sortDir, SORTS[sortKey].type)
     : teachers;
 
+  useEffect(() => {
+    supabase.from('tracks').select('id, name').eq('is_active', true).order('sort_order')
+      .then(({ data }) => setTracks(data || []));
+  }, []);
+
   const openCreate = () => {
     setEditing(null);
-    setForm({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '' });
+    setForm({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '', track_id: '' });
     setSlots([]); setOrigSlots([]);
     setDialogOpen(true);
   };
@@ -97,6 +104,7 @@ export default function TeachersPage() {
     setForm({
       full_name: t.full_name, national_id: t.national_id ?? '',
       phone: t.phone ?? '', email: t.email ?? '', meeting_link: t.meeting_link ?? '',
+      track_id: t.track_id ?? '',
     });
     const { data } = await supabase.from('availability_slots')
       .select('id, weekday, start_time, end_time, bookings(id, status, students(full_name))')
@@ -125,6 +133,7 @@ export default function TeachersPage() {
       full_name: form.full_name, national_id: form.national_id || null,
       phone: form.phone || null, email: form.email || null,
       meeting_link: form.meeting_link || null,
+      track_id: form.track_id || null,
     };
     let teacherId = editing?.id;
     if (editing) {
@@ -315,6 +324,16 @@ export default function TeachersPage() {
             <div className="space-y-2">
               <Label>رابط الاجتماع الثابت</Label>
               <Input dir="ltr" placeholder="https://zoom.us/j/..." value={form.meeting_link} onChange={e => setForm({ ...form, meeting_link: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>مسار المسمعة <span className="text-muted-foreground text-xs">— اختياري: طالبات هذا المسار يرين مواعيد حلقاتها فقط عند التسجيل</span></Label>
+              <Select value={form.track_id || 'none'} onValueChange={v => setForm({ ...form, track_id: v === 'none' ? '' : v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— عامة (كل المسارات) —</SelectItem>
+                  {tracks.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* أوقات التوفر — تُحفظ في availability_slots مع زر الحفظ */}

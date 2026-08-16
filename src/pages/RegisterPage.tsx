@@ -12,7 +12,7 @@ import { CheckCircle2, X, LayoutGrid, CalendarDays, ChevronUp, ChevronDown, Grip
 import { WEEKDAYS } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
-import { useFormSettings, headerUrl, FormQuestion } from '@/lib/form-settings';
+import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 interface Track { id: string; name: string; juz_count: number; sort_order: number; }
@@ -39,11 +39,32 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const [done, setDone] = useState(false);
   const { toast } = useToast();
 
+  // أوقات الحلقات النشطة (عرض عام آمن) — مصدر المواعيد الحي بدل الإدخال اليدوي المكرر
+  const [circleTimes, setCircleTimes] = useState<{ weekday: number; start_time: string; end_time: string; track_id: string | null }[]>([]);
+
   useEffect(() => {
     supabase.from('tracks').select('id, name, juz_count, sort_order')
       .eq('is_active', true).order('sort_order')
       .then(({ data }) => setTracks(data || []));
+    supabase.from('v_public_circle_times' as any).select('*')
+      .then(({ data }) => setCircleTimes((data as any) || []));
   }, []);
+
+  /** حلقات → خيارات مواعيد فريدة (يوم+وقت) بنص عربي مولد */
+  const deriveOptions = (rows: typeof circleTimes): DayOption[] => {
+    const seen = new Set<string>();
+    const out: DayOption[] = [];
+    [...rows]
+      .sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time))
+      .forEach(r => {
+        const start = r.start_time.slice(0, 5), end = r.end_time.slice(0, 5);
+        const k = `${r.weekday}|${start}|${end}`;
+        if (seen.has(k)) return;   // حلقتان بنفس اليوم والوقت (مسمعتان مختلفتان) = خيار واحد
+        seen.add(k);
+        out.push({ value: r.weekday, start, end, label: genSlotLabel(r.weekday, start, end) });
+      });
+    return out;
+  };
 
   const slotKey = (d: { value: number; label: string }) => `${d.value}|${d.label}`;
   const moveSlot = (i: number, dir: -1 | 1) => {
@@ -58,26 +79,41 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
       ? prev.filter(x => x !== slotKey(d))
       : [...prev, slotKey(d)]);
 
-  // مسارات محددة (مثل «ختمة دورية») لها قائمة مواعيد خاصة بها
+  // مصدر المواعيد حسب المسار المختار:
+  // 1) مسار له قائمة خاصة يدوية (مثل «ختمة دورية») → القائمة الخاصة
+  // 2) مسار مرتبط بمسمعة → مواعيد حلقات مسمعته فقط
+  // 3) غير ذلك → مواعيد حلقات المسمعات غير المعينات على مسار — وإن لا حلقات بعد فالقائمة اليدوية
   const isSpecialTrack = ((config.special_track_ids as string[]) ?? []).includes(trackId);
-  const activeOptions: typeof config.day_options =
-    isSpecialTrack && (config.special_day_options ?? []).length > 0
-      ? config.special_day_options
-      : config.day_options;
+  const linkedRows = circleTimes.filter(r => r.track_id && r.track_id === trackId);
+  const generalRows = circleTimes.filter(r => !r.track_id);
+  const liveOptions = deriveOptions(trackId && linkedRows.length > 0 ? linkedRows : generalRows);
+  const activeOptions: DayOption[] =
+    isSpecialTrack && (config.special_day_options ?? []).length > 0 ? config.special_day_options
+    : liveOptions.length > 0 ? liveOptions
+    : config.day_options;
 
-  // عند التنقل بين مسار عادي وخاص: أزيلي المواعيد المختارة التي لم تعد معروضة
+  // عند تبديل المسار: أزيلي المواعيد المختارة التي لم تعد معروضة
   useEffect(() => {
     const valid = new Set(activeOptions.map(slotKey));
     setSelectedSlots(prev => prev.filter(k => valid.has(k)));
     setActiveDay(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSpecialTrack]);
+  }, [trackId]);
 
+  // الخيارات اليومية (نفس الوقت الاثنين–السبت) تظهر دائمًا؛ والباقي بأزرار الأيام
+  const dailyOptions = activeOptions.filter(d => d.daily);
+  const dayOnlyOptions = activeOptions.filter(d => !d.daily);
   // الأيام التي لها مواعيد معروضة (فريدة وبترتيب الأسبوع)
-  const availableDays = [...new Set(activeOptions.map(d => d.value))].sort((a, b) => a - b);
-  const visibleOptions = showAll || activeDay === null
-    ? activeOptions
-    : activeOptions.filter(d => d.value === activeDay);
+  const availableDays = [...new Set(dayOnlyOptions.map(d => d.value))].sort((a, b) => a - b);
+  const visibleOptions = [
+    ...dailyOptions,
+    ...(showAll ? dayOnlyOptions
+      : activeDay !== null ? dayOnlyOptions.filter(d => d.value === activeDay)
+      : []),
+  ];
+  // إن لم يوجد سوى خيارات يومية: لا داعي لأزرار الأيام ولا لرسالة «اختاري يومًا»
+  const showDayButtons = availableDays.length > 0;
+  const showGrid = visibleOptions.length > 0 || showAll || activeDay !== null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,7 +245,8 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
               <section className="px-5 sm:px-8 py-6 space-y-4">
                 <SectionHead title={config.section_times_title} hint={config.times_note} />
 
-                {/* اختيار اليوم أولا */}
+                {/* اختيار اليوم أولا (يُخفى إن كانت كل الخيارات يومية) */}
+                {showDayButtons && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {availableDays.map(w => {
                     const count = selectedSlots.filter(k => k.startsWith(`${w}|`)).length;
@@ -236,9 +273,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                     {showAll ? 'عرض حسب اليوم' : 'عرض كل المواعيد'}
                   </button>
                 </div>
+                )}
 
-                {/* أوقات اليوم المختار (أو الكل) */}
-                {(showAll || activeDay !== null) ? (
+                {/* أوقات اليوم المختار (أو الكل) + اليومية دائمًا */}
+                {showGrid ? (
                   <div className="grid sm:grid-cols-2 gap-2.5">
                     {visibleOptions.map((d, i) => (
                       <Label key={`${d.value}-${i}`} htmlFor={`slot-${d.value}-${i}`}

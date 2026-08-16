@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Archive, RotateCcw } from 'lucide-react';
+import { Archive, RotateCcw, Eye } from 'lucide-react';
 
 interface Row {
   id: string; full_name: string; national_id: string; phone: string | null;
@@ -61,7 +61,10 @@ export default function StudentsArchivePage() {
                 <TableCell>{r.track_name ?? '—'}</TableCell>
                 <TableCell>{r.status_date ?? '—'}</TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-56">{r.status_reason ?? '—'}</TableCell>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <Button variant="ghost" size="icon" title="ملف الطالبة" onClick={() => navigate(`/students/${r.id}`)}>
+                    <Eye size={16} />
+                  </Button>
                   <Button variant="ghost" size="sm" className="gap-1" onClick={() => restore(r)}>
                     <RotateCcw size={13} /> إعادة تفعيل
                   </Button>
