@@ -43,6 +43,7 @@ const newSlotKey = () => `n${++slotKeySeq}`;
 
 interface Agreement {
   id: string; full_name: string; phone?: string | null; agreement_date: string;
+  agreed_times_text?: string | null;
   agreed_slots: { weekday: number; start_time: string; end_time: string }[];
   notes: string | null;
   extra_answers?: Record<string, any>;
@@ -220,7 +221,12 @@ export default function TeachersPage() {
       .update({ status: 'accepted', teacher_id: teacher.id, reviewed_at: new Date().toISOString() })
       .eq('id', a.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else toast({ title: `قُبلت ${a.full_name} ومواعيدها جاهزة — أنشئي حسابها من صفحة المستخدمين` });
+    else toast({
+      title: `قُبلت ${a.full_name}`,
+      description: a.agreed_slots?.length
+        ? 'ومواعيدها جاهزة — أنشئي حسابها من صفحة المستخدمين'
+        : 'أدخلي أوقات توفرها من «تعديل المسمعة» حسب النص المكتوب في اتفاقيتها',
+    });
     fetchAll();
   };
   const rejectAgreement = async (a: Agreement) => {
@@ -260,7 +266,9 @@ export default function TeachersPage() {
                   <b>{a.full_name}</b>
                   {a.phone && <span dir="ltr" className="text-muted-foreground"> {a.phone}</span>}
                   <span className="text-muted-foreground"> — وقّعت في {a.agreement_date}</span>
-                  {a.agreed_slots?.length > 0 && (
+                  {a.agreed_times_text ? (
+                    <p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">المواعيد: {a.agreed_times_text}</p>
+                  ) : a.agreed_slots?.length > 0 && (
                     <p className="text-muted-foreground mt-0.5">
                       المواعيد: {a.agreed_slots.map(s => `${WEEKDAYS[s.weekday]} ${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)}`).join('، ')}
                     </p>

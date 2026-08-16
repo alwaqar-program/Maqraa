@@ -6,12 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
-import { WEEKDAYS, slotHours } from '@/lib/schedule';
+import { CheckCircle2 } from 'lucide-react';
 import headerImg from '@/assets/header.png';
 import { useFormSettings, headerUrl, FormQuestion } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
-import { TimeSelect } from '@/components/TimeSelect';
 
 const hijriToday = () => {
   try {
@@ -30,29 +28,17 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [slots, setSlots] = useState<{ weekday: number; start_time: string; end_time: string }[]>([
-    { weekday: 0, start_time: '16:00', end_time: '17:00' },
-  ]);
+  // المواعيد المتفق عليها: نص حر تكتبه المسمعة (بدل صفوف يوم/وقت)
+  const [timesText, setTimesText] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const { toast } = useToast();
 
-  const totalHours = Math.round(slots.reduce((a, s) =>
-    a + Math.max(0, slotHours(s.start_time, s.end_time)), 0) * 10) / 10;
-  const hasInvalidRow = slots.some(s => s.end_time <= s.start_time);
-  const hasOverlap = slots.some((a, i) => slots.some((b, j) =>
-    i < j && a.weekday === b.weekday && a.start_time < b.end_time && b.start_time < a.end_time));
-  const hoursError =
-    hasInvalidRow ? 'هناك موعد نهايته قبل بدايته' :
-    hasOverlap ? 'هناك مواعيد متداخلة في اليوم نفسه' :
-    totalHours < config.min_hours ? `المجموع أقل من الحد الأدنى (${config.min_hours} ساعة أسبوعيًا)` :
-    totalHours > config.max_hours ? `المجموع يتجاوز الحد الأعلى (${config.max_hours} ساعة أسبوعيًا)` : null;
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (preview) return;
-    if (hoursError) { toast({ title: hoursError, variant: 'destructive' }); return; }
+    if (!timesText.trim()) { toast({ title: 'المواعيد المتفق عليها مطلوبة', variant: 'destructive' }); return; }
     const missing = missingRequired(questions, extra);
     if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     setSaving(true);
@@ -60,7 +46,8 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
       full_name: fullName.trim(),
       phone: phone.trim() || null,
       agreement_date: date,
-      agreed_slots: slots,
+      agreed_slots: [],
+      agreed_times_text: timesText.trim(),
       notes: notes.trim() || null,
       ...(Object.keys(extra).length ? { extra_answers: extra } : {}),
     });
@@ -151,42 +138,13 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
                 <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>المواعيد المتفق عليها للتسميع <span className="text-destructive">*</span></Label>
+                <Label htmlFor="times">المواعيد المتفق عليها للتسميع <span className="text-destructive">*</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  أدخلي أوقاتك المتاحة (يوم ووقت) — بمجموع لا يقل عن {config.min_hours} ولا يزيد على {config.max_hours} ساعة أسبوعيًا.
+                  اكتبي أيامك وأوقاتك المتاحة بأسلوبك — بمجموع لا يقل عن {config.min_hours} ولا يزيد على {config.max_hours} ساعة أسبوعيًا.
                 </p>
-                <div className="space-y-2">
-                  {slots.map((sl, i) => (
-                    <div key={i} className="flex items-center gap-2 flex-wrap">
-                      <select
-                        className="h-10 rounded-md border border-input bg-background px-2 text-sm"
-                        value={sl.weekday}
-                        onChange={e => setSlots(slots.map((x, j) => j === i ? { ...x, weekday: Number(e.target.value) } : x))}>
-                        {WEEKDAYS.map((d, w) => <option key={w} value={w}>{d}</option>)}
-                      </select>
-                      <TimeSelect className="w-32" value={sl.start_time}
-                        onChange={v => setSlots(slots.map((x, j) => j === i ? { ...x, start_time: v } : x))} />
-                      <span className="text-muted-foreground text-sm">إلى</span>
-                      <TimeSelect className="w-32" value={sl.end_time}
-                        onChange={v => setSlots(slots.map((x, j) => j === i ? { ...x, end_time: v } : x))} />
-                      {slots.length > 1 && (
-                        <button type="button" className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setSlots(slots.filter((_, j) => j !== i))}>
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" className="gap-1"
-                      onClick={() => setSlots([...slots, { weekday: 0, start_time: '16:00', end_time: '17:00' }])}>
-                      <Plus size={14} /> إضافة موعد
-                    </Button>
-                    <span className={`text-sm font-medium ${hoursError ? 'text-destructive' : 'text-success'}`}>
-                      المجموع: {totalHours} ساعة أسبوعيًا {hoursError ? `— ${hoursError}` : '✓'}
-                    </span>
-                  </div>
-                </div>
+                <Textarea id="times" required rows={4}
+                  placeholder="مثال: الأحد والثلاثاء من ٧ إلى ٩ صباحًا، والخميس بعد المغرب ساعة"
+                  value={timesText} onChange={e => setTimesText(e.target.value)} />
               </div>
               <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
 
@@ -194,7 +152,7 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
                 <Label htmlFor="notes">ملاحظات</Label>
                 <Textarea id="notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
-              <Button type="submit" className="w-full" disabled={!!preview || saving || !fullName.trim() || !!hoursError}>
+              <Button type="submit" className="w-full" disabled={!!preview || saving || !fullName.trim() || !timesText.trim()}>
                 {saving ? '...' : 'أوافق على البنود وأوقّع'}
               </Button>
             </form>
