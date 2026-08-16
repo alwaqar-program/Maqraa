@@ -50,12 +50,12 @@ export default function SortingPage() {
     (async () => {
       const [{ data: slots, error }, { data: tks }, { data: apps }] = await Promise.all([
         supabase.from('availability_slots')
-          .select('weekday, start_time, end_time, is_daily, teachers(full_name, track_id, is_active)')
+          .select('teacher_id, weekday, start_time, end_time, is_daily, teachers(full_name, track_id, is_active)')
           .range(0, 1999),
         supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week')
           .eq('is_active', true).order('sort_order'),
         supabase.from('applicants')
-          .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status')
+          .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status, sort_teacher_id, sort_slot_label')
           .neq('status', 'rejected').order('created_at').range(0, 4999),
       ]);
       if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
@@ -63,7 +63,8 @@ export default function SortingPage() {
         .filter(s => s.teachers?.is_active)
         .map(s => ({
           weekday: s.weekday, start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
-          is_daily: s.is_daily, track_id: s.teachers?.track_id ?? null, teacher_name: s.teachers?.full_name ?? '—',
+          is_daily: s.is_daily, track_id: s.teachers?.track_id ?? null,
+          teacher_id: s.teacher_id, teacher_name: s.teachers?.full_name ?? '—',
         })));
       setTracks((tks || []) as Track[]);
       setApplicants((apps || []) as Applicant[]);
@@ -73,6 +74,35 @@ export default function SortingPage() {
 
   const trackOf = (id: string | null) => tracks.find(t => t.id === id);
   const tintOf = (id: string | null) => TRACK_TINT[Math.max(0, tracks.findIndex(t => t.id === id)) % TRACK_TINT.length];
+
+  // ---------- السحب والإفلات: نقل الطالبة إلى مسمعة أخرى، ويُحفظ فورًا ----------
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropKey, setDropKey] = useState<string | null>(null);
+
+  const assign = async (applicantId: string, teacherId: string | null, label: string | null) => {
+    const a = applicants.find(x => x.id === applicantId);
+    if (!a) return;
+    const { error } = await supabase.from('applicants')
+      .update({ sort_teacher_id: teacherId, sort_slot_label: label }).eq('id', applicantId);
+    if (error) { toast({ title: 'تعذر الحفظ', description: error.message, variant: 'destructive' }); return; }
+    setApplicants(prev => prev.map(x => x.id === applicantId
+      ? { ...x, sort_teacher_id: teacherId, sort_slot_label: label } : x));
+    toast({ title: teacherId ? `نُقلت ${a.full_name}` : `أُعيدت ${a.full_name} إلى اختيارها الأول` });
+  };
+
+  const onDropTo = (e: React.DragEvent, ev: Event) => {
+    e.preventDefault();
+    setDropKey(null);
+    const id = e.dataTransfer.getData('text/plain') || dragId;
+    setDragId(null);
+    if (!id) return;
+    const used = ev.seats.filter(s => !s.overflow).reduce((a, s) => a + s.minutes, 0);
+    const mine = trackMinutes(trackOf(applicants.find(x => x.id === id)?.track_id ?? null));
+    if (used + mine > ev.capacity) {
+      toast({ title: `تنبيه: ${ev.teacher} ستتجاوز سعتها (${used + mine}/${ev.capacity} د)` });
+    }
+    assign(id, ev.teacherId, ev.label);
+  };
 
   /** المواعيد المعروضة في نموذج التسجيل (نفس الاشتقاق) مع سعتها لكل جلسة */
   const options = useMemo(() => {
@@ -111,9 +141,14 @@ export default function SortingPage() {
     const unknownLabel: Applicant[] = [];
     const linkedTrackIds = new Set(rows.map(r => r.track_id).filter(Boolean) as string[]);
 
-    // من اختارت كل موعد أولوية أولى، بترتيب أسبقية التسجيل
+    // من اختارت كل موعد أولوية أولى، بترتيب أسبقية التسجيل — والمسحوبات يدويًا مثبَّتات على مسمعتهن
     const chooserOf: Record<string, Applicant[]> = {};
+    const pinnedOf: Record<string, Applicant[]> = {};   // مفتاحه: موعد|معرّف المسمعة
     for (const a of applicants) {
+      if (a.sort_teacher_id && a.sort_slot_label) {
+        const opt = options.find(o => o.label === a.sort_slot_label);
+        if (opt) { (pinnedOf[`${opt.pool ?? 'g'}|${opt.label}|${a.sort_teacher_id}`] ??= []).push(a); continue; }
+      }
       const first = (a.preferred_slots ?? [])[0];
       if (!first) { noChoice.push(a); continue; }
       const pool = a.track_id && linkedTrackIds.has(a.track_id) ? a.track_id : null;
@@ -129,35 +164,41 @@ export default function SortingPage() {
       const days = optionDays(opt);
       const poolRows = rows.filter(r => (opt.pool ? r.track_id === opt.pool : !r.track_id));
       // مسمعات هذا الموعد (كل واحدة حلقة مستقلة) وأيامها
-      const teachers = [...new Set(poolRows
-        .filter(r => days.includes(r.weekday) && r.start_time === opt.start && r.end_time === opt.end)
-        .map(r => r.teacher_name!))].sort((a, b) => a.localeCompare(b, 'ar'));
+      const teacherRows = poolRows.filter(r => days.includes(r.weekday)
+        && r.start_time === opt.start && r.end_time === opt.end);
+      const teachers = [...new Map(teacherRows.map(r => [r.teacher_id!, r.teacher_name!])).entries()]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
       if (!teachers.length) return;
       const perTeacher = durationMinutes(opt.start!, opt.end!);
       totalCapacity += perTeacher * teachers.length;
 
-      // ملء المسمعات بالترتيب: الأولى حتى تمتلئ نافذتها ثم التي تليها
-      const queue = chooserOf[key] ?? [];
+      // المثبَّتات يدويًا أولًا (يحجزن مقاعدهن)، ثم الباقيات يملأن المسمعات بالترتيب
       const buckets: Seat[][] = teachers.map(() => []);
-      let ti = 0, used = 0;
-      queue.forEach(a => {
+      const usedOf: number[] = teachers.map(() => 0);
+      teachers.forEach((t, i) => {
+        (pinnedOf[`${key}|${t.id}`] ?? []).forEach(a => {
+          const track = trackOf(a.track_id);
+          const minutes = trackMinutes(track);
+          buckets[i].push({ applicant: a, track, minutes, overflow: usedOf[i] + minutes > perTeacher, pinned: true });
+          usedOf[i] += minutes;
+        });
+      });
+      (chooserOf[key] ?? []).forEach(a => {
         const track = trackOf(a.track_id);
         const minutes = trackMinutes(track);
-        while (ti < teachers.length && used + minutes > perTeacher) { ti += 1; used = 0; }
-        const overflow = ti >= teachers.length;
-        buckets[Math.min(ti, teachers.length - 1)].push({ applicant: a, track, minutes, overflow });
-        if (!overflow) used += minutes;
+        const i = teachers.findIndex((_, j) => usedOf[j] + minutes <= perTeacher);
+        const target = i >= 0 ? i : teachers.length - 1;
+        buckets[target].push({ applicant: a, track, minutes, overflow: i < 0, pinned: false });
+        if (i >= 0) usedOf[i] += minutes;
       });
 
-      teachers.forEach((teacher, i) => {
-        const daysOfTeacher = poolRows
-          .filter(r => r.teacher_name === teacher && days.includes(r.weekday)
-            && r.start_time === opt.start && r.end_time === opt.end)
-          .map(r => r.weekday);
+      teachers.forEach((t, i) => {
+        const daysOfTeacher = teacherRows.filter(r => r.teacher_id === t.id).map(r => r.weekday);
         [...new Set(daysOfTeacher)].forEach(day => {
           evs.push({
-            key: `${key}|${teacher}|${day}`, day, start: opt.start!, end: opt.end!,
-            teacher, label: opt.label, pool: opt.pool,
+            key: `${key}|${t.id}|${day}`, day, start: opt.start!, end: opt.end!,
+            teacherId: t.id, teacher: t.name, label: opt.label, pool: opt.pool,
             capacity: perTeacher, seats: buckets[i], lane: 0, lanes: 1,
           });
         });
@@ -217,7 +258,8 @@ export default function SortingPage() {
 
       <p className="text-sm text-muted-foreground print:text-black">
         كل مسمعة حلقة مستقلة، وارتفاع البلوك يساوي مدة الموعد. الطالبات هنا من اختارت هذا الموعد
-        <b> أولوية أولى</b>، مرتبات بأسبقية التسجيل — والاعتماد النهائي من صفحة «الحلقات».
+        <b> أولوية أولى</b>، مرتبات بأسبقية التسجيل.
+        <b> اسحبي أي طالبة</b> إلى حلقة أخرى لنقلها (يُحفظ فورًا ويحترمه التوزيع التلقائي)، ونقرتان على المنقولة تعيدانها لاختيارها.
       </p>
 
       {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : (
@@ -276,7 +318,11 @@ export default function SortingPage() {
                         const fill = Math.min(100, Math.round((used / e.capacity) * 100));
                         return (
                           <div key={e.key}
-                            className={`absolute rounded-lg border overflow-hidden print:break-inside-avoid ${
+                            onDragOver={ev => { ev.preventDefault(); setDropKey(e.key); }}
+                            onDragLeave={() => setDropKey(k => (k === e.key ? null : k))}
+                            onDrop={ev => onDropTo(ev, e)}
+                            className={`absolute rounded-lg border overflow-hidden print:break-inside-avoid transition-shadow ${
+                              dropKey === e.key ? 'ring-2 ring-accent shadow-lg' : ''} ${
                               over ? 'border-destructive/60 bg-destructive/5' : 'border-accent/40 bg-card'}`}
                             style={{
                               top: (toMin(e.start) - railFrom) * PX_PER_MIN + 2,
@@ -298,9 +344,14 @@ export default function SortingPage() {
                               <div className="mt-1 space-y-0.5 overflow-y-auto print:overflow-visible">
                                 {e.seats.length === 0 && <p className="text-[11px] text-muted-foreground">لا طالبات</p>}
                                 {e.seats.map(s => (
-                                  <p key={s.applicant.id}
-                                    title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''}`}
-                                    className={`text-[11px] leading-tight rounded px-1 py-0.5 truncate ${
+                                  <p key={s.applicant.id} draggable
+                                    onDragStart={ev => { ev.dataTransfer.setData('text/plain', s.applicant.id); setDragId(s.applicant.id); }}
+                                    onDragEnd={() => { setDragId(null); setDropKey(null); }}
+                                    onDoubleClick={() => s.pinned && assign(s.applicant.id, null, null)}
+                                    title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''}${s.pinned ? ' — منقولة يدويًا (نقرتان للتراجع)' : ''}`}
+                                    className={`text-[11px] leading-tight rounded px-1 py-0.5 truncate cursor-grab active:cursor-grabbing ${
+                                      dragId === s.applicant.id ? 'opacity-40' : ''} ${
+                                      s.pinned ? 'ring-1 ring-accent/60 ' : ''}${
                                       s.overflow ? 'bg-destructive/15 text-destructive' : tintOf(s.applicant.track_id)}`}>
                                     {s.overflow && <AlertTriangle size={9} className="inline ms-0.5" />}
                                     {s.applicant.full_name} <span className="opacity-60">{arNum(s.minutes)}د</span>
@@ -324,15 +375,20 @@ export default function SortingPage() {
                 <p className="font-medium flex items-center gap-2">
                   <AlertTriangle size={16} className="text-warning" />
                   يحتجن إسنادًا يدويًا ({noChoice.length + unknownLabel.length})
+                  <span className="text-xs font-normal text-muted-foreground">— اسحبي الاسم إلى حلقة في التقويم</span>
                 </p>
-                {noChoice.map(a => (
-                  <p key={a.id} className="text-sm">
-                    • {a.full_name} — {trackOf(a.track_id)?.name ?? 'بلا مسار'} — <span className="text-muted-foreground">لم تختر أي موعد</span>
-                  </p>
-                ))}
-                {unknownLabel.map(a => (
-                  <p key={a.id} className="text-sm">
-                    • {a.full_name} — {trackOf(a.track_id)?.name ?? 'بلا مسار'} — <span className="text-muted-foreground">أولويتها الأولى «{a.preferred_slots[0]}» لم تعد معروضة</span>
+                {[...noChoice, ...unknownLabel].map(a => (
+                  <p key={a.id} draggable
+                    onDragStart={ev => { ev.dataTransfer.setData('text/plain', a.id); setDragId(a.id); }}
+                    onDragEnd={() => { setDragId(null); setDropKey(null); }}
+                    className={`text-sm border rounded-lg px-2 py-1 bg-background cursor-grab active:cursor-grabbing ${
+                      dragId === a.id ? 'opacity-40' : ''}`}>
+                    {a.full_name} — {trackOf(a.track_id)?.name ?? 'بلا مسار'} ({arNum(trackMinutes(trackOf(a.track_id)))}د) —{' '}
+                    <span className="text-muted-foreground">
+                      {(a.preferred_slots ?? []).length
+                        ? `أولويتها الأولى «${a.preferred_slots[0]}» لم تعد معروضة`
+                        : 'لم تختر أي موعد'}
+                    </span>
                   </p>
                 ))}
               </CardContent>

@@ -331,7 +331,7 @@ export default function CirclesPage() {
         .select('id, full_name, national_id, is_active, status, track_id, tracks(name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week)')
         .eq('is_active', true).range(0, 1999),
       supabase.from('applicants')
-        .select('national_id, created_at, preferred_slots, preferred_period')
+        .select('national_id, created_at, preferred_slots, preferred_period, sort_teacher_id, sort_slot_label')
         .range(0, 4999),
     ]);
     const inCircle = new Set(members.map(m => m.student_id));
@@ -387,11 +387,30 @@ export default function CirclesPage() {
         ? [...candidates.filter(c => periodOf(c) === period), ...candidates.filter(c => periodOf(c) !== period)]
         : candidates;
 
-    // المرحلة الأولى: صاحبات الأولويات — كل واحدة على أعلى خيار متاح لها
+    // المرحلة صفر: الإسناد اليدوي من صفحة «فرز الطالبات» — مقدَّم على كل شيء
     const leftover: (typeof queue)[number][] = [];
-    for (const st of queue) {
+    const pinnedFirst = [...queue].sort((a, b) =>
+      (b.app?.sort_teacher_id ? 1 : 0) - (a.app?.sort_teacher_id ? 1 : 0));
+    for (const st of pinnedFirst) {
+      const tId = st.app?.sort_teacher_id;
+      const label = st.app?.sort_slot_label;
+      if (!tId) { leftover.push(st); continue; }
+      const w = label ? optionWindows[label] : null;
+      const target = circles.find(c => c.is_active && c.teacher_id === tId
+        && (!w || matchesWindow(c, w)) && remaining[c.id] >= st.minutes)
+        ?? circles.find(c => c.is_active && c.teacher_id === tId && remaining[c.id] >= st.minutes);
+      if (target) take(st, target, null);
+      else skipped.push({
+        student_id: st.id, name: st.name, track_name: st.track, minutes: st.minutes,
+        why: 'أُسندت يدويًا من صفحة الفرز لكن حلقة مسمعتها لا تتسع',
+      });
+    }
+
+    // المرحلة الأولى: صاحبات الأولويات — كل واحدة على أعلى خيار متاح لها
+    const stillLeft: (typeof queue)[number][] = [];
+    for (const st of leftover) {
       const prefs: string[] = st.app?.preferred_slots ?? [];
-      if (!prefs.length) { leftover.push(st); continue; }
+      if (!prefs.length) { stillLeft.push(st); continue; }
       let placed = false;
       for (let rank = 1; rank <= prefs.length && !placed; rank++) {
         const w = optionWindows[prefs[rank - 1]];
@@ -402,12 +421,12 @@ export default function CirclesPage() {
         );
         if (candidates[0]) { take(st, candidates[0], rank); placed = true; }
       }
-      if (!placed) leftover.push(st);   // خياراتها ممتلئة → المرحلة الثانية
+      if (!placed) stillLeft.push(st);   // خياراتها ممتلئة → المرحلة الثانية
     }
 
     // المرحلة الثانية: بلا أولويات (أو امتلأت خياراتها) → الأنسب المتاح:
     // فترتها المفضلة إن عُرفت، ثم الحلقة الأكثر سعة متبقية (موازنة الحلقات)
-    for (const st of leftover) {
+    for (const st of stillLeft) {
       const candidates = preferPeriod(
         circles.filter(c => c.is_active && teacherOk(c, st.track_id) && remaining[c.id] >= st.minutes)
           .sort((a, b) => remaining[b.id] - remaining[a.id] || a.number - b.number),
@@ -722,7 +741,7 @@ export default function CirclesPage() {
 
       {/* معاينة التوزيع التلقائي */}
       <Dialog open={distOpen} onOpenChange={setDistOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-[92vw] max-h-[88vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader><DialogTitle>معاينة التوزيع التلقائي</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -758,12 +777,12 @@ export default function CirclesPage() {
                 <TableBody>
                   {proposals.map(p => (
                     <TableRow key={p.student_id}>
-                      <TableCell className="font-medium">{p.student_name}</TableCell>
-                      <TableCell className="whitespace-nowrap">{p.track_name} ({p.minutes}د)</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{p.student_name}</TableCell>
+                      <TableCell className="whitespace-normal">{p.track_name} ({p.minutes}د)</TableCell>
                       <TableCell>
                         {/* تعديل يدوي: نقلها لحلقة أخرى قبل الحفظ */}
                         <Select value={p.circle_id} onValueChange={v => moveProposal(p.student_id, v)}>
-                          <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-8 w-full min-w-64 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {circles.filter(c => c.is_active).map(c => {
                               const free = capacity(c) - projectedUsed(c.id, proposals, p.student_id);
