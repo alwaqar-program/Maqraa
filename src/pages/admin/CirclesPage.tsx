@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
-import { TimeSelect } from '@/components/TimeSelect';
+import { Checkbox } from '@/components/ui/checkbox';
 import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin } from '@/lib/circles';
 import { useFormSettings, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 
@@ -26,6 +26,8 @@ interface Member {
   start_time: string | null; added_by?: string | null;
   student_name?: string; track_name?: string;
 }
+/** موعد توفر للمسمعة — الحلقة تُبنى باختيار واحد أو أكثر منها */
+interface Slot { id: string; teacher_id: string; weekday: number; start_time: string; end_time: string; }
 interface Teacher { id: string; full_name: string; }
 interface Supervisor { id: string; full_name: string; }
 interface Proposal { student_id: string; student_name: string; track_name: string; minutes: number;
@@ -40,7 +42,9 @@ export default function CirclesPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Circle | null>(null);
-  const [form, setForm] = useState({ number: 1, teacher_id: '', supervisor_id: '', weekday: 0, start_time: '16:00', end_time: '17:00' });
+  const [form, setForm] = useState({ number: 1, teacher_id: '', supervisor_id: '', slot_ids: [] as string[] });
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [circleSlots, setCircleSlots] = useState<{ circle_id: string; slot_id: string }[]>([]);
   const [addingTo, setAddingTo] = useState<Circle | null>(null);   // إضافة طالبة يدويًا
   const [unassigned, setUnassigned] = useState<{ id: string; full_name: string; track_name: string; minutes: number }[]>([]);
   const [addStudentId, setAddStudentId] = useState('');
@@ -52,12 +56,18 @@ export default function CirclesPage() {
   const { config } = useFormSettings('student_register');
 
   const fetchAll = useCallback(async () => {
-    const [{ data: cs, error }, { data: ms }, { data: ts }, { data: svs }] = await Promise.all([
+    const [{ data: cs, error }, { data: ms }, { data: ts }, { data: svs }, { data: sl }, { data: csl }] = await Promise.all([
       supabase.from('circles').select('*, teachers(full_name, track_id), supervisors(full_name)').order('number'),
       supabase.from('circle_members').select('*, students(full_name, tracks(name))'),
       supabase.from('teachers').select('id, full_name').eq('is_active', true).order('full_name'),
       supabase.from('supervisors').select('id, full_name').eq('is_active', true).order('full_name'),
+      supabase.from('availability_slots').select('id, teacher_id, weekday, start_time, end_time'),
+      supabase.from('circle_slots').select('circle_id, slot_id'),
     ]);
+    setSlots(((sl || []) as any[]).map(s => ({
+      ...s, start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
+    })));
+    setCircleSlots((csl || []) as any);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setCircles((cs || []).map((c: any) => ({
       ...c, teacher_name: c.teachers?.full_name, supervisor_name: c.supervisors?.full_name,
@@ -75,14 +85,45 @@ export default function CirclesPage() {
   const membersOf = useCallback((circleId: string) => members.filter(m => m.circle_id === circleId), [members]);
   const usedMinutes = useCallback((circleId: string) =>
     membersOf(circleId).reduce((a, m) => a + m.minutes, 0), [membersOf]);
-  const capacity = (c: Circle) => durationMinutes(c.start_time, c.end_time);
+
+  /** مواعيد الحلقة مرتبة (فارغة قبل تنفيذ 32 → نافذة الحلقة نفسها احتياطًا) */
+  const slotsOf = useCallback((c: Circle): Slot[] => {
+    const ids = circleSlots.filter(cs => cs.circle_id === c.id).map(cs => cs.slot_id);
+    const rows = slots.filter(s => ids.includes(s.id));
+    if (!rows.length) return [{ id: `virtual-${c.id}`, teacher_id: c.teacher_id, weekday: c.weekday,
+      start_time: c.start_time.slice(0, 5), end_time: c.end_time.slice(0, 5) }];
+    return [...rows].sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time));
+  }, [circleSlots, slots]);
+
+  const capacity = useCallback((c: Circle) =>
+    slotsOf(c).reduce((a, s) => a + durationMinutes(s.start_time, s.end_time), 0), [slotsOf]);
+
+  /** وقت الطالبة التالية: يتراكم داخل المواعيد بالترتيب، وينتقل للموعد التالي عند امتلاء الأول */
+  const allocStart = useCallback((c: Circle, used: number) => {
+    const ss = slotsOf(c);
+    let rem = used;
+    for (const s of ss) {
+      const d = durationMinutes(s.start_time, s.end_time);
+      if (rem < d) return addMinutes(s.start_time, rem);
+      rem -= d;
+    }
+    return ss[ss.length - 1].end_time;
+  }, [slotsOf]);
+
+  /** خيارات وقت الطالبة: كل الأوقات داخل مواعيد الحلقة */
+  const timeOptionsOf = useCallback((c: Circle) =>
+    slotsOf(c).flatMap(s => timeOptionsWithin(s.start_time, s.end_time)), [slotsOf]);
+
+  /** نص مختصر لمواعيد الحلقة: «الاثنين ٥ص–٧ص · الثلاثاء ٥ص–٧ص» */
+  const slotsLabel = useCallback((c: Circle) =>
+    slotsOf(c).map(s => `${WEEKDAYS[s.weekday]} ${formatTime(s.start_time)}–${formatTime(s.end_time)}`), [slotsOf]);
 
   // ---------- إنشاء / تعديل حلقة ----------
   const openCreate = () => {
     setEditing(null);
     setForm({
       number: (circles.reduce((mx, c) => Math.max(mx, c.number), 0)) + 1,
-      teacher_id: '', supervisor_id: '', weekday: 0, start_time: '16:00', end_time: '17:00',
+      teacher_id: '', supervisor_id: '', slot_ids: [],
     });
     setDialogOpen(true);
   };
@@ -90,31 +131,59 @@ export default function CirclesPage() {
     setEditing(c);
     setForm({
       number: c.number, teacher_id: c.teacher_id, supervisor_id: c.supervisor_id ?? '',
-      weekday: c.weekday, start_time: c.start_time.slice(0, 5), end_time: c.end_time.slice(0, 5),
+      slot_ids: circleSlots.filter(cs => cs.circle_id === c.id).map(cs => cs.slot_id),
     });
     setDialogOpen(true);
   };
+
+  // مواعيد المسمعة المختارة في الحوار، وأيها مشغول بحلقة أخرى
+  const formSlots = slots.filter(s => s.teacher_id === form.teacher_id)
+    .sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time));
+  const slotTakenBy = (slotId: string) => {
+    const cs = circleSlots.find(x => x.slot_id === slotId && x.circle_id !== editing?.id);
+    return cs ? circles.find(c => c.id === cs.circle_id) : undefined;
+  };
+  const formCapacity = formSlots.filter(s => form.slot_ids.includes(s.id))
+    .reduce((a, s) => a + durationMinutes(s.start_time, s.end_time), 0);
+
   const handleSave = async () => {
     if (!form.teacher_id) { toast({ title: 'اختاري المسمعة', variant: 'destructive' }); return; }
-    if (form.end_time <= form.start_time) { toast({ title: 'نهاية الحلقة قبل بدايتها', variant: 'destructive' }); return; }
-    // لا نقلص حلقة دون دقائق طالباتها الحالية
-    if (editing && durationMinutes(form.start_time, form.end_time) < usedMinutes(editing.id)) {
-      toast({ title: 'المدة الجديدة أقل من مجموع دقائق طالبات الحلقة', variant: 'destructive' }); return;
+    if (!form.slot_ids.length) { toast({ title: 'اختاري موعدًا واحدًا على الأقل من مواعيد المسمعة', variant: 'destructive' }); return; }
+    if (editing && formCapacity < usedMinutes(editing.id)) {
+      toast({ title: 'المواعيد المختارة أقل من مجموع دقائق طالبات الحلقة', variant: 'destructive' }); return;
     }
+    // أعمدة الحلقة = أبكر موعد مختار (تبقى للتوافق مع الحضور والتقارير)
+    const chosen = formSlots.filter(s => form.slot_ids.includes(s.id));
+    const first = chosen[0];
     const payload = {
       number: form.number, teacher_id: form.teacher_id,
       supervisor_id: form.supervisor_id || null,
-      weekday: form.weekday, start_time: form.start_time, end_time: form.end_time,
+      weekday: first.weekday, start_time: first.start_time, end_time: first.end_time,
     };
-    const q = editing
-      ? supabase.from('circles').update(payload).eq('id', editing.id)
-      : supabase.from('circles').insert(payload);
-    const { error } = await q;
+    const { data, error } = editing
+      ? await supabase.from('circles').update(payload).eq('id', editing.id).select('id').single()
+      : await supabase.from('circles').insert(payload).select('id').single();
     if (error) {
       const msg = error.message.includes('no_overlapping_circles')
         ? 'تتداخل مع حلقة أخرى للمسمعة نفسها في اليوم نفسه'
         : error.message.includes('circles_number_key') ? 'رقم الحلقة مستخدم' : error.message;
       toast({ title: 'تعذر الحفظ', description: msg, variant: 'destructive' }); return;
+    }
+    // مزامنة مواعيد الحلقة
+    const circleId = data.id;
+    const before = circleSlots.filter(cs => cs.circle_id === circleId).map(cs => cs.slot_id);
+    const removed = before.filter(id => !form.slot_ids.includes(id));
+    const added = form.slot_ids.filter(id => !before.includes(id));
+    if (removed.length) await supabase.from('circle_slots').delete().in('slot_id', removed);
+    if (added.length) {
+      const { error: e2 } = await supabase.from('circle_slots')
+        .insert(added.map(slot_id => ({ circle_id: circleId, slot_id })));
+      if (e2) {
+        toast({ title: 'حُفظت الحلقة لكن تعذر ربط بعض المواعيد',
+          description: e2.message.includes('circle_slots_slot_id_key') ? 'أحد المواعيد مرتبط بحلقة أخرى' : e2.message,
+          variant: 'destructive' });
+        fetchAll(); return;
+      }
     }
     toast({ title: editing ? 'تم تحديث الحلقة' : 'أُنشئت الحلقة' });
     setDialogOpen(false); fetchAll();
@@ -142,7 +211,7 @@ export default function CirclesPage() {
       .update({
         circle_id: targetId, choice_rank: null, added_by: 'نقل يدوي',
         // وقتها الجديد: بعد آخر دقائق مستهلكة في الحلقة الهدف
-        start_time: addMinutes(target.start_time, usedMinutes(target.id)),
+        start_time: allocStart(target, usedMinutes(target.id)),
       }).eq('id', m.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else { toast({ title: `نُقلت ${m.student_name} إلى الحلقة ${target.number}` }); fetchAll(); }
@@ -179,7 +248,7 @@ export default function CirclesPage() {
     }
     const { error } = await supabase.from('circle_members').insert({
       circle_id: addingTo.id, student_id: st.id, minutes: st.minutes, choice_rank: null, added_by: 'إضافة يدوية',
-      start_time: addMinutes(addingTo.start_time, usedMinutes(addingTo.id)),
+      start_time: allocStart(addingTo, usedMinutes(addingTo.id)),
     });
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else { toast({ title: `أُضيفت ${st.full_name}` }); setAddingTo(null); fetchAll(); }
@@ -195,14 +264,13 @@ export default function CirclesPage() {
       if (d.label && d.start && d.end)
         map[d.label] = { days: optionDays(d), start: d.start, end: d.end };
     });
-    // والنصوص المشتقة مباشرة من الحلقات (النموذج يولدها حيًا من v_public_circle_times)
-    circles.filter(c => c.is_active).forEach(c => {
-      const start = c.start_time.slice(0, 5), end = c.end_time.slice(0, 5);
-      const label = genSlotLabel(c.weekday, start, end);
-      if (!map[label]) map[label] = { days: [c.weekday], start, end };
+    // والنصوص المشتقة مباشرة من مواعيد المسمعات (النموذج يولدها حيًا من v_public_circle_times)
+    slots.forEach(s => {
+      const label = genSlotLabel(s.weekday, s.start_time, s.end_time);
+      if (!map[label]) map[label] = { days: [s.weekday], start: s.start_time, end: s.end_time };
     });
     return map;
-  }, [config.day_options, config.special_day_options, circles]);
+  }, [config.day_options, config.special_day_options, slots]);
 
   const buildDistribution = async () => {
     setDistributing(true);
@@ -233,17 +301,18 @@ export default function CirclesPage() {
         return String(a.app.created_at).localeCompare(String(b.app.created_at));
       });
 
-    // السعة المتبقية لكل حلقة نشطة (تُستهلك أثناء المحاكاة) + الوقت التالي الشاغر
+    // السعة المتبقية لكل حلقة نشطة (تُستهلك أثناء المحاكاة) + الدقائق المشغولة
     const remaining: Record<string, number> = {};
-    const nextStart: Record<string, string> = {};
+    const consumed: Record<string, number> = {};
     circles.filter(c => c.is_active).forEach(c => {
       remaining[c.id] = capacity(c) - usedMinutes(c.id);
-      nextStart[c.id] = addMinutes(c.start_time, usedMinutes(c.id));
+      consumed[c.id] = usedMinutes(c.id);
     });
 
-    const overlaps = (c: Circle, w: { start: string; end: string }) =>
-      c.start_time.slice(0, 5) < w.end && w.start < c.end_time.slice(0, 5);
-    const periodOf = (c: Circle) => (c.start_time.slice(0, 5) < '12:00' ? 'morning' : 'evening');
+    // الحلقة تطابق الخيار إن طابقه أيٌّ من مواعيدها (الحلقة قد تضم عدة مواعيد)
+    const matchesWindow = (c: Circle, w: { days: number[]; start: string; end: string }) =>
+      slotsOf(c).some(s => w.days.includes(s.weekday) && s.start_time < w.end && w.start < s.end_time);
+    const periodOf = (c: Circle) => (slotsOf(c)[0].start_time < '12:00' ? 'morning' : 'evening');
     // مسمعة المسار: طالبة المسار المرتبط بمسمعة → حلقات مسمعته فقط؛
     // وغيرها → حلقات المسمعات غير المعينات على مسار
     const linkedTrackIds = new Set(circles.filter(c => c.is_active && c.teacher_track_id).map(c => c.teacher_track_id));
@@ -254,8 +323,8 @@ export default function CirclesPage() {
     const skipped: { name: string; why: string }[] = [];
     const take = (st: (typeof queue)[number], chosen: Circle, rank: number | null) => {
       remaining[chosen.id] -= st.minutes;
-      const t = nextStart[chosen.id];
-      nextStart[chosen.id] = addMinutes(t, st.minutes);
+      const t = allocStart(chosen, consumed[chosen.id]);
+      consumed[chosen.id] += st.minutes;
       out.push({
         student_id: st.id, student_name: st.name, track_name: st.track, minutes: st.minutes,
         circle_id: chosen.id, circle_number: chosen.number, choice_rank: rank, start_time: t,
@@ -276,7 +345,7 @@ export default function CirclesPage() {
         const w = optionWindows[prefs[rank - 1]];
         if (!w) continue;   // خيار قديم لم يعد معروضًا
         const candidates = preferPeriod(
-          circles.filter(c => c.is_active && teacherOk(c, st.track_id) && w.days.includes(c.weekday) && overlaps(c, w) && remaining[c.id] >= st.minutes),
+          circles.filter(c => c.is_active && teacherOk(c, st.track_id) && matchesWindow(c, w) && remaining[c.id] >= st.minutes),
           st.app?.preferred_period ?? null,
         );
         if (candidates[0]) { take(st, candidates[0], rank); placed = true; }
@@ -342,8 +411,7 @@ export default function CirclesPage() {
                   <TableHead>رقم</TableHead>
                   <TableHead>المسمعة</TableHead>
                   <TableHead>المشرفة</TableHead>
-                  <TableHead>اليوم</TableHead>
-                  <TableHead>الوقت</TableHead>
+                  <TableHead>المواعيد</TableHead>
                   <TableHead>الإشغال</TableHead>
                   <TableHead>الطالبات</TableHead>
                   <TableHead>نشطة</TableHead>
@@ -361,8 +429,13 @@ export default function CirclesPage() {
                       <TableCell className="font-display text-lg">{c.number}</TableCell>
                       <TableCell className="font-medium">{c.teacher_name}</TableCell>
                       <TableCell>{c.supervisor_name ?? '—'}</TableCell>
-                      <TableCell>{WEEKDAYS[c.weekday]}</TableCell>
-                      <TableCell className="whitespace-nowrap">{formatTime(c.start_time)} – {formatTime(c.end_time)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {slotsLabel(c).map((t, i) => (
+                            <span key={i} className="text-xs whitespace-nowrap border rounded-full px-2 py-0.5 bg-muted/40">{t}</span>
+                          ))}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={used >= cap ? 'destructive' : 'outline'}>{used}/{cap} د</Badge>
                       </TableCell>
@@ -384,7 +457,7 @@ export default function CirclesPage() {
                     </TableRow>,
                     open && (
                       <TableRow key={`${c.id}-members`}>
-                        <TableCell colSpan={9} className="bg-muted/30 p-3">
+                        <TableCell colSpan={8} className="bg-muted/30 p-3">
                           {list.length === 0 ? (
                             <p className="text-sm text-muted-foreground">لا طالبات في هذه الحلقة بعد.</p>
                           ) : (
@@ -397,7 +470,7 @@ export default function CirclesPage() {
                                       <SelectValue placeholder="الوقت؟" />
                                     </SelectTrigger>
                                     <SelectContent className="max-h-64">
-                                      {timeOptionsWithin(c.start_time, c.end_time).map(t => (
+                                      {timeOptionsOf(c).map(t => (
                                         <SelectItem key={t} value={t}>{formatTime(t)}</SelectItem>
                                       ))}
                                     </SelectContent>
@@ -446,23 +519,15 @@ export default function CirclesPage() {
                   onChange={e => setForm({ ...form, number: Number(e.target.value) })} />
               </div>
               <div className="space-y-2">
-                <Label>اليوم</Label>
-                <Select value={String(form.weekday)} onValueChange={v => setForm({ ...form, weekday: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>المسمعة</Label>
+                <Select value={form.teacher_id}
+                  onValueChange={v => setForm({ ...form, teacher_id: v, slot_ids: [] })}>
+                  <SelectTrigger><SelectValue placeholder="اختاري المسمعة" /></SelectTrigger>
                   <SelectContent>
-                    {WEEKDAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+                    {teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>المسمعة</Label>
-              <Select value={form.teacher_id} onValueChange={v => setForm({ ...form, teacher_id: v })}>
-                <SelectTrigger><SelectValue placeholder="اختاري المسمعة" /></SelectTrigger>
-                <SelectContent>
-                  {teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-2">
               <Label>المشرفة المتابعة</Label>
@@ -474,18 +539,50 @@ export default function CirclesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>من</Label>
-                <TimeSelect className="w-full" value={form.start_time} onChange={v => setForm({ ...form, start_time: v })} />
-              </div>
-              <div className="space-y-2">
-                <Label>إلى</Label>
-                <TimeSelect className="w-full" value={form.end_time} onChange={v => setForm({ ...form, end_time: v })} />
-              </div>
+            {/* مواعيد الحلقة = مواعيد المسمعة نفسها (واحد أو أكثر) */}
+            <div className="space-y-2">
+              <Label>مواعيد الحلقة <span className="text-muted-foreground text-xs">— من أوقات توفر المسمعة، ويمكن اختيار أكثر من موعد</span></Label>
+              {!form.teacher_id ? (
+                <p className="text-sm text-muted-foreground border border-dashed rounded-lg px-3 py-3 text-center">
+                  اختاري المسمعة أولًا لعرض مواعيدها
+                </p>
+              ) : formSlots.length === 0 ? (
+                <p className="text-sm text-muted-foreground border border-dashed rounded-lg px-3 py-3 text-center">
+                  لا مواعيد لهذه المسمعة — أضيفيها من صفحة المسمعات
+                </p>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {formSlots.map(s => {
+                    const taken = slotTakenBy(s.id);
+                    const on = form.slot_ids.includes(s.id);
+                    return (
+                      <label key={s.id}
+                        className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm transition-colors ${
+                          taken ? 'opacity-55 cursor-not-allowed'
+                            : on ? 'border-accent bg-accent/10 cursor-pointer'
+                            : 'cursor-pointer hover:border-accent/60'}`}>
+                        <Checkbox checked={on} disabled={!!taken} onCheckedChange={() => setForm({
+                          ...form,
+                          slot_ids: on ? form.slot_ids.filter(x => x !== s.id) : [...form.slot_ids, s.id],
+                        })} />
+                        <span className="font-medium">{WEEKDAYS[s.weekday]}</span>
+                        <span>{formatTime(s.start_time)} – {formatTime(s.end_time)}</span>
+                        <span className="text-muted-foreground text-xs">
+                          ({durationMinutes(s.start_time, s.end_time)}د)
+                        </span>
+                        {taken && (
+                          <Badge variant="outline" className="mr-auto text-warning border-warning">
+                            في الحلقة {taken.number}
+                          </Badge>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              سعة الحلقة: {durationMinutes(form.start_time, form.end_time)} دقيقة —
+              سعة الحلقة: {formCapacity} دقيقة —
               تُستهلك بحسب مسار كل طالبة (٥أجزاء=10د، ١٠=20د، ٢٠=40د، ختمة=60د)
             </p>
             <Button className="w-full" onClick={handleSave}>{editing ? 'حفظ التعديل' : 'إنشاء'}</Button>
