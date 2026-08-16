@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ListOrdered, Printer, AlertTriangle } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
@@ -83,6 +84,7 @@ export default function SortingPage() {
   // ---------- السحب والإفلات: نقل الطالبة إلى مسمعة أخرى، ويُحفظ فورًا ----------
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
+  const [moving, setMoving] = useState<Applicant | null>(null);   // النقل بالنقر (جوال/لوحة مفاتيح)
 
   const assign = async (applicantId: string, teacherId: string | null, label: string | null) => {
     const a = applicants.find(x => x.id === applicantId);
@@ -250,6 +252,36 @@ export default function SortingPage() {
   const hours = Array.from({ length: Math.max(0, (railTo - railFrom) / 60 + 1) }, (_, i) => railFrom + i * 60);
   const totalNeeded = applicants.reduce((a, x) => a + trackMinutes(trackOf(x.track_id)), 0);
 
+  /** الحلقات المتاحة للنقل إليها (مسمعة × موعد) — للجوال ولوحة المفاتيح بديلًا عن السحب */
+  const circleOptions = useMemo(() => {
+    const m = new Map<string, { teacherId: string; teacher: string; label: string; capacity: number; used: number; color: string | null }>();
+    events.forEach(e => {
+      const k = `${e.teacherId}|${e.label}`;
+      if (m.has(k)) return;
+      m.set(k, {
+        teacherId: e.teacherId, teacher: e.teacher, label: e.label, color: e.color,
+        capacity: e.capacity, used: e.seats.filter(s => !s.overflow).reduce((a, s) => a + s.minutes, 0),
+      });
+    });
+    return [...m.values()].sort((a, b) => a.teacher.localeCompare(b.teacher, 'ar'));
+  }, [events]);
+
+  /** اسم الطالبة قابل للسحب (شاشة كبيرة) وللنقر (نقل من نافذة) — نفس المكوّن في العرضين */
+  const SeatChip = ({ s }: { s: Seat }) => (
+    <button type="button" draggable
+      onDragStart={ev => { ev.dataTransfer.setData('text/plain', s.applicant.id); setDragId(s.applicant.id); }}
+      onDragEnd={() => { setDragId(null); setDropKey(null); }}
+      onClick={() => setMoving(s.applicant)}
+      title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''} — اضغطي للنقل`}
+      className={`w-full text-right text-[11px] leading-tight rounded px-1 py-0.5 cursor-grab active:cursor-grabbing ${
+        dragId === s.applicant.id ? 'opacity-40' : ''} ${
+        s.pinned ? 'ring-1 ring-accent/60 ' : ''}${
+        s.overflow ? 'bg-destructive/15 text-destructive' : tintOf(s.applicant.track_id)}`}>
+      {s.overflow && <AlertTriangle size={9} className="inline ms-0.5" />}
+      {s.applicant.full_name} <span className="opacity-60">{arNum(s.minutes)}د</span>
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
@@ -303,7 +335,7 @@ export default function SortingPage() {
           {events.length === 0 ? (
             <p className="text-muted-foreground text-sm">لا مواعيد توفر مسجلة للمسمعات بعد.</p>
           ) : (
-            <div className="overflow-x-auto pb-2">
+            <div className="hidden lg:block overflow-x-auto pb-2 print:block">
               <div className="min-w-max">
                 {/* ترويسة الأيام */}
                 <div className="flex gap-2 mb-2">
@@ -376,20 +408,7 @@ export default function SortingPage() {
                               </p>
                               <div className="mt-1 space-y-0.5 flex-1 min-h-0 overflow-y-auto print:overflow-visible">
                                 {e.seats.length === 0 && <p className="text-[11px] text-muted-foreground">لا طالبات</p>}
-                                {e.seats.map(s => (
-                                  <p key={s.applicant.id} draggable
-                                    onDragStart={ev => { ev.dataTransfer.setData('text/plain', s.applicant.id); setDragId(s.applicant.id); }}
-                                    onDragEnd={() => { setDragId(null); setDropKey(null); }}
-                                    onDoubleClick={() => s.pinned && assign(s.applicant.id, null, null)}
-                                    title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''}${s.pinned ? ' — منقولة يدويًا (نقرتان للتراجع)' : ''}`}
-                                    className={`text-[11px] leading-tight rounded px-1 py-0.5 cursor-grab active:cursor-grabbing ${
-                                      dragId === s.applicant.id ? 'opacity-40' : ''} ${
-                                      s.pinned ? 'ring-1 ring-accent/60 ' : ''}${
-                                      s.overflow ? 'bg-destructive/15 text-destructive' : tintOf(s.applicant.track_id)}`}>
-                                    {s.overflow && <AlertTriangle size={9} className="inline ms-0.5" />}
-                                    {s.applicant.full_name} <span className="opacity-60">{arNum(s.minutes)}د</span>
-                                  </p>
-                                ))}
+                                {e.seats.map(s => <SeatChip key={s.applicant.id} s={s} />)}
                               </div>
                             </div>
                           </div>
@@ -402,19 +421,69 @@ export default function SortingPage() {
             </div>
           )}
 
+          {/* الجوال واللوحي: قائمة يومية — بطاقة لكل حلقة بعرض كامل، والنقل بالنقر */}
+          {events.length > 0 && (
+            <div className="lg:hidden print:hidden space-y-5">
+              {days.map(d => (
+                <div key={d} className="space-y-2">
+                  <p className="font-display bg-primary text-primary-foreground rounded-lg py-1.5 px-3">
+                    {WEEKDAYS[d]}
+                  </p>
+                  {events.filter(e => e.day === d)
+                    .sort((a, b) => toMin(a.start) - toMin(b.start) || a.teacher.localeCompare(b.teacher, 'ar'))
+                    .map(e => {
+                      const used = e.seats.filter(s => !s.overflow).reduce((a, s) => a + s.minutes, 0);
+                      const over = e.seats.some(s => s.overflow);
+                      const tone = fillTone(used, e.capacity, over);
+                      const tcolor = teacherColor(e.color, teacherIndex(e.teacherId));
+                      const fill = Math.min(100, Math.round((used / e.capacity) * 100));
+                      return (
+                        <div key={e.key} className={`rounded-xl border overflow-hidden ${tone.block}`}>
+                          <div className="flex items-center justify-between gap-2 px-3 py-1.5"
+                            style={{ background: tcolor, color: textOn(tcolor) }}>
+                            <span className="font-medium">{e.teacher}</span>
+                            <span className="text-xs opacity-90">{formatTime(e.start)}–{formatTime(e.end)}</span>
+                          </div>
+                          {/* شريط الامتلاء أفقيًا في العرض الضيق */}
+                          <div className="h-1.5 bg-muted">
+                            <div className={`h-full ${tone.gauge}`} style={{ width: `${fill}%` }} />
+                          </div>
+                          <div className="px-3 py-2 space-y-1.5">
+                            <p className="text-xs text-muted-foreground">
+                              <span className={tone.text}>{arNum(used)}/{arNum(e.capacity)} د</span>
+                              {e.seats.length > 0 && <> · {arNum(e.seats.length)} طالبة</>}
+                              {e.pool && <> · {trackOf(e.pool)?.name}</>}
+                            </p>
+                            {e.seats.length === 0
+                              ? <p className="text-xs text-muted-foreground">لا طالبات</p>
+                              : (
+                                <div className="grid sm:grid-cols-2 gap-1">
+                                  {e.seats.map(s => <SeatChip key={s.applicant.id} s={s} />)}
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              ))}
+            </div>
+          )}
+
           {(noChoice.length > 0 || unknownLabel.length > 0) && (
             <Card className="border-warning/50">
               <CardContent className="pt-5 space-y-2">
                 <p className="font-medium flex items-center gap-2">
                   <AlertTriangle size={16} className="text-warning" />
                   يحتجن إسنادًا يدويًا ({noChoice.length + unknownLabel.length})
-                  <span className="text-xs font-normal text-muted-foreground">— اسحبي الاسم إلى حلقة في التقويم</span>
+                  <span className="text-xs font-normal text-muted-foreground">— اسحبي الاسم إلى حلقة، أو اضغطي عليه لاختيارها</span>
                 </p>
                 {[...noChoice, ...unknownLabel].map(a => (
-                  <p key={a.id} draggable
+                  <button key={a.id} type="button" draggable
                     onDragStart={ev => { ev.dataTransfer.setData('text/plain', a.id); setDragId(a.id); }}
                     onDragEnd={() => { setDragId(null); setDropKey(null); }}
-                    className={`text-sm border rounded-lg px-2 py-1 bg-background cursor-grab active:cursor-grabbing ${
+                    onClick={() => setMoving(a)}
+                    className={`block w-full text-right text-sm border rounded-lg px-2 py-1 bg-background cursor-grab active:cursor-grabbing hover:border-accent ${
                       dragId === a.id ? 'opacity-40' : ''}`}>
                     {a.full_name} — {trackOf(a.track_id)?.name ?? 'بلا مسار'} ({arNum(trackMinutes(trackOf(a.track_id)))}د) —{' '}
                     <span className="text-muted-foreground">
@@ -422,11 +491,52 @@ export default function SortingPage() {
                         ? `أولويتها الأولى «${a.preferred_slots[0]}» لم تعد معروضة`
                         : 'لم تختر أي موعد'}
                     </span>
-                  </p>
+                  </button>
                 ))}
               </CardContent>
             </Card>
           )}
+
+          {/* نقل الطالبة بالنقر — بديل السحب على الجوال ولوحة المفاتيح */}
+          <Dialog open={!!moving} onOpenChange={open => !open && setMoving(null)}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>نقل {moving?.full_name}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {trackOf(moving?.track_id ?? null)?.name} — تحتاج {arNum(trackMinutes(trackOf(moving?.track_id ?? null)))} دقيقة
+                </p>
+                {moving?.sort_teacher_id && (
+                  <Button variant="outline" className="w-full"
+                    onClick={() => { assign(moving.id, null, null); setMoving(null); }}>
+                    إعادتها إلى اختيارها الأول
+                  </Button>
+                )}
+                {circleOptions.map(c => {
+                  const free = c.capacity - c.used;
+                  const mine = trackMinutes(trackOf(moving?.track_id ?? null));
+                  const current = moving?.sort_teacher_id === c.teacherId && moving?.sort_slot_label === c.label;
+                  return (
+                    <button key={`${c.teacherId}|${c.label}`} type="button"
+                      onClick={() => { if (moving) { assign(moving.id, c.teacherId, c.label); setMoving(null); } }}
+                      className={`w-full text-right border rounded-lg p-2 hover:border-accent transition-colors ${
+                        current ? 'border-accent bg-accent/10' : ''}`}>
+                      <span className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full shrink-0"
+                          style={{ background: teacherColor(c.color, teacherIndex(c.teacherId)) }} />
+                        <span className="font-medium text-sm">{c.teacher}</span>
+                        <span className={`text-xs mr-auto ${free < mine ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          متبقٍ {arNum(free)} د
+                        </span>
+                      </span>
+                      <span className="block text-xs text-muted-foreground mt-0.5">{c.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
