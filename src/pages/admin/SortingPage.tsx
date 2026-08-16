@@ -39,7 +39,7 @@ export default function SortingPage() {
         supabase.from('availability_slots')
           .select('weekday, start_time, end_time, is_daily, teachers(full_name, track_id, is_active)')
           .range(0, 1999),
-        supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season')
+        supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page')
           .eq('is_active', true).order('sort_order'),
         supabase.from('applicants')
           .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status')
@@ -198,7 +198,7 @@ export default function SortingPage() {
       </div>
 
       <p className="text-sm text-muted-foreground print:text-black">
-        فرز مبدئي بالأولوية الأولى لكل متقدمة وبأسبقية التسجيل — السعة بالدقائق (صفحة = دقيقة و٤٠ ثانية).
+        فرز مبدئي بالأولوية الأولى لكل متقدمة وبأسبقية التسجيل — السعة بالدقائق حسب سرعة كل مسار (تُضبط من صفحة المسارات).
         الاعتماد النهائي يتم من صفحة «الحلقات».
       </p>
 

@@ -14,9 +14,9 @@ import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
 import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
-import { trackMinutes, sessionPages, slotCapacity } from '@/lib/circles';
+import { trackMinutes, sessionPages, slotCapacity, trackSeconds, paceLabel } from '@/lib/circles';
 
-interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; sort_order: number; }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; seconds_per_page?: number; sort_order: number; }
 
 /** preview: يُمرَّر من صفحة «النماذج» لعرض المسودة بنفس الصفحة الحقيقية (الإرسال معطل) */
 export default function RegisterPage({ preview }: { preview?: { config: any; questions: FormQuestion[] } }) {
@@ -47,7 +47,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const [loadReady, setLoadReady] = useState(false);
 
   useEffect(() => {
-    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, sort_order')
+    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sort_order')
       .eq('is_active', true).order('sort_order')
       .then(({ data }) => setTracks(data || []));
     supabase.from('v_public_circle_times' as any).select('*')
@@ -109,7 +109,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const liveOptions = deriveOptions(poolRows);
   const activeOptions: DayOption[] = liveOptions.length > 0 ? liveOptions : config.day_options;
 
-  // ---- سعة المواعيد بالدقائق (صفحة = دقيقة و٤٠ ثانية) ----
+  // ---- سعة المواعيد بالدقائق (سرعة الصفحة محددة لكل مسار في جدول المسارات) ----
   // دقائق الطالبة في موعدها حسب مسارها، والمتبقي في كل موعد = سعة نوافذ مسمعاته
   // ناقص دقائق من اخترنه أولوية أولى. الاكتفاء نسبي: موعد ممتلئ لمسار الختمة قد يتسع لخمسة أجزاء.
   const myTrack = tracks.find(t => t.id === trackId);
@@ -296,7 +296,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                 {myMinutes > 0 && liveOptions.length > 0 && (
                   <p className="text-xs border border-accent/30 bg-accent/5 rounded-lg px-3 py-2">
                     مسارك «{myTrack?.name}» يحتاج <b>{myMinutes} دقيقة</b> في الموعد الواحد
-                    ({sessionPages(myTrack)} صفحة × دقيقة و٤٠ ثانية) — لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
+                    ({sessionPages(myTrack)} صفحة × {paceLabel(trackSeconds(myTrack))}) — لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
                   </p>
                 )}
 

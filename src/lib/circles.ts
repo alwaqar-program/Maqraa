@@ -2,13 +2,25 @@
 
 /** عدد جلسات الفصل — كما في صفحة المسارات (نصاب الفصل ÷ ١٤ = نصاب الجلسة) */
 export const SESSIONS_PER_SEASON = 14;
-/** تسميع الصفحة الواحدة = دقيقة و٤٠ ثانية (نظيره في القاعدة: app_settings.seconds_per_page) */
+/** سرعة التسميع الافتراضية إن لم تُحدَّد للمسار: دقيقة و٤٠ ثانية للصفحة */
 export const SECONDS_PER_PAGE = 100;
 
 /** مسار كما يصل من القاعدة، أو عدد أجزائه فقط (توافق مع نداءات قديمة) */
 export type TrackLike =
-  | { quota_pages_per_season?: number | null; juz_count?: number | null }
+  | { quota_pages_per_season?: number | null; juz_count?: number | null; seconds_per_page?: number | null }
   | number | null | undefined;
+
+/** ثواني الصفحة لهذا المسار (عمود tracks.seconds_per_page) */
+export function trackSeconds(track: TrackLike): number {
+  const s = track && typeof track === 'object' ? Number(track.seconds_per_page ?? 0) : 0;
+  return s > 0 ? s : SECONDS_PER_PAGE;
+}
+
+/** «١:٤٠» — سرعة الصفحة بصيغة دقيقة:ثانية */
+export function paceLabel(seconds: number): string {
+  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+  return m ? `${m}:${String(s).padStart(2, '0')}` : `${s} ثانية`;
+}
 
 /** صفحات الجلسة الواحدة: نصاب الفصل ÷ عدد الجلسات — ٧ / ١٤ / ٢٩ / ٤٣ للمسارات المعتمدة */
 export function sessionPages(track: TrackLike): number {
@@ -22,10 +34,9 @@ export function sessionPages(track: TrackLike): number {
   return 43;
 }
 
-/** دقائق الطالبة في موعدها = صفحات الجلسة × ١٠٠ ثانية، مقرَّبة لأعلى دقيقة
- *  (٧ص→١٢د، ١٤ص→٢٤د، ٢٩ص→٤٩د، ٤٣ص→٧٢د) */
+/** دقائق الطالبة في موعدها = صفحات الجلسة × ثواني الصفحة لمسارها، مقرَّبة لأعلى دقيقة */
 export function trackMinutes(track: TrackLike): number {
-  return Math.max(1, Math.ceil(sessionPages(track) * SECONDS_PER_PAGE / 60));
+  return Math.max(1, Math.ceil(sessionPages(track) * trackSeconds(track) / 60));
 }
 
 /** صف توفر: يوم ووقت — مصدره v_public_circle_times أو availability_slots */
