@@ -58,11 +58,26 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
       ? prev.filter(x => x !== slotKey(d))
       : [...prev, slotKey(d)]);
 
+  // مسارات محددة (مثل «ختمة دورية») لها قائمة مواعيد خاصة بها
+  const isSpecialTrack = ((config.special_track_ids as string[]) ?? []).includes(trackId);
+  const activeOptions: typeof config.day_options =
+    isSpecialTrack && (config.special_day_options ?? []).length > 0
+      ? config.special_day_options
+      : config.day_options;
+
+  // عند التنقل بين مسار عادي وخاص: أزيلي المواعيد المختارة التي لم تعد معروضة
+  useEffect(() => {
+    const valid = new Set(activeOptions.map(slotKey));
+    setSelectedSlots(prev => prev.filter(k => valid.has(k)));
+    setActiveDay(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSpecialTrack]);
+
   // الأيام التي لها مواعيد معروضة (فريدة وبترتيب الأسبوع)
-  const availableDays = [...new Set(config.day_options.map(d => d.value))].sort((a, b) => a - b);
+  const availableDays = [...new Set(activeOptions.map(d => d.value))].sort((a, b) => a - b);
   const visibleOptions = showAll || activeDay === null
-    ? config.day_options
-    : config.day_options.filter(d => d.value === activeDay);
+    ? activeOptions
+    : activeOptions.filter(d => d.value === activeDay);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

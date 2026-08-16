@@ -188,11 +188,12 @@ export default function CirclesPage() {
   // خريطة نص الخيار (كما خزنته الطالبة في أولوياتها) → يوم ونافذة زمنية
   const optionWindows = useMemo(() => {
     const map: Record<string, { weekday: number; start: string; end: string }> = {};
-    ((config.day_options as DayOption[]) ?? []).forEach(d => {
+    // الأساسية + الخاصة بمسارات (ختمة دورية...) — كلها نصوص محتملة في أولويات الطالبات
+    [...((config.day_options as DayOption[]) ?? []), ...((config.special_day_options as DayOption[]) ?? [])].forEach(d => {
       if (d.label && d.start && d.end) map[d.label] = { weekday: d.value, start: d.start, end: d.end };
     });
     return map;
-  }, [config.day_options]);
+  }, [config.day_options, config.special_day_options]);
 
   const buildDistribution = async () => {
     setDistributing(true);
