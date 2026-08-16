@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
+import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus, CalendarPlus } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { Checkbox } from '@/components/ui/checkbox';
 import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin } from '@/lib/circles';
@@ -27,11 +27,13 @@ interface Member {
   student_name?: string; track_name?: string;
 }
 /** موعد توفر للمسمعة — الحلقة تُبنى باختيار واحد أو أكثر منها */
-interface Slot { id: string; teacher_id: string; weekday: number; start_time: string; end_time: string; }
+interface Slot { id: string; teacher_id: string; weekday: number; start_time: string; end_time: string; is_daily?: boolean }
 interface Teacher { id: string; full_name: string; }
 interface Supervisor { id: string; full_name: string; }
 interface Proposal { student_id: string; student_name: string; track_name: string; minutes: number;
   circle_id: string; circle_number: number; choice_rank: number | null; start_time: string; }
+/** طالبة لم يجد لها التوزيع مكانًا — تبقى قابلة للإسناد اليدوي من المعاينة */
+interface Skipped { student_id: string; name: string; track_name: string; minutes: number; why: string }
 
 export default function CirclesPage() {
   const [circles, setCircles] = useState<Circle[]>([]);
@@ -50,7 +52,8 @@ export default function CirclesPage() {
   const [addStudentId, setAddStudentId] = useState('');
   const [distOpen, setDistOpen] = useState(false);
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [distSkipped, setDistSkipped] = useState<{ name: string; why: string }[]>([]);
+  const [distSkipped, setDistSkipped] = useState<Skipped[]>([]);
+  const [autoCreating, setAutoCreating] = useState(false);
   const [distributing, setDistributing] = useState(false);
   const { toast } = useToast();
   const { config } = useFormSettings('student_register');
@@ -61,7 +64,7 @@ export default function CirclesPage() {
       supabase.from('circle_members').select('*, students(full_name, tracks(name))'),
       supabase.from('teachers').select('id, full_name').eq('is_active', true).order('full_name'),
       supabase.from('supervisors').select('id, full_name').eq('is_active', true).order('full_name'),
-      supabase.from('availability_slots').select('id, teacher_id, weekday, start_time, end_time'),
+      supabase.from('availability_slots').select('id, teacher_id, weekday, start_time, end_time, is_daily'),
       supabase.from('circle_slots').select('circle_id, slot_id'),
     ]);
     setSlots(((sl || []) as any[]).map(s => ({
@@ -193,6 +196,55 @@ export default function CirclesPage() {
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else fetchAll();
   };
+  /** إنشاء حلقة لكل موعد توفر غير مرتبط بحلقة — والمواعيد الدورية (نفس الوقت عدة أيام) حلقة واحدة */
+  const createCirclesFromSlots = async () => {
+    setAutoCreating(true);
+    const linked = new Set(circleSlots.map(cs => cs.slot_id));
+    const free = slots.filter(s => !linked.has(s.id) && teachers.some(t => t.id === s.teacher_id));
+    if (!free.length) {
+      toast({ title: 'كل مواعيد المسمعات مرتبطة بحلقات بالفعل' });
+      setAutoCreating(false); return;
+    }
+    // تجميع: الدوري بمفتاح (مسمعة + وقت) حلقة واحدة، والعادي كل موعد حلقة
+    const groups: Record<string, Slot[]> = {};
+    free.forEach(s => {
+      const k = s.is_daily
+        ? `d|${s.teacher_id}|${s.start_time}|${s.end_time}`
+        : `s|${s.id}`;
+      (groups[k] ??= []).push(s);
+    });
+
+    let num = circles.reduce((mx, c) => Math.max(mx, c.number), 0);
+    let created = 0;
+    const failed: string[] = [];
+    for (const group of Object.values(groups)) {
+      const ordered = [...group].sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time));
+      const first = ordered[0];
+      num += 1;
+      const { data, error } = await supabase.from('circles').insert({
+        number: num, teacher_id: first.teacher_id, supervisor_id: null,
+        weekday: first.weekday, start_time: first.start_time, end_time: first.end_time,
+      }).select('id').single();
+      if (error) {
+        num -= 1;
+        const who = teachers.find(t => t.id === first.teacher_id)?.full_name ?? '';
+        failed.push(`${who} ${WEEKDAYS[first.weekday]} ${formatTime(first.start_time)}`);
+        continue;
+      }
+      const { error: e2 } = await supabase.from('circle_slots')
+        .insert(ordered.map(s => ({ circle_id: data.id, slot_id: s.id })));
+      if (e2) failed.push(`ربط مواعيد الحلقة ${num}`);
+      created += 1;
+    }
+    setAutoCreating(false);
+    toast({
+      title: created ? `أُنشئت ${created} حلقة من مواعيد المسمعات` : 'لم تُنشأ حلقات',
+      description: failed.length ? `تعذّر: ${failed.join('، ')}` : undefined,
+      variant: created ? undefined : 'destructive',
+    });
+    fetchAll();
+  };
+
   const deleteCircle = async (c: Circle) => {
     if (membersOf(c.id).length) { toast({ title: 'انقلي طالبات الحلقة أولًا', variant: 'destructive' }); return; }
     const { error } = await supabase.from('circles').delete().eq('id', c.id);
@@ -320,7 +372,7 @@ export default function CirclesPage() {
       stTrackId && linkedTrackIds.has(stTrackId) ? c.teacher_track_id === stTrackId : !c.teacher_track_id;
 
     const out: Proposal[] = [];
-    const skipped: { name: string; why: string }[] = [];
+    const skipped: Skipped[] = [];
     const take = (st: (typeof queue)[number], chosen: Circle, rank: number | null) => {
       remaining[chosen.id] -= st.minutes;
       const t = allocStart(chosen, consumed[chosen.id]);
@@ -362,9 +414,60 @@ export default function CirclesPage() {
         st.app?.preferred_period ?? null,
       );
       if (candidates[0]) take(st, candidates[0], null);
-      else skipped.push({ name: st.name, why: 'لا سعة متبقية في أي حلقة' });
+      else skipped.push({
+        student_id: st.id, name: st.name, track_name: st.track, minutes: st.minutes,
+        why: 'لا سعة متبقية في أي حلقة تناسبها',
+      });
     }
     setProposals(out); setDistSkipped(skipped); setDistOpen(true); setDistributing(false);
+  };
+
+  // ---------- تعديل يدوي على المعاينة قبل الحفظ ----------
+  /** يعيد ترتيب أوقات المقترحات داخل كل حلقة بعد أي تعديل (تراكم من دقائقها المشغولة) */
+  const resequence = (list: Proposal[]): Proposal[] => {
+    const running: Record<string, number> = {};
+    return list.map(p => {
+      const used = running[p.circle_id] ?? usedMinutes(p.circle_id);
+      running[p.circle_id] = used + p.minutes;
+      const c = circles.find(x => x.id === p.circle_id);
+      return { ...p, start_time: c ? allocStart(c, used) : p.start_time };
+    });
+  };
+  /** الدقائق المحجوزة في حلقة ضمن المعاينة (الحالي + المقترح) مع إمكانية استثناء طالبة */
+  const projectedUsed = (circleId: string, list: Proposal[], exceptStudent?: string) =>
+    usedMinutes(circleId) + list
+      .filter(p => p.circle_id === circleId && p.student_id !== exceptStudent)
+      .reduce((a, p) => a + p.minutes, 0);
+
+  const moveProposal = (studentId: string, targetId: string) => {
+    const target = circles.find(c => c.id === targetId);
+    const p = proposals.find(x => x.student_id === studentId);
+    if (!target || !p) return;
+    if (capacity(target) - projectedUsed(targetId, proposals, studentId) < p.minutes) {
+      toast({ title: `لا تتسع الحلقة ${target.number} لـ${p.minutes} دقيقة`, variant: 'destructive' }); return;
+    }
+    setProposals(prev => resequence(prev.map(x => x.student_id === studentId
+      ? { ...x, circle_id: targetId, circle_number: target.number, choice_rank: null }
+      : x)));
+  };
+  const dropProposal = (p: Proposal) => {
+    setProposals(prev => resequence(prev.filter(x => x.student_id !== p.student_id)));
+    setDistSkipped(prev => [...prev, {
+      student_id: p.student_id, name: p.student_name, track_name: p.track_name,
+      minutes: p.minutes, why: 'استُبعدت يدويًا من هذا التوزيع',
+    }]);
+  };
+  const placeSkipped = (s: Skipped, targetId: string) => {
+    const target = circles.find(c => c.id === targetId);
+    if (!target) return;
+    if (capacity(target) - projectedUsed(targetId, proposals) < s.minutes) {
+      toast({ title: `لا تتسع الحلقة ${target.number} لـ${s.minutes} دقيقة`, variant: 'destructive' }); return;
+    }
+    setProposals(prev => resequence([...prev, {
+      student_id: s.student_id, student_name: s.name, track_name: s.track_name, minutes: s.minutes,
+      circle_id: targetId, circle_number: target.number, choice_rank: null, start_time: target.start_time,
+    }]));
+    setDistSkipped(prev => prev.filter(x => x.student_id !== s.student_id));
   };
 
   const applyDistribution = async () => {
@@ -394,7 +497,11 @@ export default function CirclesPage() {
           <h1 className="text-2xl font-display">الحلقات</h1>
           <Badge variant="outline">{circles.length}</Badge>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" className="gap-1" onClick={createCirclesFromSlots} disabled={autoCreating}
+            title="حلقة لكل موعد توفر غير مرتبط — والمواعيد الدورية حلقة واحدة">
+            <CalendarPlus size={15} /> {autoCreating ? '...' : 'إنشاء حلقات من مواعيد المسمعات'}
+          </Button>
           <Button variant="outline" className="gap-1" onClick={buildDistribution} disabled={distributing}>
             <Wand2 size={15} /> {distributing ? '...' : 'توزيع تلقائي'}
           </Button>
@@ -619,9 +726,26 @@ export default function CirclesPage() {
           <DialogHeader><DialogTitle>معاينة التوزيع التلقائي</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              بالأسبقية بالتسجيل، ثم أولويات كل طالبة، وسعة الحلقات بالدقائق حسب المسار —
-              لن يُحفظ شيء قبل «تأكيد التوزيع».
+              بالأسبقية بالتسجيل، ثم أولويات كل طالبة، وسعة الحلقات بالدقائق حسب المسار.
+              <b> عدّلي ما تشائين هنا</b> — نقل طالبة لحلقة أخرى أو استبعادها — ولن يُحفظ شيء قبل «تأكيد التوزيع».
             </p>
+
+            {/* إشغال كل حلقة بعد هذا التوزيع */}
+            {proposals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {circles.filter(c => c.is_active).map(c => {
+                  const used = projectedUsed(c.id, proposals);
+                  const cap = capacity(c);
+                  if (!used) return null;
+                  return (
+                    <Badge key={c.id} variant="outline" className={used > cap ? 'text-destructive border-destructive' : ''}>
+                      حلقة {c.number}: {used}/{cap} د
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+
             {proposals.length === 0 ? (
               <p className="text-sm">لا طالبات قابلة للتوزيع (الجميع موزعات أو بلا أولويات مطابقة).</p>
             ) : (
@@ -629,18 +753,41 @@ export default function CirclesPage() {
                 <TableHeader><TableRow>
                   <TableHead>الطالبة</TableHead><TableHead>المسار</TableHead>
                   <TableHead>الحلقة</TableHead><TableHead>وقتها</TableHead><TableHead>الاختيار</TableHead>
+                  <TableHead />
                 </TableRow></TableHeader>
                 <TableBody>
                   {proposals.map(p => (
                     <TableRow key={p.student_id}>
                       <TableCell className="font-medium">{p.student_name}</TableCell>
-                      <TableCell>{p.track_name} ({p.minutes}د)</TableCell>
-                      <TableCell>حلقة {p.circle_number}</TableCell>
+                      <TableCell className="whitespace-nowrap">{p.track_name} ({p.minutes}د)</TableCell>
+                      <TableCell>
+                        {/* تعديل يدوي: نقلها لحلقة أخرى قبل الحفظ */}
+                        <Select value={p.circle_id} onValueChange={v => moveProposal(p.student_id, v)}>
+                          <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {circles.filter(c => c.is_active).map(c => {
+                              const free = capacity(c) - projectedUsed(c.id, proposals, p.student_id);
+                              return (
+                                <SelectItem key={c.id} value={c.id} disabled={free < p.minutes && c.id !== p.circle_id}>
+                                  حلقة {c.number} — {c.teacher_name} (متبقٍ {free}د)
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">{formatTime(p.start_time)}</TableCell>
                       <TableCell>
                         <Badge variant={p.choice_rank === 1 ? 'default' : 'outline'}>
-                          {p.choice_rank ? choiceLabel(p.choice_rank) : 'الأنسب المتاح (بلا أولويات)'}
+                          {p.choice_rank ? choiceLabel(p.choice_rank) : 'إسناد يدوي'}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <button type="button" title="استبعادها من هذا التوزيع"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => dropProposal(p)}>
+                          <Trash2 size={14} />
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -648,10 +795,26 @@ export default function CirclesPage() {
               </Table>
             )}
             {distSkipped.length > 0 && (
-              <div className="border border-warning/50 bg-warning/10 rounded-lg p-3 space-y-1">
-                <p className="text-sm font-medium">لم يوزَّعن ({distSkipped.length}):</p>
-                {distSkipped.map((s, i) => (
-                  <p key={i} className="text-sm text-muted-foreground">• {s.name} — {s.why}</p>
+              <div className="border border-warning/50 bg-warning/10 rounded-lg p-3 space-y-2">
+                <p className="text-sm font-medium">لم يوزَّعن ({distSkipped.length}) — أسنديهن يدويًا:</p>
+                {distSkipped.map(s => (
+                  <div key={s.student_id} className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-muted-foreground">{s.track_name} ({s.minutes}د) — {s.why}</span>
+                    <Select value="" onValueChange={v => placeSkipped(s, v)}>
+                      <SelectTrigger className="h-8 w-40 text-xs mr-auto"><SelectValue placeholder="أسنديها لحلقة..." /></SelectTrigger>
+                      <SelectContent>
+                        {circles.filter(c => c.is_active).map(c => {
+                          const free = capacity(c) - projectedUsed(c.id, proposals);
+                          return (
+                            <SelectItem key={c.id} value={c.id} disabled={free < s.minutes}>
+                              حلقة {c.number} — {c.teacher_name} (متبقٍ {free}د)
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 ))}
               </div>
             )}
