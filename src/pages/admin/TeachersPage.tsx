@@ -515,6 +515,28 @@ export default function TeachersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* تأكيد حذف مسمعة */}
+      <AlertDialog open={deletingTeacher !== null} onOpenChange={open => !open && setDeletingTeacher(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف المسمعة نهائيًا</AlertDialogTitle>
+            <AlertDialogDescription>
+              ستُحذف «{deletingTeacher?.full_name}» ومواعيد توفرها نهائيًا.
+              {(deletingTeacher?.booked ?? 0) > 0 && ` لديها ${deletingTeacher?.booked} حجوزات نشطة ستُلغى.`}
+              {' '}إن كان لها سجلات (حلقة أو تسميع أو حضور أو اختبارات) فسيمنع النظام الحذف حفاظًا على السجلات — وحينها الأنسب تعطيلها بمفتاح «نشطة».
+              {deletingTeacher?.user_id && ' ولها حساب دخول — عطّليه من صفحة المستخدمين بعد الحذف.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>تراجع</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDeleteTeacher}>
+              حذف نهائي
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
