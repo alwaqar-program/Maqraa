@@ -39,8 +39,8 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const [done, setDone] = useState(false);
   const { toast } = useToast();
 
-  // أوقات الحلقات النشطة (عرض عام آمن) — مصدر المواعيد الحي بدل الإدخال اليدوي المكرر
-  const [circleTimes, setCircleTimes] = useState<{ weekday: number; start_time: string; end_time: string; track_id: string | null }[]>([]);
+  // أوقات توفر المسمعات النشطات (عرض عام آمن) — مصدر المواعيد الحي بدل الإدخال اليدوي المكرر
+  const [circleTimes, setCircleTimes] = useState<{ weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean }[]>([]);
 
   useEffect(() => {
     supabase.from('tracks').select('id, name, juz_count, sort_order')
@@ -50,19 +50,33 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
       .then(({ data }) => setCircleTimes((data as any) || []));
   }, []);
 
-  /** حلقات → خيارات مواعيد فريدة (يوم+وقت) بنص عربي مولد */
+  /** مواعيد المسمعات → خيارات فريدة بنص عربي مولد:
+   *  العادية خيار لكل يوم+وقت، والموسومة دورية تُطوى خيارًا واحدًا (من يوم إلى يوم) */
   const deriveOptions = (rows: typeof circleTimes): DayOption[] => {
     const seen = new Set<string>();
     const out: DayOption[] = [];
-    [...rows]
+    // العادية
+    rows.filter(r => !r.is_daily)
       .sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time))
       .forEach(r => {
         const start = r.start_time.slice(0, 5), end = r.end_time.slice(0, 5);
         const k = `${r.weekday}|${start}|${end}`;
-        if (seen.has(k)) return;   // حلقتان بنفس اليوم والوقت (مسمعتان مختلفتان) = خيار واحد
+        if (seen.has(k)) return;   // مسمعتان بنفس اليوم والوقت = خيار واحد
         seen.add(k);
         out.push({ value: r.weekday, start, end, label: genSlotLabel(r.weekday, start, end) });
       });
+    // الدورية: كل وقت يُطوى مدى من أصغر يوم إلى أكبره
+    const byTime: Record<string, number[]> = {};
+    rows.filter(r => r.is_daily).forEach(r => {
+      (byTime[`${r.start_time.slice(0, 5)}|${r.end_time.slice(0, 5)}`] ??= []).push(r.weekday);
+    });
+    Object.entries(byTime).forEach(([k, days]) => {
+      const [start, end] = k.split('|');
+      const from = Math.min(...days), to = Math.max(...days);
+      out.push(from === to
+        ? { value: from, start, end, label: genSlotLabel(from, start, end) }
+        : { value: from, to, start, end, label: genSlotLabel(from, start, end, to) });
+    });
     return out;
   };
 

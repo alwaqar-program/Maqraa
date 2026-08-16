@@ -63,48 +63,29 @@ export default function FormsAdminPage() {
   const patchConfig = (patch: object) => { setConfig({ ...config, ...patch }); setDirty(true); };
 
   // مواعيد التسجيل هي نفسها مواعيد المسمعات — تُعكس من أوقات توفرهن بدل إدخالها مرتين.
-  // الموسومة «دورية» (is_daily) فقط تُطوى خيارًا دوريًا واحدًا (من يوم إلى يوم)،
-  // ومواعيد الأيام العادية تبقى خيارات مفردة حتى لو تتابعت أيامها
+  // القائمة الأساسية للمسمعات العامات (غير المعينات على مسار) فقط، وخياراتها يوم واحد
+  // دائمًا — لا دوري فيها؛ الدوري حصري لقائمة المسار المخصص (الختمة الدورية)
   const syncFromTeachers = async () => {
     const { data, error } = await supabase.from('availability_slots')
-      .select('weekday, start_time, end_time, is_daily, teacher_id, teachers!inner(is_active)')
-      .eq('teachers.is_active', true);
+      .select('weekday, start_time, end_time, teacher_id, teachers!inner(is_active, track_id)')
+      .eq('teachers.is_active', true)
+      .is('teachers.track_id', null);
     if (error) { toast({ title: 'تعذر جلب مواعيد المسمعات', description: error.message, variant: 'destructive' }); return; }
-    if (!data?.length) { toast({ title: 'لا مواعيد للمسمعات بعد', description: 'أضيفي أوقات التوفر من صفحة المسمعات أولًا', variant: 'destructive' }); return; }
+    if (!data?.length) { toast({ title: 'لا مواعيد لمسمعات عامات بعد', description: 'أضيفي أوقات التوفر من صفحة المسمعات أولًا', variant: 'destructive' }); return; }
 
     const seen = new Set<string>();
     const opts: DayOption[] = [];
-
-    // مواعيد الأيام العادية: خيار لكل يوم+وقت (مكرر المسمعات = خيار واحد)
-    data.filter((s: any) => !s.is_daily).forEach((s: any) => {
+    data.forEach((s: any) => {
       const start = s.start_time.slice(0, 5), end = s.end_time.slice(0, 5);
-      const k = `${s.weekday}|${s.weekday}|${start}|${end}`;
-      if (seen.has(k)) return;
+      const k = `${s.weekday}|${start}|${end}`;
+      if (seen.has(k)) return;   // مسمعتان بنفس اليوم والوقت = خيار واحد
       seen.add(k);
       opts.push({ value: s.weekday, start, end, label: genSlotLabel(s.weekday, start, end) });
     });
 
-    // الدورية: أيام كل (مسمعة + وقت) تُطوى مدى من/إلى
-    const byTeacherTime: Record<string, { start: string; end: string; days: number[] }> = {};
-    data.filter((s: any) => s.is_daily).forEach((s: any) => {
-      const start = s.start_time.slice(0, 5), end = s.end_time.slice(0, 5);
-      const k = `${s.teacher_id}|${start}|${end}`;
-      (byTeacherTime[k] ??= { start, end, days: [] }).days.push(s.weekday);
-    });
-    Object.values(byTeacherTime).forEach(({ start, end, days }) => {
-      const sorted = [...new Set(days)].sort((a, b) => a - b);
-      const from = sorted[0], to = sorted[sorted.length - 1];
-      const k = `${from}|${to}|${start}|${end}`;
-      if (seen.has(k)) return;
-      seen.add(k);
-      opts.push(to !== from
-        ? { value: from, to, start, end, label: genSlotLabel(from, start, end, to) }
-        : { value: from, start, end, label: genSlotLabel(from, start, end) });
-    });
-
     opts.sort((a, b) => a.value - b.value || (a.start ?? '').localeCompare(b.start ?? ''));
     patchConfig({ day_options: opts });
-    toast({ title: `عُكست ${opts.length} خيارات من مواعيد المسمعات`, description: 'راجعيها ثم اضغطي «حفظ» لاعتمادها' });
+    toast({ title: `عُكست ${opts.length} خيارات من مواعيد المسمعات العامات`, description: 'راجعيها ثم اضغطي «حفظ» لاعتمادها' });
   };
   const patchQuestion = (id: string, patch: Partial<DraftQuestion>) => {
     setQuestions(qs => qs.map(q => q.id === id ? { ...q, ...patch } : q));
@@ -415,13 +396,16 @@ export default function FormsAdminPage() {
 
 // ---------- محررات صغيرة ----------
 
-/** محرر قائمة خيارات المواعيد — يوم واحد أو دوري (من يوم إلى يوم) بنفس الوقت، والنص يتولد */
-function SlotOptionsEditor({ options, onChange }: {
+/** محرر قائمة خيارات المواعيد — والنص يتولد تلقائيًا.
+ *  allowDaily (لقائمة الختمة الدورية فقط): يتيح الدوري «من يوم إلى يوم» —
+ *  الخيارات العادية يوم واحد دائمًا، لا دوري فيها أبدًا */
+function SlotOptionsEditor({ options, onChange, allowDaily }: {
   options: DayOption[]; onChange: (next: DayOption[]) => void; allowDaily?: boolean;
 }) {
   const update = (i: number, patch: Partial<DayOption>) => {
     const next = [...options];
     const merged = { ...next[i], ...patch, daily: undefined };
+    if (!allowDaily) merged.to = undefined;
     merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '', merged.to) || merged.label;
     next[i] = merged;
     onChange(next);
@@ -436,15 +420,17 @@ function SlotOptionsEditor({ options, onChange }: {
               {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
             </SelectContent>
           </Select>
-          {/* «إلى يوم» — فارغ = يوم واحد؛ محدد = دوري بنفس الوقت كل يوم في المدى */}
-          <Select value={d.to != null ? String(d.to) : (d.daily ? '6' : 'single')}
-            onValueChange={v => update(i, { to: v === 'single' ? undefined : Number(v) })}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="single">— يوم واحد —</SelectItem>
-              {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>إلى {w}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* «إلى يوم» للدوري — يظهر فقط في قائمة المسار المخصص */}
+          {allowDaily && (
+            <Select value={d.to != null ? String(d.to) : (d.daily ? '6' : 'single')}
+              onValueChange={v => update(i, { to: v === 'single' ? undefined : Number(v) })}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">— يوم واحد —</SelectItem>
+                {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>إلى {w}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <TimeSelect className="w-32" value={d.start} onChange={v => update(i, { start: v })} />
           <span className="text-muted-foreground text-sm">إلى</span>
           <TimeSelect className="w-32" value={d.end} onChange={v => update(i, { end: v })} />

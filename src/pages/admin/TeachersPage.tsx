@@ -482,11 +482,14 @@ export default function TeachersPage() {
                   onClick={() => setSlots([...slots, { key: newSlotKey(), weekday: 0, start_time: '16:00', end_time: '17:00' }])}>
                   <Plus size={14} /> إضافة موعد يوم
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-1"
-                  onClick={() => setSlots([...slots,
-                    ...DAILY_DAYS.map(w => ({ key: newSlotKey(), weekday: w, is_daily: true, start_time: '16:00', end_time: '17:00' }))])}>
-                  <Plus size={14} /> إضافة موعد دوري
-                </Button>
+                {/* الدوري حصري لمسمعات المسار المخصص (الختمة الدورية) — العامات موعد يوم فقط */}
+                {form.track_id && (
+                  <Button type="button" variant="outline" size="sm" className="gap-1"
+                    onClick={() => setSlots([...slots,
+                      ...DAILY_DAYS.map(w => ({ key: newSlotKey(), weekday: w, is_daily: true, start_time: '16:00', end_time: '17:00' }))])}>
+                    <Plus size={14} /> إضافة موعد دوري
+                  </Button>
+                )}
               </div>
             </div>
 
