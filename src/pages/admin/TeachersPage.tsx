@@ -42,7 +42,7 @@ let slotKeySeq = 0;
 const newSlotKey = () => `n${++slotKeySeq}`;
 
 interface Agreement {
-  id: string; full_name: string; agreement_date: string;
+  id: string; full_name: string; phone?: string | null; agreement_date: string;
   agreed_slots: { weekday: number; start_time: string; end_time: string }[];
   notes: string | null;
   extra_answers?: Record<string, any>;
@@ -207,7 +207,7 @@ export default function TeachersPage() {
   // قبول اتفاقية موقعة → إنشاء ملف مسمعة
   const acceptAgreement = async (a: Agreement) => {
     const { data: teacher, error: tErr } = await supabase.from('teachers')
-      .insert({ full_name: a.full_name }).select('id').single();
+      .insert({ full_name: a.full_name, phone: a.phone ?? null }).select('id').single();
     if (tErr) { toast({ title: 'خطأ', description: tErr.message, variant: 'destructive' }); return; }
     // مواعيد الاتفاقية تصبح مواعيد توفرها مباشرة
     if (a.agreed_slots?.length) {
@@ -258,6 +258,7 @@ export default function TeachersPage() {
               <div key={a.id} className="flex items-start justify-between gap-3 border-b last:border-0 pb-3 text-sm">
                 <div>
                   <b>{a.full_name}</b>
+                  {a.phone && <span dir="ltr" className="text-muted-foreground"> {a.phone}</span>}
                   <span className="text-muted-foreground"> — وقّعت في {a.agreement_date}</span>
                   {a.agreed_slots?.length > 0 && (
                     <p className="text-muted-foreground mt-0.5">

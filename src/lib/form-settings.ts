@@ -14,6 +14,8 @@ export interface FormQuestion {
   required: boolean;
   sort_order: number;
   is_active: boolean;
+  depends_on?: string | null;      // سؤال شرطي: يظهر فقط إذا أجيب السؤال المشار إليه...
+  depends_value?: string | null;   // ...بهذه الإجابة تحديدًا
 }
 
 /** موعد يوم واحد (value)، أو دوري بنفس الوقت من يوم value إلى يوم to.

@@ -90,16 +90,31 @@ export default function FormsAdminPage() {
       const { error } = await supabase.from('form_questions').delete().eq('id', id);
       if (error) { toast({ title: 'خطأ في حذف سؤال', description: error.message, variant: 'destructive' }); setSaving(false); return; }
     }
+    // تمريرتان: الأولى تحفظ الأسئلة وتلتقط المعرفات الحقيقية للجديدة،
+    // والثانية تحفظ شرط الظهور (قد يشير لسؤال جديد لم يكن له معرف بعد)
+    const realId: Record<string, string> = {};
     for (const q of questions) {
       const payload = {
         form_key: key, label: q.label, qtype: q.qtype,
         options: q.options.filter(o => o.trim()),
         required: q.required, sort_order: q.sort_order, is_active: q.is_active,
       };
-      const { error } = q._new
-        ? await supabase.from('form_questions').insert(payload)
-        : await supabase.from('form_questions').update(payload).eq('id', q.id);
-      if (error) { toast({ title: 'خطأ في حفظ سؤال', description: error.message, variant: 'destructive' }); setSaving(false); return; }
+      if (q._new) {
+        const { data, error } = await supabase.from('form_questions').insert(payload).select('id').single();
+        if (error) { toast({ title: 'خطأ في حفظ سؤال', description: error.message, variant: 'destructive' }); setSaving(false); return; }
+        realId[q.id] = data.id;
+      } else {
+        realId[q.id] = q.id;
+        const { error } = await supabase.from('form_questions').update(payload).eq('id', q.id);
+        if (error) { toast({ title: 'خطأ في حفظ سؤال', description: error.message, variant: 'destructive' }); setSaving(false); return; }
+      }
+    }
+    for (const q of questions) {
+      const dep = q.depends_on ? realId[q.depends_on] ?? q.depends_on : null;
+      const { error } = await supabase.from('form_questions')
+        .update({ depends_on: dep, depends_value: dep ? (q.depends_value ?? null) : null })
+        .eq('id', realId[q.id]);
+      if (error) { toast({ title: 'خطأ في حفظ شرط الظهور', description: error.message, variant: 'destructive' }); setSaving(false); return; }
     }
     setSaving(false);
     toast({ title: 'اعتُمدت التعديلات — سارية الآن على الرابط العام' });
@@ -296,6 +311,40 @@ export default function FormsAdminPage() {
                     onChange={e => patchQuestion(q.id, { options: e.target.value.split('\n') })} />
                 </div>
               )}
+              {/* شرط الظهور: يظهر بناء على إجابة سؤال اختيار سابق */}
+              {(() => {
+                const candidates = questions.slice(0, i).filter(p => p.qtype !== 'text' && p.is_active);
+                if (!candidates.length && !q.depends_on) return null;
+                const dep = questions.find(p => p.id === q.depends_on);
+                return (
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <Label className="text-xs shrink-0">يظهر:</Label>
+                    <Select value={q.depends_on ?? 'always'}
+                      onValueChange={v => patchQuestion(q.id, v === 'always'
+                        ? { depends_on: null, depends_value: null }
+                        : { depends_on: v, depends_value: null })}>
+                      <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="always">دائمًا</SelectItem>
+                        {candidates.map(p => (
+                          <SelectItem key={p.id} value={p.id}>بشرط إجابة: {p.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {dep && (
+                      <>
+                        <span className="text-muted-foreground text-xs">=</span>
+                        <Select value={q.depends_value ?? ''} onValueChange={v => patchQuestion(q.id, { depends_value: v })}>
+                          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="اختاري الإجابة" /></SelectTrigger>
+                          <SelectContent>
+                            {dep.options.filter(o => o.trim()).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="flex items-center gap-4 text-sm">
                 <label className="flex items-center gap-1.5">
                   <Switch checked={q.required} onCheckedChange={v => patchQuestion(q.id, { required: v })} />

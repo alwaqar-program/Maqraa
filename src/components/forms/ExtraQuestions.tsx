@@ -6,10 +6,17 @@ import { FormQuestion } from '@/lib/form-settings';
 
 export type ExtraAnswers = Record<string, string | string[]>;
 
-/** يتحقق أن كل الأسئلة الإلزامية مجابة — يعيد نص السؤال الناقص أو null */
+/** هل السؤال ظاهر؟ الشرطي يظهر فقط إذا أجيب سؤاله المشار إليه بالإجابة المحددة */
+export function isVisible(q: FormQuestion, answers: ExtraAnswers): boolean {
+  if (!q.depends_on || !q.depends_value) return true;
+  const a = answers[q.depends_on];
+  return Array.isArray(a) ? a.includes(q.depends_value) : a === q.depends_value;
+}
+
+/** يتحقق أن كل الأسئلة الإلزامية الظاهرة مجابة — يعيد نص السؤال الناقص أو null */
 export function missingRequired(questions: FormQuestion[], answers: ExtraAnswers): string | null {
   for (const q of questions) {
-    if (!q.required) continue;
+    if (!q.required || !isVisible(q, answers)) continue;
     const a = answers[q.id];
     if (a == null || a === '' || (Array.isArray(a) && a.length === 0)) return q.label;
   }
@@ -24,11 +31,16 @@ export default function ExtraQuestions({ questions, answers, onChange }: {
 }) {
   if (questions.length === 0) return null;
 
-  const set = (id: string, v: string | string[]) => onChange({ ...answers, [id]: v });
+  // عند تغيير إجابة: تُحذف إجابات الأسئلة الشرطية التي اختفت كي لا تُرسل خطأً
+  const set = (id: string, v: string | string[]) => {
+    const next = { ...answers, [id]: v };
+    questions.forEach(q => { if (!isVisible(q, next)) delete next[q.id]; });
+    onChange(next);
+  };
 
   return (
     <>
-      {questions.map(q => (
+      {questions.filter(q => isVisible(q, answers)).map(q => (
         <div key={q.id} className="space-y-2">
           <Label>{q.label} {q.required && <span className="text-destructive">*</span>}</Label>
 

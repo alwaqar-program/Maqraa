@@ -28,6 +28,7 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
   const questions = preview?.questions ?? live.questions;
   const [extra, setExtra] = useState<ExtraAnswers>({});
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [slots, setSlots] = useState<{ weekday: number; start_time: string; end_time: string }[]>([
     { weekday: 0, start_time: '16:00', end_time: '17:00' },
@@ -57,6 +58,7 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
     setSaving(true);
     const { error } = await supabase.from('teacher_agreements').insert({
       full_name: fullName.trim(),
+      phone: phone.trim() || null,
       agreement_date: date,
       agreed_slots: slots,
       notes: notes.trim() || null,
@@ -138,6 +140,11 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
                 <Label htmlFor="name">اسم المسمعة <span className="text-destructive">*</span></Label>
                 <Input id="name" required value={fullName} onChange={e => setFullName(e.target.value)} />
                 <p className="text-xs text-muted-foreground">{config.signature_hint}</p>
+              </div>
+              <div className="space-y-2 max-w-56">
+                <Label htmlFor="phone">رقم الجوال <span className="text-destructive">*</span></Label>
+                <Input id="phone" required dir="ltr" inputMode="tel" placeholder="05xxxxxxxx"
+                  value={phone} onChange={e => setPhone(e.target.value)} />
               </div>
               <div className="space-y-2 max-w-48">
                 <Label htmlFor="date">تاريخ الاتفاقية</Label>
