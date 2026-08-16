@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Users, Search, UserMinus, Archive } from 'lucide-react';
+import { Plus, Pencil, Users, Search, UserMinus, Archive, Eye } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
@@ -47,6 +47,7 @@ export default function StudentsPage() {
   const [leaving, setLeaving] = useState<Student | null>(null);
   const [leaveForm, setLeaveForm] = useState({ kind: 'withdrawn', date: new Date().toISOString().slice(0, 10), reason: '' });
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const fetchAll = useCallback(async () => {
     const [{ data: rows, error }, { data: trackRows }, { data: tasmee }, { data: sard }, { data: bookings }] = await Promise.all([
@@ -193,13 +194,16 @@ export default function StudentsPage() {
               <TableBody>
                 {filtered.map(s => (
                   <TableRow key={s.id}
-                    className={
+                    onClick={e => {
+                      // الصف كله يفتح ملف الطالبة — ما لم يكن الضغط على زر/مفتاح داخل الصف
+                      if ((e.target as HTMLElement).closest('button,a,input,[role="switch"],[role="checkbox"]')) return;
+                      navigate(`/students/${s.id}`);
+                    }}
+                    className={'cursor-pointer ' + (
                       !s.booking && s.is_active ? 'bg-warning/15 hover:bg-warning/25'
-                      : (s.khatmat ?? 0) >= 1 ? 'bg-accent/15 hover:bg-accent/25' : undefined
-                    }>
-                    <TableCell className="font-medium">
-                      <Link to={`/students/${s.id}`} className="hover:text-info hover:underline">{s.full_name}</Link>
-                    </TableCell>
+                      : (s.khatmat ?? 0) >= 1 ? 'bg-accent/15 hover:bg-accent/25' : ''
+                    )}>
+                    <TableCell className="font-medium">{s.full_name}</TableCell>
                     <TableCell dir="ltr">{s.national_id}</TableCell>
                     <TableCell dir="ltr">{s.phone ?? '—'}</TableCell>
                     <TableCell>{s.track_name ?? '—'}</TableCell>
@@ -221,6 +225,7 @@ export default function StudentsPage() {
                     </TableCell>
                     <TableCell><Switch checked={s.is_active} onCheckedChange={() => toggleActive(s)} /></TableCell>
                     <TableCell className="whitespace-nowrap">
+                      <Button variant="ghost" size="icon" title="ملف الطالبة" onClick={() => navigate(`/students/${s.id}`)}><Eye size={16} /></Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Pencil size={16} /></Button>
                       <Button variant="ghost" size="icon" title="انسحاب / استبعاد" className="text-muted-foreground hover:text-destructive"
                         onClick={() => { setLeaving(s); setLeaveForm({ kind: 'withdrawn', date: new Date().toISOString().slice(0, 10), reason: '' }); }}>

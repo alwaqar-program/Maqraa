@@ -45,6 +45,7 @@ import FormsAdminPage from "./pages/admin/FormsAdminPage";
 import CirclesPage from "./pages/admin/CirclesPage";
 import CirclesReportPage from "./pages/admin/CirclesReportPage";
 import StudentsArchivePage from "./pages/admin/StudentsArchivePage";
+import StudentProfilePage from "./pages/admin/StudentProfilePage";
 import MyCirclePage from "./pages/student/MyCirclePage";
 import SupervisorPage from "./pages/supervisor/SupervisorPage";
 import logoImg from '@/assets/logo-maqraa.png';
@@ -153,7 +154,7 @@ const App = () => (
 
             {/* الإدارة */}
             <Route path="/students" element={<ProtectedRoute roles={['admin']}><StudentsPage /></ProtectedRoute>} />
-            <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><Placeholder title="ملف الطالبة" /></ProtectedRoute>} />
+            <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><StudentProfilePage /></ProtectedRoute>} />
             <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><TeachersPage /></ProtectedRoute>} />
             <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><ApplicantsPage /></ProtectedRoute>} />
             <Route path="/circles" element={<ProtectedRoute roles={['admin']}><CirclesPage /></ProtectedRoute>} />

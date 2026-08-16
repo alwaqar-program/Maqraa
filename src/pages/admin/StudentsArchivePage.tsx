@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +20,7 @@ export default function StudentsArchivePage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const fetchAll = useCallback(async () => {
     const { data, error } = await supabase.from('students')
@@ -49,10 +50,12 @@ export default function StudentsArchivePage() {
           </TableRow></TableHeader>
           <TableBody>
             {list.map(r => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">
-                  <Link to={`/students/${r.id}`} className="hover:text-info hover:underline">{r.full_name}</Link>
-                </TableCell>
+              <TableRow key={r.id} className="cursor-pointer"
+                onClick={e => {
+                  if ((e.target as HTMLElement).closest('button,a,input')) return;
+                  navigate(`/students/${r.id}`);
+                }}>
+                <TableCell className="font-medium">{r.full_name}</TableCell>
                 <TableCell dir="ltr">{r.national_id}</TableCell>
                 <TableCell dir="ltr">{r.phone ?? '—'}</TableCell>
                 <TableCell>{r.track_name ?? '—'}</TableCell>

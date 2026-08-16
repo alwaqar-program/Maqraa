@@ -13,7 +13,8 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Check, X, MessageSquareText } from 'lucide-react';
+import { UserPlus, Check, X, MessageSquareText, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { WEEKDAYS } from '@/lib/schedule';
 import { supabase as sb } from '@/integrations/supabase/client';
 import { FormQuestion } from '@/lib/form-settings';
@@ -47,6 +48,7 @@ export default function ApplicantsPage() {
   const [action, setAction] = useState<{ a: Applicant; type: 'accept' | 'reject' } | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const fetchAll = useCallback(async () => {
     const { data, error } = await supabase.from('applicants')
@@ -160,9 +162,26 @@ export default function ApplicantsPage() {
               </TableHeader>
               <TableBody>
                 {filtered.map((a, i) => (
-                  <TableRow key={a.id}>
+                  <TableRow key={a.id}
+                    onClick={e => {
+                      // المقبولة لها ملف طالبة — الصف كله يفتحه (نفس البيانات بلا تكرار)
+                      if (!a.student_id) return;
+                      if ((e.target as HTMLElement).closest('button,a,input,[role="switch"],[role="checkbox"]')) return;
+                      navigate(`/students/${a.student_id}`);
+                    }}
+                    className={a.student_id ? 'cursor-pointer' : undefined}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                    <TableCell className="font-medium">{a.full_name}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        {a.full_name}
+                        {a.student_id && (
+                          <Button variant="ghost" size="icon" className="h-6 w-6" title="ملف الطالبة"
+                            onClick={() => navigate(`/students/${a.student_id}`)}>
+                            <Eye size={14} />
+                          </Button>
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell dir="ltr">{a.national_id ?? '—'}</TableCell>
                     <TableCell dir="ltr">{a.phone}</TableCell>
                     <TableCell>{a.track_name ?? '—'}</TableCell>
