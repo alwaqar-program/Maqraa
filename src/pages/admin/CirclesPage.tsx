@@ -23,13 +23,13 @@ interface Circle {
 }
 interface Member {
   id: string; circle_id: string; student_id: string; minutes: number; choice_rank: number | null;
-  start_time: string | null;
+  start_time: string | null; added_by?: string | null;
   student_name?: string; track_name?: string;
 }
 interface Teacher { id: string; full_name: string; }
 interface Supervisor { id: string; full_name: string; }
 interface Proposal { student_id: string; student_name: string; track_name: string; minutes: number;
-  circle_id: string; circle_number: number; choice_rank: number; start_time: string; }
+  circle_id: string; circle_number: number; choice_rank: number | null; start_time: string; }
 
 export default function CirclesPage() {
   const [circles, setCircles] = useState<Circle[]>([]);
@@ -237,38 +237,48 @@ export default function CirclesPage() {
 
     const out: Proposal[] = [];
     const skipped: { name: string; why: string }[] = [];
+    const take = (st: (typeof queue)[number], chosen: Circle, rank: number | null) => {
+      remaining[chosen.id] -= st.minutes;
+      const t = nextStart[chosen.id];
+      nextStart[chosen.id] = addMinutes(t, st.minutes);
+      out.push({
+        student_id: st.id, student_name: st.name, track_name: st.track, minutes: st.minutes,
+        circle_id: chosen.id, circle_number: chosen.number, choice_rank: rank, start_time: t,
+      });
+    };
+    const preferPeriod = (candidates: Circle[], period: string | null) =>
+      period === 'morning' || period === 'evening'
+        ? [...candidates.filter(c => periodOf(c) === period), ...candidates.filter(c => periodOf(c) !== period)]
+        : candidates;
+
+    // المرحلة الأولى: صاحبات الأولويات — كل واحدة على أعلى خيار متاح لها
+    const leftover: (typeof queue)[number][] = [];
     for (const st of queue) {
-      if (!st.app || !(st.app.preferred_slots ?? []).length) {
-        skipped.push({ name: st.name, why: 'بلا أولويات مسجلة — توزيع يدوي' }); continue;
-      }
+      const prefs: string[] = st.app?.preferred_slots ?? [];
+      if (!prefs.length) { leftover.push(st); continue; }
       let placed = false;
-      const prefs: string[] = st.app.preferred_slots;
       for (let rank = 1; rank <= prefs.length && !placed; rank++) {
         const w = optionWindows[prefs[rank - 1]];
         if (!w) continue;   // خيار قديم لم يعد معروضًا
-        let candidates = circles.filter(c =>
-          c.is_active && c.weekday === w.weekday && overlaps(c, w) && remaining[c.id] >= st.minutes);
-        // مراعاة الأنسب: الفترة التي اختارتها (صباح/مساء) تُقدَّم عند التساوي
-        if (st.app.preferred_period === 'morning' || st.app.preferred_period === 'evening') {
-          candidates = [
-            ...candidates.filter(c => periodOf(c) === st.app.preferred_period),
-            ...candidates.filter(c => periodOf(c) !== st.app.preferred_period),
-          ];
-        }
-        candidates.sort((a, b) => (periodOf(a) === periodOf(b) ? a.number - b.number : 0));
-        const chosen = candidates[0];
-        if (chosen) {
-          remaining[chosen.id] -= st.minutes;
-          const t = nextStart[chosen.id];
-          nextStart[chosen.id] = addMinutes(t, st.minutes);
-          out.push({
-            student_id: st.id, student_name: st.name, track_name: st.track, minutes: st.minutes,
-            circle_id: chosen.id, circle_number: chosen.number, choice_rank: rank, start_time: t,
-          });
-          placed = true;
-        }
+        const candidates = preferPeriod(
+          circles.filter(c => c.is_active && c.weekday === w.weekday && overlaps(c, w) && remaining[c.id] >= st.minutes),
+          st.app?.preferred_period ?? null,
+        );
+        if (candidates[0]) { take(st, candidates[0], rank); placed = true; }
       }
-      if (!placed) skipped.push({ name: st.name, why: 'كل خياراتها ممتلئة أو بلا حلقة مطابقة' });
+      if (!placed) leftover.push(st);   // خياراتها ممتلئة → المرحلة الثانية
+    }
+
+    // المرحلة الثانية: بلا أولويات (أو امتلأت خياراتها) → الأنسب المتاح:
+    // فترتها المفضلة إن عُرفت، ثم الحلقة الأكثر سعة متبقية (موازنة الحلقات)
+    for (const st of leftover) {
+      const candidates = preferPeriod(
+        circles.filter(c => c.is_active && remaining[c.id] >= st.minutes)
+          .sort((a, b) => remaining[b.id] - remaining[a.id] || a.number - b.number),
+        st.app?.preferred_period ?? null,
+      );
+      if (candidates[0]) take(st, candidates[0], null);
+      else skipped.push({ name: st.name, why: 'لا سعة متبقية في أي حلقة' });
     }
     setProposals(out); setDistSkipped(skipped); setDistOpen(true); setDistributing(false);
   };
@@ -277,7 +287,8 @@ export default function CirclesPage() {
     setDistributing(true);
     const rows = proposals.map(p => ({
       circle_id: p.circle_id, student_id: p.student_id,
-      minutes: p.minutes, choice_rank: p.choice_rank, added_by: 'توزيع تلقائي',
+      minutes: p.minutes, choice_rank: p.choice_rank,
+      added_by: p.choice_rank ? 'توزيع تلقائي' : 'توزيع تلقائي — الأنسب المتاح',
       start_time: p.start_time,
     }));
     for (let i = 0; i < rows.length; i += 400) {
@@ -378,7 +389,7 @@ export default function CirclesPage() {
                                   </Select>
                                   <span className="font-medium">{m.student_name}</span>
                                   <span className="text-muted-foreground">{m.track_name} — {m.minutes}د</span>
-                                  <Badge variant="outline">{choiceLabel(m.choice_rank)}</Badge>
+                                  <Badge variant="outline">{m.choice_rank ? choiceLabel(m.choice_rank) : (m.added_by ?? 'إسناد يدوي')}</Badge>
                                   <span className="mr-auto flex items-center gap-1.5">
                                     <Select value="" onValueChange={v => transferMember(m, v)}>
                                       <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="نقل إلى حلقة..." /></SelectTrigger>
@@ -514,7 +525,11 @@ export default function CirclesPage() {
                       <TableCell>{p.track_name} ({p.minutes}د)</TableCell>
                       <TableCell>حلقة {p.circle_number}</TableCell>
                       <TableCell className="whitespace-nowrap">{formatTime(p.start_time)}</TableCell>
-                      <TableCell><Badge variant={p.choice_rank === 1 ? 'default' : 'outline'}>{choiceLabel(p.choice_rank)}</Badge></TableCell>
+                      <TableCell>
+                        <Badge variant={p.choice_rank === 1 ? 'default' : 'outline'}>
+                          {p.choice_rank ? choiceLabel(p.choice_rank) : 'الأنسب المتاح (بلا أولويات)'}
+                        </Badge>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

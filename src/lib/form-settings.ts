@@ -73,6 +73,9 @@ export const FORM_DEFAULTS = {
       { value: 3, label: 'الأربعاء ٥–٧ صباحًا' },
       { value: 4, label: 'الخميس ٥–٧ صباحًا' },
     ] as DayOption[],
+    // مواعيد خاصة: المسارات المحددة هنا ترى قائمة مواعيد مختلفة في نموذج التسجيل
+    special_track_ids: [] as string[],
+    special_day_options: [] as DayOption[],
   },
   teacher_agreement: {
     is_open: true,

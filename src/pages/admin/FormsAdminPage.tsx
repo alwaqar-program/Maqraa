@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -38,7 +39,13 @@ export default function FormsAdminPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    supabase.from('tracks').select('id, name').eq('is_active', true).order('sort_order')
+      .then(({ data }) => setTracks(data || []));
+  }, []);
 
   const fetchAll = useCallback(async () => {
     const [{ data: row }, { data: qs }] = await Promise.all([
@@ -213,39 +220,34 @@ export default function FormsAdminPage() {
               <Field label="عبارة المواعيد" rows={2} value={config.times_note} onChange={v => patchConfig({ times_note: v })} />
               <div className="space-y-1.5">
                 <Label>خيارات المواعيد المعروضة <span className="text-muted-foreground text-xs">— اختاري اليوم والوقت والنص يُكتب تلقائيًا</span></Label>
-                {((config.day_options as DayOption[]) ?? []).map((d, i) => {
-                  const update = (patch: Partial<DayOption>) => {
-                    const next = [...config.day_options];
-                    const merged = { ...d, ...patch };
-                    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '') || merged.label;
-                    next[i] = merged;
-                    patchConfig({ day_options: next });
-                  };
-                  return (
-                    <div key={i} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
-                      <Select value={String(d.value)} onValueChange={v => update({ value: Number(v) })}>
-                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <TimeSelect className="w-32" value={d.start} onChange={v => update({ start: v })} />
-                      <span className="text-muted-foreground text-sm">إلى</span>
-                      <TimeSelect className="w-32" value={d.end} onChange={v => update({ end: v })} />
-                      <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
-                        {d.label || '—'}
-                      </span>
-                      <button type="button" className="text-muted-foreground hover:text-destructive mr-auto"
-                        onClick={() => patchConfig({ day_options: config.day_options.filter((_: any, j: number) => j !== i) })}>
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  );
-                })}
-                <Button type="button" variant="outline" size="sm" className="gap-1"
-                  onClick={() => patchConfig({ day_options: [...(config.day_options ?? []), { value: 0, start: '05:00', end: '07:00', label: genSlotLabel(0, '05:00', '07:00') }] })}>
-                  <Plus size={14} /> إضافة خيار
-                </Button>
+                <SlotOptionsEditor options={(config.day_options as DayOption[]) ?? []}
+                  onChange={v => patchConfig({ day_options: v })} />
+              </div>
+
+              {/* مواعيد مختلفة لمسارات محددة (مثل «ختمة دورية») */}
+              <div className="space-y-2 border border-dashed rounded-lg p-3">
+                <Label>مواعيد خاصة بمسارات محددة <span className="text-muted-foreground text-xs">— الطالبة التي تختار أحد هذه المسارات ترى القائمة أدناه بدل المواعيد الأساسية</span></Label>
+                <div className="flex flex-wrap gap-2">
+                  {tracks.map(t => {
+                    const on = ((config.special_track_ids as string[]) ?? []).includes(t.id);
+                    return (
+                      <label key={t.id}
+                        className={`flex items-center gap-2 border rounded-lg px-3 py-1.5 text-sm cursor-pointer transition-colors ${on ? 'border-accent bg-accent/10' : 'hover:border-accent/60'}`}>
+                        <Checkbox checked={on} onCheckedChange={() => {
+                          const cur: string[] = (config.special_track_ids as string[]) ?? [];
+                          patchConfig({ special_track_ids: on ? cur.filter(x => x !== t.id) : [...cur, t.id] });
+                        }} />
+                        {t.name}
+                      </label>
+                    );
+                  })}
+                </div>
+                {((config.special_track_ids as string[]) ?? []).length > 0 ? (
+                  <SlotOptionsEditor options={(config.special_day_options as DayOption[]) ?? []}
+                    onChange={v => patchConfig({ special_day_options: v })} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">لم يُحدد مسار — الجميع يرى المواعيد الأساسية.</p>
+                )}
               </div>
               <Field label="عنوان قسم العهد" value={config.section_pledge_title} onChange={v => patchConfig({ section_pledge_title: v })} />
               <Field label="عنوان صندوق نظام الغياب" value={config.absence_policy_title} onChange={v => patchConfig({ absence_policy_title: v })} />
@@ -362,6 +364,45 @@ export default function FormsAdminPage() {
 }
 
 // ---------- محررات صغيرة ----------
+
+/** محرر قائمة خيارات المواعيد (يوم + من/إلى والنص يتولد) — يُستخدم للأساسية والخاصة بمسار */
+function SlotOptionsEditor({ options, onChange }: { options: DayOption[]; onChange: (next: DayOption[]) => void }) {
+  const update = (i: number, patch: Partial<DayOption>) => {
+    const next = [...options];
+    const merged = { ...next[i], ...patch };
+    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '') || merged.label;
+    next[i] = merged;
+    onChange(next);
+  };
+  return (
+    <div className="space-y-1.5">
+      {options.map((d, i) => (
+        <div key={i} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
+          <Select value={String(d.value)} onValueChange={v => update(i, { value: Number(v) })}>
+            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <TimeSelect className="w-32" value={d.start} onChange={v => update(i, { start: v })} />
+          <span className="text-muted-foreground text-sm">إلى</span>
+          <TimeSelect className="w-32" value={d.end} onChange={v => update(i, { end: v })} />
+          <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
+            {d.label || '—'}
+          </span>
+          <button type="button" className="text-muted-foreground hover:text-destructive mr-auto"
+            onClick={() => onChange(options.filter((_, j) => j !== i))}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="gap-1"
+        onClick={() => onChange([...options, { value: 0, start: '05:00', end: '07:00', label: genSlotLabel(0, '05:00', '07:00') }])}>
+        <Plus size={14} /> إضافة خيار
+      </Button>
+    </div>
+  );
+}
 function Field({ label, value, onChange, rows }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
     <div className="space-y-1.5">
