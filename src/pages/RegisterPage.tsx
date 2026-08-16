@@ -137,6 +137,23 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     return rem !== null && myMinutes > 0 && rem < myMinutes;
   };
 
+  // المسارات التي يمكن إسنادها لمواعيد هذه المجموعة (نفس قاعدة العرض)
+  const poolTracks = isLinkedPool
+    ? tracks.filter(t => t.id === trackId)
+    : tracks.filter(t => !linkedTrackIds.has(t.id));
+  const shortTrackName = (name: string) => name.split(/\s*(?=\()/)[0];
+
+  /** أكبر مسار ما زال الموعد يتسع له — بديل عرض الدقائق للطالبة */
+  const fitsLabel = (d: DayOption): string | null => {
+    const rem = remainingOf(d);
+    if (rem === null || !poolTracks.length) return null;
+    const fitting = poolTracks.filter(t => trackMinutes(t) <= rem);
+    if (!fitting.length) return null;
+    const largest = fitting.reduce((a, b) => (trackMinutes(b) > trackMinutes(a) ? b : a));
+    const hasSmaller = poolTracks.some(t => trackMinutes(t) < trackMinutes(largest));
+    return `متبقٍ مقعد لمسار ${shortTrackName(largest.name)}${hasSmaller ? ' فأقل' : ''}`;
+  };
+
   // عند تبديل المسار (أو وصول بيانات السعة): أزيلي المواعيد التي لم تعد معروضة أو لم تعد تتسع
   useEffect(() => {
     const valid = new Set(activeOptions.filter(d => !isFullFor(d)).map(slotKey));
@@ -308,7 +325,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                 {/* الحساب الداخلي (الدقائق والسعة) لا يُعرض للطالبة — فقط «متاح» أو «مكتمل» */}
                 {myMinutes > 0 && liveOptions.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    المواعيد المكتملة تظهر معطّلة — والاتساع يختلف بحسب مسارك.
+                    المواعيد المكتملة تظهر معطّلة — واتساع الموعد يختلف بحسب طول مسارك.
                   </p>
                 )}
 
@@ -357,11 +374,13 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                             onCheckedChange={() => !full && toggleSlot(d)} />
                           <span className="text-sm flex-1">
                             {d.label}
-                            {full ? (
-                              <span className="block text-xs text-destructive mt-0.5">مكتمل</span>
-                            ) : rem !== null && (
-                              <span className="block text-xs text-success mt-0.5">متاح</span>
-                            )}
+                            {rem !== null && (() => {
+                              const fits = fitsLabel(d);
+                              if (!fits) return <span className="block text-xs text-destructive mt-0.5">مكتمل</span>;
+                              return full
+                                ? <span className="block text-xs text-destructive mt-0.5">مكتمل لمسارك — {fits}</span>
+                                : <span className="block text-xs text-success mt-0.5">متاح — {fits}</span>;
+                            })()}
                           </span>
                         </Label>
                       );
