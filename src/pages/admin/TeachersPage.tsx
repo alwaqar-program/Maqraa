@@ -20,6 +20,7 @@ import { Plus, Pencil, GraduationCap, FileSignature, Check, X, Trash2 } from 'lu
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TimeSelect } from '@/components/TimeSelect';
+import { TEACHER_COLORS, teacherColor } from '@/lib/circles';
 
 interface Teacher {
   id: string;
@@ -29,6 +30,7 @@ interface Teacher {
   email: string | null;
   meeting_link: string | null;
   track_id: string | null;
+  color: string | null;
   is_active: boolean;
   user_id: string | null;
   total_hours?: number;
@@ -55,7 +57,7 @@ export default function TeachersPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
-  const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '', track_id: '' });
+  const [form, setForm] = useState({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '', track_id: '', color: '' });
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
@@ -118,7 +120,7 @@ export default function TeachersPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '', track_id: '' });
+    setForm({ full_name: '', national_id: '', phone: '', email: '', meeting_link: '', track_id: '', color: '' });
     setSlots([]); setOrigSlots([]);
     setDialogOpen(true);
   };
@@ -127,7 +129,7 @@ export default function TeachersPage() {
     setForm({
       full_name: t.full_name, national_id: t.national_id ?? '',
       phone: t.phone ?? '', email: t.email ?? '', meeting_link: t.meeting_link ?? '',
-      track_id: t.track_id ?? '',
+      track_id: t.track_id ?? '', color: t.color ?? '',
     });
     const { data } = await supabase.from('availability_slots')
       .select('id, weekday, start_time, end_time, is_daily, bookings(id, status, students(full_name))')
@@ -163,6 +165,7 @@ export default function TeachersPage() {
       phone: form.phone || null, email: form.email || null,
       meeting_link: form.meeting_link || null,
       track_id: form.track_id || null,
+      color: form.color || null,
     };
     let teacherId = editing?.id;
     if (editing) {
@@ -313,7 +316,13 @@ export default function TeachersPage() {
               <TableBody>
                 {sorted.map(t => (
                   <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.full_name}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full shrink-0 border border-border/50"
+                          style={{ background: teacherColor(t.color, sorted.indexOf(t)) }} />
+                        {t.full_name}
+                      </span>
+                    </TableCell>
                     <TableCell dir="ltr">{t.phone ?? '—'}</TableCell>
                     <TableCell>
                       <Badge variant={Number(t.total_hours) < 2 ? 'destructive' : 'outline'}>
@@ -364,6 +373,32 @@ export default function TeachersPage() {
               <Label>البريد</Label>
               <Input dir="ltr" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
             </div>
+            {/* لون المسمعة — يميّز حلقاتها في تقويم الفرز */}
+            <div className="space-y-2">
+              <Label>لون المسمعة <span className="text-muted-foreground text-xs">— يميّز حلقاتها في تقويم الفرز</span></Label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {TEACHER_COLORS.map(c => (
+                  <button key={c} type="button" onClick={() => setForm({ ...form, color: c })}
+                    title={c}
+                    className={`w-7 h-7 rounded-full border-2 transition-transform ${
+                      form.color.toLowerCase() === c.toLowerCase() ? 'border-foreground scale-110' : 'border-transparent'}`}
+                    style={{ background: c }} />
+                ))}
+                <label className="w-7 h-7 rounded-full border-2 border-dashed border-muted-foreground/50 grid place-items-center cursor-pointer"
+                  title="لون مخصص">
+                  <input type="color" className="sr-only" value={form.color || '#8C6A4A'}
+                    onChange={e => setForm({ ...form, color: e.target.value })} />
+                  <Plus size={13} className="text-muted-foreground" />
+                </label>
+                {form.color && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs"
+                    onClick={() => setForm({ ...form, color: '' })}>
+                    لون تلقائي
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>رابط الاجتماع الثابت</Label>
               <Input dir="ltr" placeholder="https://zoom.us/j/..." value={form.meeting_link} onChange={e => setForm({ ...form, meeting_link: e.target.value })} />

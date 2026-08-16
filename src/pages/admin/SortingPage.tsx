@@ -75,6 +75,9 @@ export default function SortingPage() {
 
   const trackOf = (id: string | null) => tracks.find(t => t.id === id);
   const tintOf = (id: string | null) => TRACK_TINT[Math.max(0, tracks.findIndex(t => t.id === id)) % TRACK_TINT.length];
+  /** ترتيب ثابت للمسمعة — لاختيار لون احتياطي من اللوحة إن لم تُحدَّد لها لون */
+  const teacherOrder = [...new Set(rows.map(r => r.teacher_id).filter(Boolean) as string[])].sort();
+  const teacherIndex = (id: string) => Math.max(0, teacherOrder.indexOf(id));
 
   // ---------- السحب والإفلات: نقل الطالبة إلى مسمعة أخرى، ويُحفظ فورًا ----------
   const [dragId, setDragId] = useState<string | null>(null);
@@ -279,6 +282,21 @@ export default function SortingPage() {
             ))}
           </div>
 
+          {/* مفتاح ألوان السعة */}
+          {events.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">الامتلاء:</span>
+              {[
+                fillTone(0, 100), fillTone(30, 100), fillTone(70, 100), fillTone(95, 100), fillTone(120, 100, true),
+              ].map(t => (
+                <span key={t.key} className={`inline-flex items-center gap-1.5 border rounded-full ps-1.5 pe-2.5 py-0.5 ${t.block}`}>
+                  <span className={`w-2 h-2 rounded-full ${t.gauge}`} />
+                  {t.label}
+                </span>
+              ))}
+            </div>
+          )}
+
           {events.length === 0 ? (
             <p className="text-muted-foreground text-sm">لا مواعيد توفر مسجلة للمسمعات بعد.</p>
           ) : (
@@ -317,14 +335,16 @@ export default function SortingPage() {
                         const used = e.seats.filter(s => !s.overflow).reduce((a, s) => a + s.minutes, 0);
                         const over = e.seats.some(s => s.overflow);
                         const fill = Math.min(100, Math.round((used / e.capacity) * 100));
+                        const tone = fillTone(used, e.capacity, over);      // الحالة: لون السعة
+                        const tcolor = teacherColor(e.color, teacherIndex(e.teacherId));  // الهوية: لون المسمعة
                         return (
                           <div key={e.key}
                             onDragOver={ev => { ev.preventDefault(); setDropKey(e.key); }}
                             onDragLeave={() => setDropKey(k => (k === e.key ? null : k))}
                             onDrop={ev => onDropTo(ev, e)}
+                            title={`${e.teacher} — ${tone.label} (${used}/${e.capacity} د)`}
                             className={`absolute rounded-lg border overflow-hidden print:break-inside-avoid transition-shadow ${
-                              dropKey === e.key ? 'ring-2 ring-accent shadow-lg' : ''} ${
-                              over ? 'border-destructive/60 bg-destructive/5' : 'border-accent/40 bg-card'}`}
+                              dropKey === e.key ? 'ring-2 ring-accent shadow-lg' : ''} ${tone.block}`}
                             style={{
                               top: (toMin(e.start) - railFrom) * PX_PER_MIN + 2,
                               height: durationMinutes(e.start, e.end) * PX_PER_MIN - 4,
@@ -333,13 +353,17 @@ export default function SortingPage() {
                             }}>
                             {/* مؤشر الامتلاء على حافة البلوك */}
                             <div className="absolute inset-y-0 w-1.5 bg-muted" style={{ insetInlineStart: 0 }}>
-                              <div className={`absolute bottom-0 inset-x-0 ${over ? 'bg-destructive' : 'bg-accent'}`}
+                              <div className={`absolute bottom-0 inset-x-0 ${tone.gauge}`}
                                 style={{ height: `${fill}%` }} />
                             </div>
-                            <div className="ps-3 pe-1.5 py-1 h-full flex flex-col">
-                              <p className="font-medium text-[13px] leading-tight truncate">{e.teacher}</p>
-                              <p className="text-[10px] text-muted-foreground leading-tight">
-                                {formatTime(e.start)}–{formatTime(e.end)} · {arNum(used)}/{arNum(e.capacity)} د
+                            <div className="ps-3 pe-1.5 pb-1 h-full flex flex-col">
+                              {/* ترويسة بلون المسمعة */}
+                              <p className="-mx-1.5 -mt-0 px-2 py-0.5 font-medium text-[13px] leading-tight truncate"
+                                style={{ background: tcolor, color: textOn(tcolor) }}>
+                                {e.teacher}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                                {formatTime(e.start)}–{formatTime(e.end)} · <span className={tone.text}>{arNum(used)}/{arNum(e.capacity)} د</span>
                                 {e.pool && <> · {trackOf(e.pool)?.name}</>}
                               </p>
                               <div className="mt-1 space-y-0.5 overflow-y-auto print:overflow-visible">
