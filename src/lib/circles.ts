@@ -42,15 +42,18 @@ export function trackMinutes(track: TrackLike): number {
 /** صف توفر: يوم ووقت — مصدره v_public_circle_times أو availability_slots */
 export interface TimeRow { weekday: number; start_time: string; end_time: string }
 
-/** سعة الموعد بالدقائق = مجموع نوافذ كل المسمعات التي تعرضه
- *  (الخيار الواحد قد يمثل عدة مسمعات بنفس اليوم والوقت، والدوري يمتد لعدة أيام) */
+/** سعة الموعد بالدقائق **للجلسة الواحدة** = مجموع نوافذ المسمعات التي تعرضه.
+ *  الخيار الواحد قد يمثل عدة مسمعات بنفس اليوم والوقت (تُجمع نوافذهن)،
+ *  والموعد الدوري يتكرر عدة أيام بنفس النافذة — والطالبة تحضره كل يوم،
+ *  فسعته لا تتضاعف بعدد الأيام: نقسم على عدد الأيام المطابقة. */
 export function slotCapacity(rows: TimeRow[], opt: { days: number[]; start?: string; end?: string }): number {
   if (!opt.start || !opt.end) return 0;
-  return rows
-    .filter(r => opt.days.includes(r.weekday)
-      && r.start_time.slice(0, 5) === opt.start!.slice(0, 5)
-      && r.end_time.slice(0, 5) === opt.end!.slice(0, 5))
-    .reduce((a, r) => a + durationMinutes(r.start_time, r.end_time), 0);
+  const matched = rows.filter(r => opt.days.includes(r.weekday)
+    && r.start_time.slice(0, 5) === opt.start!.slice(0, 5)
+    && r.end_time.slice(0, 5) === opt.end!.slice(0, 5));
+  if (!matched.length) return 0;
+  const dayCount = new Set(matched.map(r => r.weekday)).size;
+  return Math.round(matched.reduce((a, r) => a + durationMinutes(r.start_time, r.end_time), 0) / dayCount);
 }
 
 /** مدة الحلقة بالدقائق من وقتي البداية والنهاية "HH:MM" */

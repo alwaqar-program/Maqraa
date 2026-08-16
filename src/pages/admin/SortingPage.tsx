@@ -10,22 +10,34 @@ import { trackMinutes, slotCapacity, durationMinutes, TimeRow } from '@/lib/circ
 import { genSlotLabel, optionDays, DayOption } from '@/lib/form-settings';
 
 interface Row { weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean; teacher_name?: string }
-interface Track { id: string; name: string; juz_count: number; quota_pages_per_season: number }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season: number; seconds_per_page?: number }
 interface Applicant {
   id: string; full_name: string; phone: string | null; track_id: string | null;
   preferred_slots: string[]; preferred_period: string | null; created_at: string; status: string;
 }
-interface Cell { applicant: Applicant; track: Track | undefined; minutes: number; overflow: boolean }
+interface Seat { applicant: Applicant; track: Track | undefined; minutes: number; overflow: boolean }
+/** حلقة مسمعة واحدة في يوم واحد — وحدة العرض في التقويم */
+interface Event {
+  key: string; day: number; start: string; end: string;
+  teacher: string; label: string; pool: string | null;
+  capacity: number; seats: Seat[];
+  lane: number; lanes: number;
+}
 
 const arNum = (n: number) => n.toLocaleString('ar-EG');
+/** تدرّج هادئ لتمييز المسارات داخل البلوكات */
 const TRACK_TINT = [
-  'bg-green-100 dark:bg-green-950/40',
-  'bg-sky-100 dark:bg-sky-950/40',
-  'bg-pink-100 dark:bg-pink-950/40',
-  'bg-orange-100 dark:bg-orange-950/40',
+  'bg-emerald-500/12 text-emerald-950 dark:text-emerald-100',
+  'bg-sky-500/12 text-sky-950 dark:text-sky-100',
+  'bg-fuchsia-500/12 text-fuchsia-950 dark:text-fuchsia-100',
+  'bg-amber-500/14 text-amber-950 dark:text-amber-100',
+  'bg-violet-500/12 text-violet-950 dark:text-violet-100',
 ];
 
-/** فرز الطالبات — توزيع مبدئي بالأولوية الأولى قبل إنشاء الحلقات، بشكل جدول التوزيع المعتمد */
+const PX_PER_MIN = 1.6;           // ارتفاع البلوك = مدته الحقيقية
+const toMin = (t: string) => { const [h, m] = t.slice(0, 5).split(':').map(Number); return h * 60 + m; };
+
+/** فرز الطالبات — تقويم أسبوعي: كل مسمعة حلقة مستقلة، والمتزامنات جنبًا إلى جنب */
 export default function SortingPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -50,7 +62,7 @@ export default function SortingPage() {
         .filter(s => s.teachers?.is_active)
         .map(s => ({
           weekday: s.weekday, start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
-          is_daily: s.is_daily, track_id: s.teachers?.track_id ?? null, teacher_name: s.teachers?.full_name,
+          is_daily: s.is_daily, track_id: s.teachers?.track_id ?? null, teacher_name: s.teachers?.full_name ?? '—',
         })));
       setTracks((tks || []) as Track[]);
       setApplicants((apps || []) as Applicant[]);
@@ -58,34 +70,25 @@ export default function SortingPage() {
     })();
   }, [toast]);
 
-  /** كل المواعيد المعروضة (بنفس اشتقاق نموذج التسجيل) مع سعتها ومسمعاتها */
-  const columns = useMemo(() => {
+  const trackOf = (id: string | null) => tracks.find(t => t.id === id);
+  const tintOf = (id: string | null) => TRACK_TINT[Math.max(0, tracks.findIndex(t => t.id === id)) % TRACK_TINT.length];
+
+  /** المواعيد المعروضة في نموذج التسجيل (نفس الاشتقاق) مع سعتها لكل جلسة */
+  const options = useMemo(() => {
     const seen = new Set<string>();
-    const out: (DayOption & { teachers: string[]; capacity: number; pool: string | null })[] = [];
-    const push = (d: DayOption, pool: string | null) => {
+    const out: (DayOption & { pool: string | null; capacity: number })[] = [];
+    const push = (d: DayOption, pool: string | null, poolRows: Row[]) => {
       const k = `${pool ?? 'g'}|${d.label}`;
       if (seen.has(k)) return;
       seen.add(k);
-      const days = optionDays(d);
-      const poolRows = rows.filter(r => (pool ? r.track_id === pool : !r.track_id));
-      out.push({
-        ...d, pool,
-        capacity: slotCapacity(poolRows as TimeRow[], { days, start: d.start, end: d.end }),
-        teachers: [...new Set(poolRows
-          .filter(r => days.includes(r.weekday) && r.start_time === d.start && r.end_time === d.end)
-          .map(r => r.teacher_name ?? '—'))],
-      });
+      out.push({ ...d, pool, capacity: slotCapacity(poolRows as TimeRow[], { days: optionDays(d), start: d.start, end: d.end }) });
     };
-    // مجموعة عامة + مجموعة لكل مسار مرتبط بمسمعة
     const pools: (string | null)[] = [null, ...new Set(rows.map(r => r.track_id).filter(Boolean) as string[])];
     pools.forEach(pool => {
       const poolRows = rows.filter(r => (pool ? r.track_id === pool : !r.track_id));
-      // العادية
-      poolRows.filter(r => !r.is_daily)
-        .sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time))
-        .forEach(r => push({ value: r.weekday, start: r.start_time, end: r.end_time,
-          label: genSlotLabel(r.weekday, r.start_time, r.end_time) }, pool));
-      // الدورية: تُطوى خيارًا واحدًا بمدى أيام
+      poolRows.filter(r => !r.is_daily).forEach(r =>
+        push({ value: r.weekday, start: r.start_time, end: r.end_time,
+          label: genSlotLabel(r.weekday, r.start_time, r.end_time) }, pool, poolRows));
       const byTime: Record<string, number[]> = {};
       poolRows.filter(r => r.is_daily).forEach(r => {
         (byTime[`${r.start_time}|${r.end_time}`] ??= []).push(r.weekday);
@@ -95,94 +98,108 @@ export default function SortingPage() {
         const from = Math.min(...days), to = Math.max(...days);
         push(from === to
           ? { value: from, start, end, label: genSlotLabel(from, start, end) }
-          : { value: from, to, start, end, label: genSlotLabel(from, start, end, to) }, pool);
+          : { value: from, to, start, end, label: genSlotLabel(from, start, end, to) }, pool, poolRows);
       });
     });
-    return out.sort((a, b) => a.value - b.value || (a.start ?? '').localeCompare(b.start ?? ''));
+    return out;
   }, [rows]);
 
-  const trackOf = (id: string | null) => tracks.find(t => t.id === id);
-  const tintOf = (id: string | null) => TRACK_TINT[Math.max(0, tracks.findIndex(t => t.id === id)) % TRACK_TINT.length];
-
-  /** توزيع المتقدمات على الأعمدة بالأولوية الأولى وبأسبقية التسجيل، وتعليم الفائضات */
-  const { cells, noChoice, unknownLabel } = useMemo(() => {
-    const cells: Record<string, Cell[]> = {};
+  /** الأحداث: حلقة لكل (مسمعة × يوم)، وطالبات الأولوية الأولى موزَّعات على المسمعات بأسبقية التسجيل */
+  const { events, noChoice, unknownLabel, totalCapacity, overCount } = useMemo(() => {
     const noChoice: Applicant[] = [];
     const unknownLabel: Applicant[] = [];
-    const fill: Record<string, number> = {};
     const linkedTrackIds = new Set(rows.map(r => r.track_id).filter(Boolean) as string[]);
 
+    // من اختارت كل موعد أولوية أولى، بترتيب أسبقية التسجيل
+    const chooserOf: Record<string, Applicant[]> = {};
     for (const a of applicants) {
       const first = (a.preferred_slots ?? [])[0];
       if (!first) { noChoice.push(a); continue; }
-      // العمود = نفس المجموعة التي رأتها الطالبة (مسارها المرتبط، وإلا العامة)
       const pool = a.track_id && linkedTrackIds.has(a.track_id) ? a.track_id : null;
-      const col = columns.find(c => c.label === first && c.pool === pool)
-        ?? columns.find(c => c.label === first);
-      if (!col) { unknownLabel.push(a); continue; }
-      const key = `${col.pool ?? 'g'}|${col.label}`;
-      const track = trackOf(a.track_id);
-      const minutes = trackMinutes(track);
-      const used = fill[key] ?? 0;
-      const overflow = used + minutes > col.capacity;
-      fill[key] = used + minutes;
-      (cells[key] ??= []).push({ applicant: a, track, minutes, overflow });
+      const opt = options.find(o => o.label === first && o.pool === pool) ?? options.find(o => o.label === first);
+      if (!opt) { unknownLabel.push(a); continue; }
+      (chooserOf[`${opt.pool ?? 'g'}|${opt.label}`] ??= []).push(a);
     }
-    return { cells, noChoice, unknownLabel };
-  }, [applicants, columns, tracks, rows]);
 
-  const keyOf = (c: (typeof columns)[number]) => `${c.pool ?? 'g'}|${c.label}`;
+    const evs: Event[] = [];
+    let totalCapacity = 0;
+    options.forEach(opt => {
+      const key = `${opt.pool ?? 'g'}|${opt.label}`;
+      const days = optionDays(opt);
+      const poolRows = rows.filter(r => (opt.pool ? r.track_id === opt.pool : !r.track_id));
+      // مسمعات هذا الموعد (كل واحدة حلقة مستقلة) وأيامها
+      const teachers = [...new Set(poolRows
+        .filter(r => days.includes(r.weekday) && r.start_time === opt.start && r.end_time === opt.end)
+        .map(r => r.teacher_name!))].sort((a, b) => a.localeCompare(b, 'ar'));
+      if (!teachers.length) return;
+      const perTeacher = durationMinutes(opt.start!, opt.end!);
+      totalCapacity += perTeacher * teachers.length;
 
-  // تقويم أسبوعي: الدورية شريط عرضي، والباقي عمود لكل يوم بترتيب الوقت
-  const multiDayCols = columns.filter(c => optionDays(c).length > 1);
-  const singleDayCols = [...columns.filter(c => optionDays(c).length === 1)]
-    .sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
-  const calendarDays = [...new Set(singleDayCols.map(c => c.value))].sort((a, b) => a - b);
+      // ملء المسمعات بالترتيب: الأولى حتى تمتلئ نافذتها ثم التي تليها
+      const queue = chooserOf[key] ?? [];
+      const buckets: Seat[][] = teachers.map(() => []);
+      let ti = 0, used = 0;
+      queue.forEach(a => {
+        const track = trackOf(a.track_id);
+        const minutes = trackMinutes(track);
+        while (ti < teachers.length && used + minutes > perTeacher) { ti += 1; used = 0; }
+        const overflow = ti >= teachers.length;
+        buckets[Math.min(ti, teachers.length - 1)].push({ applicant: a, track, minutes, overflow });
+        if (!overflow) used += minutes;
+      });
 
-  /** بطاقة موعد داخل التقويم: الوقت والمسمعة والإشغال ثم طالبات الأولوية الأولى */
-  const SlotCard = ({ col, wide }: { col: (typeof columns)[number]; wide?: boolean }) => {
-    const list = cells[keyOf(col)] ?? [];
-    const used = list.reduce((a, x) => a + x.minutes, 0);
-    const over = used > col.capacity;
-    return (
-      <div className="border rounded-xl overflow-hidden print:break-inside-avoid">
-        <div className={`px-2 py-1.5 text-center ${over ? 'bg-destructive text-destructive-foreground' : 'bg-muted'}`}>
-          <p className="font-medium text-sm leading-tight">
-            {wide ? col.label : `${formatTime(col.start ?? '')} – ${formatTime(col.end ?? '')}`}
-          </p>
-          <p className="text-[11px] opacity-80">
-            {col.teachers.join('، ') || 'بلا مسمعة'}
-            {col.pool && <> — {trackOf(col.pool)?.name}</>}
-          </p>
-        </div>
-        <div className={`px-2 py-1 text-center text-xs border-b ${over ? 'bg-destructive/10 text-destructive font-medium' : 'bg-muted/40'}`}>
-          {arNum(used)}/{arNum(col.capacity)} دقيقة — {arNum(list.length)} طالبة
-        </div>
-        {list.length === 0 ? (
-          <p className="text-center text-xs text-muted-foreground py-3">—</p>
-        ) : (
-          <div className={wide ? 'grid sm:grid-cols-3 lg:grid-cols-4' : ''}>
-            {list.map(x => (
-              <div key={x.applicant.id}
-                className={`border-t px-2 py-1.5 text-xs leading-snug ${x.overflow ? 'bg-destructive/10' : tintOf(x.applicant.track_id)}`}
-                title={x.overflow ? 'فوق السعة — تحتاج نقلًا لموعد آخر' : x.track?.name}>
-                <p className="font-medium flex items-center gap-1">
-                  {x.overflow && <AlertTriangle size={11} className="text-destructive shrink-0" />}
-                  {x.applicant.full_name}
-                </p>
-                <p className="text-muted-foreground">{x.track?.name ?? 'بلا مسار'} — {arNum(x.minutes)}د</p>
-                {x.applicant.phone && <p dir="ltr" className="text-left text-muted-foreground">{x.applicant.phone}</p>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
+      teachers.forEach((teacher, i) => {
+        const daysOfTeacher = poolRows
+          .filter(r => r.teacher_name === teacher && days.includes(r.weekday)
+            && r.start_time === opt.start && r.end_time === opt.end)
+          .map(r => r.weekday);
+        [...new Set(daysOfTeacher)].forEach(day => {
+          evs.push({
+            key: `${key}|${teacher}|${day}`, day, start: opt.start!, end: opt.end!,
+            teacher, label: opt.label, pool: opt.pool,
+            capacity: perTeacher, seats: buckets[i], lane: 0, lanes: 1,
+          });
+        });
+      });
+    });
 
-  const totalCapacity = columns.reduce((a, c) => a + c.capacity, 0);
+    // مسارات التجاور داخل كل يوم (كتقويم Teams): المتزامنات تتقاسم العرض
+    const byDay: Record<number, Event[]> = {};
+    evs.forEach(e => { (byDay[e.day] ??= []).push(e); });
+    Object.values(byDay).forEach(list => {
+      list.sort((a, b) => toMin(a.start) - toMin(b.start) || a.teacher.localeCompare(b.teacher, 'ar'));
+      let cluster: Event[] = [];
+      let clusterEnd = -1;
+      const closeCluster = () => {
+        const lanes = cluster.reduce((mx, e) => Math.max(mx, e.lane + 1), 0);
+        cluster.forEach(e => { e.lanes = lanes; });
+        cluster = []; clusterEnd = -1;
+      };
+      list.forEach(e => {
+        if (cluster.length && toMin(e.start) >= clusterEnd) closeCluster();
+        const laneEnds: number[] = [];
+        cluster.forEach(x => { laneEnds[x.lane] = Math.max(laneEnds[x.lane] ?? -1, toMin(x.end)); });
+        let lane = 0;
+        while (laneEnds[lane] !== undefined && laneEnds[lane] > toMin(e.start)) lane += 1;
+        e.lane = lane;
+        cluster.push(e);
+        clusterEnd = Math.max(clusterEnd, toMin(e.end));
+      });
+      if (cluster.length) closeCluster();
+    });
+
+    const overCount = evs.filter(e => e.seats.some(s => s.overflow)).length;
+    return { events: evs, noChoice, unknownLabel, totalCapacity, overCount };
+  }, [applicants, options, rows, tracks]);
+
+  const days = [...new Set(events.map(e => e.day))].sort((a, b) => a - b);
+  const dayStart = events.length ? Math.min(...events.map(e => toMin(e.start))) : 0;
+  const dayEnd = events.length ? Math.max(...events.map(e => toMin(e.end))) : 0;
+  const railFrom = Math.floor(dayStart / 60) * 60;
+  const railTo = Math.ceil(dayEnd / 60) * 60;
+  const gridHeight = (railTo - railFrom) * PX_PER_MIN;
+  const hours = Array.from({ length: Math.max(0, (railTo - railFrom) / 60 + 1) }, (_, i) => railFrom + i * 60);
   const totalNeeded = applicants.reduce((a, x) => a + trackMinutes(trackOf(x.track_id)), 0);
-  const fullCols = columns.filter(c => (cells[keyOf(c)] ?? []).some(x => x.overflow)).length;
 
   return (
     <div className="space-y-6">
@@ -198,49 +215,105 @@ export default function SortingPage() {
       </div>
 
       <p className="text-sm text-muted-foreground print:text-black">
-        فرز مبدئي بالأولوية الأولى لكل متقدمة وبأسبقية التسجيل — السعة بالدقائق حسب سرعة كل مسار (تُضبط من صفحة المسارات).
-        الاعتماد النهائي يتم من صفحة «الحلقات».
+        كل مسمعة حلقة مستقلة، وارتفاع البلوك يساوي مدة الموعد. الطالبات هنا من اختارت هذا الموعد
+        <b> أولوية أولى</b>، مرتبات بأسبقية التسجيل — والاعتماد النهائي من صفحة «الحلقات».
       </p>
 
       {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl print:hidden">
             {[
-              { label: 'الدقائق المطلوبة', value: `${arNum(totalNeeded)} د` },
-              { label: 'الدقائق المتاحة', value: `${arNum(totalCapacity)} د` },
-              { label: 'مواعيد متجاوزة', value: arNum(fullCols) },
-              { label: 'بلا أولوية', value: arNum(noChoice.length + unknownLabel.length) },
+              { label: 'الدقائق المطلوبة', value: `${arNum(totalNeeded)} د`, warn: totalNeeded > totalCapacity },
+              { label: 'الدقائق المتاحة', value: `${arNum(totalCapacity)} د`, warn: false },
+              { label: 'حلقات متجاوزة', value: arNum(overCount), warn: overCount > 0 },
+              { label: 'بلا أولوية', value: arNum(noChoice.length + unknownLabel.length), warn: false },
             ].map(x => (
               <Card key={x.label}><CardContent className="pt-4 pb-3 text-center">
-                <p className={`text-2xl font-display ${x.label === 'مواعيد متجاوزة' && fullCols > 0 ? 'text-destructive' : 'text-primary'}`}>{x.value}</p>
+                <p className={`text-2xl font-display ${x.warn ? 'text-destructive' : 'text-primary'}`}>{x.value}</p>
                 <p className="text-xs text-muted-foreground">{x.label}</p>
               </CardContent></Card>
             ))}
           </div>
 
-          {columns.length === 0 ? (
+          {events.length === 0 ? (
             <p className="text-muted-foreground text-sm">لا مواعيد توفر مسجلة للمسمعات بعد.</p>
           ) : (
-            <div className="space-y-3">
-              {/* المواعيد الدورية (تتكرر عدة أيام) — شريط عرضي فوق التقويم */}
-              {multiDayCols.map(c => <SlotCard key={keyOf(c)} col={c} wide />)}
+            <div className="overflow-x-auto pb-2">
+              <div className="min-w-max">
+                {/* ترويسة الأيام */}
+                <div className="flex gap-2 mb-2">
+                  <div className="w-14 shrink-0" />
+                  {days.map(d => (
+                    <div key={d} className="flex-1 min-w-[190px] text-center font-display bg-primary text-primary-foreground rounded-lg py-1.5">
+                      {WEEKDAYS[d]}
+                    </div>
+                  ))}
+                </div>
 
-              {/* التقويم الأسبوعي: عمود لكل يوم فيه مواعيد */}
-              {calendarDays.length > 0 && (
-                <div className="overflow-x-auto">
-                  <div className="grid gap-2 items-start min-w-max"
-                    style={{ gridTemplateColumns: `repeat(${calendarDays.length}, minmax(210px, 1fr))` }}>
-                    {calendarDays.map(d => (
-                      <div key={d} className="space-y-2">
-                        <p className="text-center font-display bg-primary text-primary-foreground rounded-lg py-1.5">
-                          {WEEKDAYS[d]}
-                        </p>
-                        {singleDayCols.filter(c => c.value === d).map(c => <SlotCard key={keyOf(c)} col={c} />)}
+                <div className="flex gap-2">
+                  {/* محور الوقت */}
+                  <div className="w-14 shrink-0 relative" style={{ height: gridHeight }}>
+                    {hours.map(h => (
+                      <div key={h} className="absolute -translate-y-1/2 text-[11px] text-muted-foreground whitespace-nowrap"
+                        style={{ insetInlineEnd: 0, top: (h - railFrom) * PX_PER_MIN }}>
+                        {formatTime(`${String(Math.floor(h / 60)).padStart(2, '0')}:${String(h % 60).padStart(2, '0')}`)}
                       </div>
                     ))}
                   </div>
+
+                  {/* أعمدة الأيام */}
+                  {days.map(d => (
+                    <div key={d} className="flex-1 min-w-[190px] relative rounded-lg border bg-card/40"
+                      style={{ height: gridHeight }}>
+                      {hours.map(h => (
+                        <div key={h} className="absolute inset-x-0 border-t border-border/50"
+                          style={{ top: (h - railFrom) * PX_PER_MIN }} />
+                      ))}
+                      {events.filter(e => e.day === d).map(e => {
+                        const used = e.seats.filter(s => !s.overflow).reduce((a, s) => a + s.minutes, 0);
+                        const over = e.seats.some(s => s.overflow);
+                        const fill = Math.min(100, Math.round((used / e.capacity) * 100));
+                        return (
+                          <div key={e.key}
+                            className={`absolute rounded-lg border overflow-hidden print:break-inside-avoid ${
+                              over ? 'border-destructive/60 bg-destructive/5' : 'border-accent/40 bg-card'}`}
+                            style={{
+                              top: (toMin(e.start) - railFrom) * PX_PER_MIN + 2,
+                              height: durationMinutes(e.start, e.end) * PX_PER_MIN - 4,
+                              insetInlineStart: `calc(${(e.lane * 100) / e.lanes}% + 2px)`,
+                              inlineSize: `calc(${100 / e.lanes}% - 4px)`,
+                            }}>
+                            {/* مؤشر الامتلاء على حافة البلوك */}
+                            <div className="absolute inset-y-0 w-1.5 bg-muted" style={{ insetInlineStart: 0 }}>
+                              <div className={`absolute bottom-0 inset-x-0 ${over ? 'bg-destructive' : 'bg-accent'}`}
+                                style={{ height: `${fill}%` }} />
+                            </div>
+                            <div className="ps-3 pe-1.5 py-1 h-full flex flex-col">
+                              <p className="font-medium text-[13px] leading-tight truncate">{e.teacher}</p>
+                              <p className="text-[10px] text-muted-foreground leading-tight">
+                                {formatTime(e.start)}–{formatTime(e.end)} · {arNum(used)}/{arNum(e.capacity)} د
+                                {e.pool && <> · {trackOf(e.pool)?.name}</>}
+                              </p>
+                              <div className="mt-1 space-y-0.5 overflow-y-auto print:overflow-visible">
+                                {e.seats.length === 0 && <p className="text-[11px] text-muted-foreground">لا طالبات</p>}
+                                {e.seats.map(s => (
+                                  <p key={s.applicant.id}
+                                    title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''}`}
+                                    className={`text-[11px] leading-tight rounded px-1 py-0.5 truncate ${
+                                      s.overflow ? 'bg-destructive/15 text-destructive' : tintOf(s.applicant.track_id)}`}>
+                                    {s.overflow && <AlertTriangle size={9} className="inline ms-0.5" />}
+                                    {s.applicant.full_name} <span className="opacity-60">{arNum(s.minutes)}د</span>
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
