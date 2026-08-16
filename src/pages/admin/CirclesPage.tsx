@@ -14,7 +14,7 @@ import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus }
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { TimeSelect } from '@/components/TimeSelect';
 import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin } from '@/lib/circles';
-import { useFormSettings, DayOption, genSlotLabel } from '@/lib/form-settings';
+import { useFormSettings, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 
 interface Circle {
   id: string; number: number; teacher_id: string; supervisor_id: string | null;
@@ -193,7 +193,7 @@ export default function CirclesPage() {
     // الخيار اليومي (daily) يطابق أي يوم من الاثنين إلى السبت
     [...((config.day_options as DayOption[]) ?? []), ...((config.special_day_options as DayOption[]) ?? [])].forEach(d => {
       if (d.label && d.start && d.end)
-        map[d.label] = { days: d.daily ? [1, 2, 3, 4, 5, 6] : [d.value], start: d.start, end: d.end };
+        map[d.label] = { days: optionDays(d), start: d.start, end: d.end };
     });
     // والنصوص المشتقة مباشرة من الحلقات (النموذج يولدها حيًا من v_public_circle_times)
     circles.filter(c => c.is_active).forEach(c => {

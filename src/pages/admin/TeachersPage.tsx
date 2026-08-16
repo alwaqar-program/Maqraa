@@ -35,7 +35,11 @@ interface Teacher {
   booked?: number;
 }
 
-interface SlotRow { id?: string; weekday: number; start_time: string; end_time: string; booked?: boolean; studentName?: string }
+interface SlotRow { key: string; id?: string; weekday: number; start_time: string; end_time: string; booked?: boolean; studentName?: string }
+
+const DAILY_DAYS = [1, 2, 3, 4, 5, 6];   // الاثنين → السبت
+let slotKeySeq = 0;
+const newSlotKey = () => `n${++slotKeySeq}`;
 
 interface Agreement {
   id: string; full_name: string; agreement_date: string;
@@ -54,7 +58,7 @@ export default function TeachersPage() {
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
-  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ keys: string[]; names: string[] } | null>(null);
   const { toast } = useToast();
 
   const fetchAll = useCallback(async () => {
@@ -112,7 +116,7 @@ export default function TeachersPage() {
     const rows: SlotRow[] = (data || []).map((s: any) => {
       const active = (s.bookings || []).find((b: any) => b.status === 'active');
       return {
-        id: s.id, weekday: s.weekday,
+        key: s.id, id: s.id, weekday: s.weekday,
         start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
         booked: !!active, studentName: active?.students?.full_name,
       };
@@ -128,6 +132,12 @@ export default function TeachersPage() {
     if (!form.full_name.trim()) { toast({ title: 'الاسم مطلوب', variant: 'destructive' }); return; }
     if (slots.some(s => !s.start_time || !s.end_time || s.end_time <= s.start_time)) {
       toast({ title: 'هناك موعد غير مكتمل أو نهايته قبل بدايته', variant: 'destructive' }); return;
+    }
+    // لا موعدان متداخلان في اليوم نفسه للمسمعة نفسها
+    const clash = slots.find((a, i) => slots.some((b, j) =>
+      i < j && a.weekday === b.weekday && a.start_time < b.end_time && b.start_time < a.end_time));
+    if (clash) {
+      toast({ title: `موعدان متداخلان يوم ${WEEKDAYS[clash.weekday]} — عدّلي الأوقات`, variant: 'destructive' }); return;
     }
     const payload = {
       full_name: form.full_name, national_id: form.national_id || null,
@@ -344,38 +354,112 @@ export default function TeachersPage() {
                   <span className="text-xs text-muted-foreground">المجموع: {slotsTotalHours} ساعة أسبوعيًا</span>
                 )}
               </div>
-              {slots.map((s, i) => {
-                const update = (patch: Partial<SlotRow>) =>
-                  setSlots(slots.map((x, j) => j === i ? { ...x, ...patch } : x));
-                return (
-                  <div key={s.id ?? `new-${i}`} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
-                    <Select value={String(s.weekday)} onValueChange={v => update({ weekday: Number(v) })}>
-                      <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {WEEKDAYS.map((d, w) => <SelectItem key={w} value={String(w)}>{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <TimeSelect className="w-28" value={s.start_time} onChange={v => update({ start_time: v })} />
-                    <span className="text-muted-foreground text-sm">إلى</span>
-                    <TimeSelect className="w-28" value={s.end_time} onChange={v => update({ end_time: v })} />
-                    <span className="mr-auto flex items-center gap-2">
-                      {s.booked && (
-                        <Badge variant="outline" className="text-warning border-warning">
-                          محجوز{s.studentName ? ` — ${s.studentName}` : ''}
-                        </Badge>
+              {(() => {
+                // الموعد الدوري = نفس الوقت أيامًا متتالية (من يوم إلى يوم) — يُعرض صفًا واحدًا ويُخزن صفًا لكل يوم
+                const byTime: Record<string, SlotRow[]> = {};
+                slots.forEach(s => { (byTime[`${s.start_time}|${s.end_time}`] ??= []).push(s); });
+                const grouped = new Set<string>();
+                const groups: { range: boolean; rows: SlotRow[] }[] = [];
+                Object.values(byTime).forEach(rows => {
+                  const sorted = [...rows].sort((a, b) => a.weekday - b.weekday);
+                  let run: SlotRow[] = [];
+                  const flush = () => {
+                    if (run.length >= 2) { groups.push({ range: true, rows: run }); run.forEach(r => grouped.add(r.key)); }
+                    run = [];
+                  };
+                  sorted.forEach(r => {
+                    if (run.length && r.weekday === run[run.length - 1].weekday) { flush(); return; }
+                    if (run.length && r.weekday !== run[run.length - 1].weekday + 1) flush();
+                    run.push(r);
+                  });
+                  flush();
+                });
+                slots.forEach(s => { if (!grouped.has(s.key)) groups.push({ range: false, rows: [s] }); });
+
+                const updateRows = (keys: string[], patch: Partial<SlotRow>) =>
+                  setSlots(slots.map(x => keys.includes(x.key) ? { ...x, ...patch } : x));
+                const removeOrAsk = (rows: SlotRow[]) => {
+                  const booked = rows.filter(r => r.booked);
+                  if (booked.length) setConfirmDelete({ keys: rows.map(r => r.key), names: booked.map(r => r.studentName ?? 'طالبة') });
+                  else setSlots(slots.filter(x => !rows.some(r => r.key === x.key)));
+                };
+                // تعديل مدى الدوري (من يوم/إلى يوم): تُعاد كتابة صفوف المجموعة
+                const setRange = (rows: SlotRow[], fromRaw: number, toRaw: number) => {
+                  const from = Math.min(fromRaw, toRaw), to = Math.max(fromRaw, toRaw);
+                  const days = Array.from({ length: to - from + 1 }, (_, i) => from + i);
+                  const dropped = rows.filter(r => !days.includes(r.weekday));
+                  if (dropped.some(r => r.booked)) {
+                    toast({ title: 'يوم ضمن المدى محجوز من طالبة', description: 'ألغي الحجز أولًا ثم ضيّقي المدى', variant: 'destructive' });
+                    return;
+                  }
+                  const kept = rows.filter(r => days.includes(r.weekday));
+                  const have = new Set(kept.map(r => r.weekday));
+                  const added: SlotRow[] = days.filter(d => !have.has(d)).map(d => ({
+                    key: newSlotKey(), weekday: d, start_time: rows[0].start_time, end_time: rows[0].end_time,
+                  }));
+                  setSlots([...slots.filter(x => !rows.some(r => r.key === x.key)), ...kept, ...added]);
+                };
+
+                return groups.map(g => {
+                  const keys = g.rows.map(r => r.key);
+                  const first = g.rows[0], last = g.rows[g.rows.length - 1];
+                  const bookedNames = g.rows.filter(r => r.booked).map(r => r.studentName ?? 'طالبة');
+                  return (
+                    <div key={first.key} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
+                      {g.range ? (
+                        <>
+                          <span className="text-xs text-muted-foreground">دوري من</span>
+                          <Select value={String(first.weekday)} onValueChange={v => setRange(g.rows, Number(v), last.weekday)}>
+                            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {WEEKDAYS.map((d, w) => <SelectItem key={w} value={String(w)}>{d}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-xs text-muted-foreground">إلى</span>
+                          <Select value={String(last.weekday)} onValueChange={v => setRange(g.rows, first.weekday, Number(v))}>
+                            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {WEEKDAYS.map((d, w) => <SelectItem key={w} value={String(w)}>{d}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </>
+                      ) : (
+                        <Select value={String(first.weekday)} onValueChange={v => updateRows(keys, { weekday: Number(v) })}>
+                          <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {WEEKDAYS.map((d, w) => <SelectItem key={w} value={String(w)}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       )}
-                      <button type="button" className="text-muted-foreground hover:text-destructive"
-                        onClick={() => s.booked ? setConfirmDeleteIdx(i) : setSlots(slots.filter((_, j) => j !== i))}>
-                        <Trash2 size={15} />
-                      </button>
-                    </span>
-                  </div>
-                );
-              })}
-              <Button type="button" variant="outline" size="sm" className="gap-1"
-                onClick={() => setSlots([...slots, { weekday: 0, start_time: '16:00', end_time: '17:00' }])}>
-                <Plus size={14} /> إضافة موعد
-              </Button>
+                      <TimeSelect className="w-28" value={first.start_time} onChange={v => updateRows(keys, { start_time: v })} />
+                      <span className="text-muted-foreground text-sm">إلى</span>
+                      <TimeSelect className="w-28" value={first.end_time} onChange={v => updateRows(keys, { end_time: v })} />
+                      <span className="mr-auto flex items-center gap-2">
+                        {bookedNames.length > 0 && (
+                          <Badge variant="outline" className="text-warning border-warning">
+                            محجوز — {bookedNames.join('، ')}
+                          </Badge>
+                        )}
+                        <button type="button" className="text-muted-foreground hover:text-destructive"
+                          onClick={() => removeOrAsk(g.rows)}>
+                          <Trash2 size={15} />
+                        </button>
+                      </span>
+                    </div>
+                  );
+                });
+              })()}
+              <div className="flex gap-2 flex-wrap">
+                <Button type="button" variant="outline" size="sm" className="gap-1"
+                  onClick={() => setSlots([...slots, { key: newSlotKey(), weekday: 0, start_time: '16:00', end_time: '17:00' }])}>
+                  <Plus size={14} /> إضافة موعد يوم
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="gap-1"
+                  onClick={() => setSlots([...slots,
+                    ...DAILY_DAYS.map(w => ({ key: newSlotKey(), weekday: w, start_time: '16:00', end_time: '17:00' }))])}>
+                  <Plus size={14} /> إضافة موعد دوري
+                </Button>
+              </div>
             </div>
 
             <Button className="w-full" onClick={handleSave}>{editing ? 'حفظ التعديل' : 'إضافة'}</Button>
@@ -384,21 +468,21 @@ export default function TeachersPage() {
       </Dialog>
 
       {/* تأكيد حذف موعد محجوز */}
-      <AlertDialog open={confirmDeleteIdx !== null} onOpenChange={open => !open && setConfirmDeleteIdx(null)}>
+      <AlertDialog open={confirmDelete !== null} onOpenChange={open => !open && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>حذف موعد محجوز</AlertDialogTitle>
             <AlertDialogDescription>
-              هذا الموعد محجوز من {confirmDeleteIdx !== null ? (slots[confirmDeleteIdx]?.studentName ?? 'طالبة') : ''}.
-              حذفه يلغي حجزها وتصبح بلا موعد — ستظهر مميزة بـ«بلا موعد» في صفحة الطالبات حتى تحجز من جديد.
+              هذا الموعد محجوز من {confirmDelete?.names.join('، ') ?? 'طالبة'}.
+              حذفه يلغي الحجز وتصبح الطالبة بلا موعد — ستظهر مميزة بـ«بلا موعد» في صفحة الطالبات حتى تحجز من جديد.
               الحذف يُنفذ عند «حفظ التعديل».
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>تراجع</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
-              if (confirmDeleteIdx !== null) setSlots(slots.filter((_, j) => j !== confirmDeleteIdx));
-              setConfirmDeleteIdx(null);
+              if (confirmDelete) setSlots(slots.filter(x => !confirmDelete.keys.includes(x.key)));
+              setConfirmDelete(null);
             }}>حذف الموعد</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

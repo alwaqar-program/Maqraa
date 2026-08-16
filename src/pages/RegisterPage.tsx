@@ -12,7 +12,7 @@ import { CheckCircle2, X, LayoutGrid, CalendarDays, ChevronUp, ChevronDown, Grip
 import { WEEKDAYS } from '@/lib/schedule';
 import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
-import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel } from '@/lib/form-settings';
+import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
 
 interface Track { id: string; name: string; juz_count: number; sort_order: number; }
@@ -100,9 +100,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackId]);
 
-  // الخيارات اليومية (نفس الوقت الاثنين–السبت) تظهر دائمًا؛ والباقي بأزرار الأيام
-  const dailyOptions = activeOptions.filter(d => d.daily);
-  const dayOnlyOptions = activeOptions.filter(d => !d.daily);
+  // الخيارات الدورية (نفس الوقت عدة أيام) تظهر دائمًا؛ والباقي بأزرار الأيام
+  const dailyOptions = activeOptions.filter(d => optionDays(d).length > 1);
+  const dayOnlyOptions = activeOptions.filter(d => optionDays(d).length === 1);
   // الأيام التي لها مواعيد معروضة (فريدة وبترتيب الأسبوع)
   const availableDays = [...new Set(dayOnlyOptions.map(d => d.value))].sort((a, b) => a - b);
   const visibleOptions = [

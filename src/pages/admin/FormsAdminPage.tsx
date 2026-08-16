@@ -62,24 +62,51 @@ export default function FormsAdminPage() {
   // كل التعديلات محلية (مسودة) — لا تصل النموذج العام قبل «حفظ»
   const patchConfig = (patch: object) => { setConfig({ ...config, ...patch }); setDirty(true); };
 
-  // مواعيد التسجيل هي نفسها مواعيد حلقات المسمعات — توليدها من الحلقات النشطة بدل إدخالها مرتين
-  const syncFromCircles = async () => {
-    const { data, error } = await supabase.from('circles')
-      .select('weekday, start_time, end_time').eq('is_active', true)
-      .order('weekday').order('start_time');
-    if (error) { toast({ title: 'تعذر جلب الحلقات', description: error.message, variant: 'destructive' }); return; }
-    if (!data?.length) { toast({ title: 'لا حلقات نشطة', description: 'أنشئي الحلقات أولًا من صفحة الحلقات', variant: 'destructive' }); return; }
+  // مواعيد التسجيل هي نفسها مواعيد المسمعات — تُعكس من أوقات توفرهن بدل إدخالها مرتين.
+  // المتتالية الأيام بنفس الوقت عند المسمعة نفسها تُطوى خيارًا دوريًا واحدًا (من يوم إلى يوم)
+  const syncFromTeachers = async () => {
+    const { data, error } = await supabase.from('availability_slots')
+      .select('weekday, start_time, end_time, teacher_id, teachers!inner(is_active)')
+      .eq('teachers.is_active', true);
+    if (error) { toast({ title: 'تعذر جلب مواعيد المسمعات', description: error.message, variant: 'destructive' }); return; }
+    if (!data?.length) { toast({ title: 'لا مواعيد للمسمعات بعد', description: 'أضيفي أوقات التوفر من صفحة المسمعات أولًا', variant: 'destructive' }); return; }
+
+    // أيام كل (مسمعة + وقت)
+    const byTeacherTime: Record<string, { start: string; end: string; days: number[] }> = {};
+    data.forEach((s: any) => {
+      const start = s.start_time.slice(0, 5), end = s.end_time.slice(0, 5);
+      const k = `${s.teacher_id}|${start}|${end}`;
+      (byTeacherTime[k] ??= { start, end, days: [] }).days.push(s.weekday);
+    });
+
     const seen = new Set<string>();
     const opts: DayOption[] = [];
-    data.forEach((c: any) => {
-      const start = c.start_time.slice(0, 5), end = c.end_time.slice(0, 5);
-      const k = `${c.weekday}|${start}|${end}`;
-      if (seen.has(k)) return;   // حلقتان بنفس اليوم والوقت (مسمعتان) = خيار واحد
-      seen.add(k);
-      opts.push({ value: c.weekday, start, end, label: genSlotLabel(c.weekday, start, end) });
+    Object.values(byTeacherTime).forEach(({ start, end, days }) => {
+      const sorted = [...new Set(days)].sort((a, b) => a - b);
+      // تقطيع الأيام إلى متتاليات: متتالية ≥2 = خيار دوري، ويوم مفرد = خيار عادي
+      let run: number[] = [];
+      const flush = () => {
+        if (!run.length) return;
+        const from = run[0], to = run[run.length - 1];
+        const k = `${from}|${to}|${start}|${end}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          opts.push(run.length >= 2
+            ? { value: from, to, start, end, label: genSlotLabel(from, start, end, to) }
+            : { value: from, start, end, label: genSlotLabel(from, start, end) });
+        }
+        run = [];
+      };
+      sorted.forEach(d => {
+        if (run.length && d !== run[run.length - 1] + 1) flush();
+        run.push(d);
+      });
+      flush();
     });
+
+    opts.sort((a, b) => a.value - b.value || (a.start ?? '').localeCompare(b.start ?? ''));
     patchConfig({ day_options: opts });
-    toast({ title: `وُلّدت ${opts.length} خيارات من الحلقات النشطة`, description: 'راجعيها ثم اضغطي «حفظ» لاعتمادها' });
+    toast({ title: `عُكست ${opts.length} خيارات من مواعيد المسمعات`, description: 'راجعيها ثم اضغطي «حفظ» لاعتمادها' });
   };
   const patchQuestion = (id: string, patch: Partial<DraftQuestion>) => {
     setQuestions(qs => qs.map(q => q.id === id ? { ...q, ...patch } : q));
@@ -241,8 +268,8 @@ export default function FormsAdminPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <Label>خيارات المواعيد المعروضة <span className="text-muted-foreground text-xs">— اختاري اليوم والوقت والنص يُكتب تلقائيًا</span></Label>
-                  <Button type="button" variant="outline" size="sm" className="gap-1" onClick={syncFromCircles}>
-                    <RefreshCw size={13} /> توليد من الحلقات
+                  <Button type="button" variant="outline" size="sm" className="gap-1" onClick={syncFromTeachers}>
+                    <RefreshCw size={13} /> عكس مواعيد المسمعات
                   </Button>
                 </div>
                 <SlotOptionsEditor options={(config.day_options as DayOption[]) ?? []}
@@ -390,15 +417,14 @@ export default function FormsAdminPage() {
 
 // ---------- محررات صغيرة ----------
 
-/** محرر قائمة خيارات المواعيد (يوم + من/إلى والنص يتولد) — يُستخدم للأساسية والخاصة بمسار
- *  allowDaily: يتيح خيار «يوميًا من الاثنين إلى السبت» بنفس الوقت (للختمة الدورية) */
-function SlotOptionsEditor({ options, onChange, allowDaily }: {
+/** محرر قائمة خيارات المواعيد — يوم واحد أو دوري (من يوم إلى يوم) بنفس الوقت، والنص يتولد */
+function SlotOptionsEditor({ options, onChange }: {
   options: DayOption[]; onChange: (next: DayOption[]) => void; allowDaily?: boolean;
 }) {
   const update = (i: number, patch: Partial<DayOption>) => {
     const next = [...options];
-    const merged = { ...next[i], ...patch };
-    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '', merged.daily) || merged.label;
+    const merged = { ...next[i], ...patch, daily: undefined };
+    merged.label = genSlotLabel(merged.value, merged.start ?? '', merged.end ?? '', merged.to) || merged.label;
     next[i] = merged;
     onChange(next);
   };
@@ -406,25 +432,24 @@ function SlotOptionsEditor({ options, onChange, allowDaily }: {
     <div className="space-y-1.5">
       {options.map((d, i) => (
         <div key={i} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
-          {d.daily ? (
-            <span className="text-sm border rounded-md px-3 py-2 bg-muted/40 whitespace-nowrap">الاثنين–السبت</span>
-          ) : (
-            <Select value={String(d.value)} onValueChange={v => update(i, { value: Number(v) })}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <Select value={String(d.value)} onValueChange={v => update(i, { value: Number(v) })}>
+            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>{w}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {/* «إلى يوم» — فارغ = يوم واحد؛ محدد = دوري بنفس الوقت كل يوم في المدى */}
+          <Select value={d.to != null ? String(d.to) : (d.daily ? '6' : 'single')}
+            onValueChange={v => update(i, { to: v === 'single' ? undefined : Number(v) })}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">— يوم واحد —</SelectItem>
+              {WEEKDAYS.map((w, wi) => <SelectItem key={wi} value={String(wi)}>إلى {w}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <TimeSelect className="w-32" value={d.start} onChange={v => update(i, { start: v })} />
           <span className="text-muted-foreground text-sm">إلى</span>
           <TimeSelect className="w-32" value={d.end} onChange={v => update(i, { end: v })} />
-          {allowDaily && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-              <Checkbox checked={!!d.daily} onCheckedChange={v => update(i, { daily: v === true })} />
-              يوميًا (٢–٦)
-            </label>
-          )}
           <span className="text-sm bg-accent/10 border border-accent/30 rounded-full px-3 py-1">
             {d.label || '—'}
           </span>

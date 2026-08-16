@@ -16,8 +16,19 @@ export interface FormQuestion {
   is_active: boolean;
 }
 
-/** daily: موعد يومي بنفس الوقت من الاثنين إلى السبت (للختمة الدورية ونحوها) بدل يوم واحد */
-export interface DayOption { value: number; label: string; start?: string; end?: string; daily?: boolean; }
+/** موعد يوم واحد (value)، أو دوري بنفس الوقت من يوم value إلى يوم to.
+ *  daily (قديم): يعني من الاثنين إلى السبت — يُقرأ للتوافق مع إعدادات محفوظة سابقًا */
+export interface DayOption { value: number; label: string; start?: string; end?: string; to?: number; daily?: boolean; }
+
+/** أيام الخيار كمصفوفة أرقام (0=الأحد..6=السبت) */
+export function optionDays(d: DayOption): number[] {
+  if (d.to != null && d.to !== d.value) {
+    const [a, b] = d.to > d.value ? [d.value, d.to] : [d.to, d.value];
+    return Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  }
+  if (d.daily) return [1, 2, 3, 4, 5, 6];
+  return [d.value];
+}
 
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 const arNum = (n: number | string) => String(n).replace(/\d/g, d => AR_DIGITS[Number(d)]);
@@ -39,9 +50,14 @@ export function arTimeLabel(t: string): string {
 }
 
 /** يولد نص الموعد تلقائيًا: «الأحد ٥–٧ صباحًا» أو «الأحد ١١ صباحًا – ١ مساءً»
- *  daily: «يوميًا من الاثنين إلى السبت ٥–٧ صباحًا» */
-export function genSlotLabel(weekday: number, start: string, end: string, daily?: boolean): string {
-  const prefix = daily ? 'يوميًا من الاثنين إلى السبت' : (WEEKDAY_NAMES[weekday] ?? '');
+ *  to (دوري): «يوميًا من الاثنين إلى السبت ٥–٧ صباحًا»
+ *  (يقبل true للتوافق القديم = الاثنين إلى السبت) */
+export function genSlotLabel(weekday: number, start: string, end: string, to?: number | boolean): string {
+  const fromDay = to === true ? 1 : weekday;
+  const toDay = to === true ? 6 : typeof to === 'number' ? to : null;
+  const prefix = toDay != null && toDay !== fromDay
+    ? `يوميًا من ${WEEKDAY_NAMES[Math.min(fromDay, toDay)]} إلى ${WEEKDAY_NAMES[Math.max(fromDay, toDay)]}`
+    : (WEEKDAY_NAMES[weekday] ?? '');
   if (!start || !end) return prefix;
   const a = arTime(start), b = arTime(end);
   const times = a.period === b.period
