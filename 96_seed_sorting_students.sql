@@ -62,7 +62,7 @@ WITH tr AS (
 )
 INSERT INTO public.students (full_name, national_id, phone, track_id, is_active)
 SELECT 'طالبة فرز ' || lpad(i::text, 2, '0'),
-       '10' || lpad(i::text, 8, '0'),
+       '77' || lpad(i::text, 8, '0'),   -- بادئة ٧٧ لا تتصادم مع أرقام «طالبة تجربة» (١٠…)
        '05' || lpad((5000000 + i)::text, 8, '0'),
        (SELECT id FROM tr WHERE rn = LEAST(cnt, CASE
           WHEN i % 20 = 9 THEN 5           -- قلة على المسار الخامس إن وُجد
@@ -71,7 +71,10 @@ SELECT 'طالبة فرز ' || lpad(i::text, 2, '0'),
           WHEN i % 10 < 9 THEN 3           -- ٢٠٪ عشرون جزءًا
           ELSE 4 END)),                    -- الباقي ختمة
        true
-FROM generate_series(1, 60) AS i;
+FROM generate_series(1, 60) AS i
+WHERE NOT EXISTS (                         -- حماية إضافية من تصادم أرقام الهوية
+  SELECT 1 FROM public.students x WHERE x.national_id = '77' || lpad(i::text, 8, '0')
+);
 
 -- 4) استماراتهن: أولويات مرتبة من مواعيد مجموعتهن (المسار المرتبط بمسمعة يرى مواعيدها وحدها)
 WITH st AS (
