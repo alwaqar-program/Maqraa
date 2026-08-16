@@ -140,7 +140,7 @@ export default function RegisterTeacherPage({ preview }: { preview?: { config: a
               <div className="space-y-2">
                 <Label htmlFor="times">المواعيد المتفق عليها للتسميع <span className="text-destructive">*</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  اكتبي أيامك وأوقاتك المتاحة بأسلوبك — بمجموع لا يقل عن {config.min_hours} ولا يزيد على {config.max_hours} ساعة أسبوعيًا.
+                  اكتبي أيامك وأوقاتك المتاحة بما يناسبك — بمجموع لا يقل عن {config.min_hours} ولا يزيد على {config.max_hours} ساعة أسبوعيًا.
                 </p>
                 <Textarea id="times" required rows={4}
                   placeholder="مثال: الأحد والثلاثاء من ٧ إلى ٩ صباحًا، والخميس بعد المغرب ساعة"
