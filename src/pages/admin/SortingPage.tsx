@@ -36,6 +36,7 @@ const TRACK_TINT = [
 ];
 
 const PX_PER_MIN = 1.6;           // ارتفاع البلوك = مدته الحقيقية
+const COL_MIN = 210;              // أقل عرض مقروء لبلوك واحد — عرض اليوم = عدده × هذا
 const toMin = (t: string) => { const [h, m] = t.slice(0, 5).split(':').map(Number); return h * 60 + m; };
 
 /** فرز الطالبات — تقويم أسبوعي: كل مسمعة حلقة مستقلة، والمتزامنات جنبًا إلى جنب */
@@ -239,6 +240,8 @@ export default function SortingPage() {
   }, [applicants, options, rows, tracks]);
 
   const days = [...new Set(events.map(e => e.day))].sort((a, b) => a - b);
+  /** أكبر عدد حلقات متزامنة في اليوم — يحدد عرض عموده */
+  const lanesOf = (d: number) => Math.max(1, ...events.filter(e => e.day === d).map(e => e.lanes));
   const dayStart = events.length ? Math.min(...events.map(e => toMin(e.start))) : 0;
   const dayEnd = events.length ? Math.max(...events.map(e => toMin(e.end))) : 0;
   const railFrom = Math.floor(dayStart / 60) * 60;
@@ -306,8 +309,12 @@ export default function SortingPage() {
                 <div className="flex gap-2 mb-2">
                   <div className="w-14 shrink-0" />
                   {days.map(d => (
-                    <div key={d} className="flex-1 min-w-[190px] text-center font-display bg-primary text-primary-foreground rounded-lg py-1.5">
+                    <div key={d} className="text-center font-display bg-primary text-primary-foreground rounded-lg py-1.5"
+                      style={{ flex: lanesOf(d), minWidth: lanesOf(d) * COL_MIN }}>
                       {WEEKDAYS[d]}
+                      {lanesOf(d) > 1 && (
+                        <span className="text-xs opacity-75"> — {arNum(lanesOf(d))} حلقات متزامنة</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -323,10 +330,10 @@ export default function SortingPage() {
                     ))}
                   </div>
 
-                  {/* أعمدة الأيام */}
+                  {/* أعمدة الأيام — عرض اليوم يتناسب مع عدد حلقاته المتزامنة ليبقى كل بلوك مقروءًا */}
                   {days.map(d => (
-                    <div key={d} className="flex-1 min-w-[190px] relative rounded-lg border bg-card/40"
-                      style={{ height: gridHeight }}>
+                    <div key={d} className="relative rounded-lg border bg-card/40"
+                      style={{ height: gridHeight, flex: lanesOf(d), minWidth: lanesOf(d) * COL_MIN }}>
                       {hours.map(h => (
                         <div key={h} className="absolute inset-x-0 border-t border-border/50"
                           style={{ top: (h - railFrom) * PX_PER_MIN }} />
@@ -356,17 +363,18 @@ export default function SortingPage() {
                               <div className={`absolute bottom-0 inset-x-0 ${tone.gauge}`}
                                 style={{ height: `${fill}%` }} />
                             </div>
-                            <div className="ps-3 pe-1.5 pb-1 h-full flex flex-col">
+                            <div className="ps-2.5 pe-1 pb-1 h-full flex flex-col min-h-0">
                               {/* ترويسة بلون المسمعة */}
-                              <p className="-mx-1.5 -mt-0 px-2 py-0.5 font-medium text-[13px] leading-tight truncate"
+                              <p className="-mx-1 -ms-2.5 px-2 py-0.5 font-medium text-[13px] leading-tight shrink-0"
                                 style={{ background: tcolor, color: textOn(tcolor) }}>
                                 {e.teacher}
                               </p>
-                              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 shrink-0">
                                 {formatTime(e.start)}–{formatTime(e.end)} · <span className={tone.text}>{arNum(used)}/{arNum(e.capacity)} د</span>
+                                {e.seats.length > 0 && <> · {arNum(e.seats.length)} طالبة</>}
                                 {e.pool && <> · {trackOf(e.pool)?.name}</>}
                               </p>
-                              <div className="mt-1 space-y-0.5 overflow-y-auto print:overflow-visible">
+                              <div className="mt-1 space-y-0.5 flex-1 min-h-0 overflow-y-auto print:overflow-visible">
                                 {e.seats.length === 0 && <p className="text-[11px] text-muted-foreground">لا طالبات</p>}
                                 {e.seats.map(s => (
                                   <p key={s.applicant.id} draggable
@@ -374,7 +382,7 @@ export default function SortingPage() {
                                     onDragEnd={() => { setDragId(null); setDropKey(null); }}
                                     onDoubleClick={() => s.pinned && assign(s.applicant.id, null, null)}
                                     title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''}${s.pinned ? ' — منقولة يدويًا (نقرتان للتراجع)' : ''}`}
-                                    className={`text-[11px] leading-tight rounded px-1 py-0.5 truncate cursor-grab active:cursor-grabbing ${
+                                    className={`text-[11px] leading-tight rounded px-1 py-0.5 cursor-grab active:cursor-grabbing ${
                                       dragId === s.applicant.id ? 'opacity-40' : ''} ${
                                       s.pinned ? 'ring-1 ring-accent/60 ' : ''}${
                                       s.overflow ? 'bg-destructive/15 text-destructive' : tintOf(s.applicant.track_id)}`}>
