@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ListOrdered, Printer, AlertTriangle } from 'lucide-react';
-import { WEEKDAYS } from '@/lib/schedule';
+import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { trackMinutes, slotCapacity, durationMinutes, TimeRow } from '@/lib/circles';
 import { genSlotLabel, optionDays, DayOption } from '@/lib/form-settings';
 
@@ -132,6 +132,54 @@ export default function SortingPage() {
   }, [applicants, columns, tracks, rows]);
 
   const keyOf = (c: (typeof columns)[number]) => `${c.pool ?? 'g'}|${c.label}`;
+
+  // تقويم أسبوعي: الدورية شريط عرضي، والباقي عمود لكل يوم بترتيب الوقت
+  const multiDayCols = columns.filter(c => optionDays(c).length > 1);
+  const singleDayCols = [...columns.filter(c => optionDays(c).length === 1)]
+    .sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
+  const calendarDays = [...new Set(singleDayCols.map(c => c.value))].sort((a, b) => a - b);
+
+  /** بطاقة موعد داخل التقويم: الوقت والمسمعة والإشغال ثم طالبات الأولوية الأولى */
+  const SlotCard = ({ col, wide }: { col: (typeof columns)[number]; wide?: boolean }) => {
+    const list = cells[keyOf(col)] ?? [];
+    const used = list.reduce((a, x) => a + x.minutes, 0);
+    const over = used > col.capacity;
+    return (
+      <div className="border rounded-xl overflow-hidden print:break-inside-avoid">
+        <div className={`px-2 py-1.5 text-center ${over ? 'bg-destructive text-destructive-foreground' : 'bg-muted'}`}>
+          <p className="font-medium text-sm leading-tight">
+            {wide ? col.label : `${formatTime(col.start ?? '')} – ${formatTime(col.end ?? '')}`}
+          </p>
+          <p className="text-[11px] opacity-80">
+            {col.teachers.join('، ') || 'بلا مسمعة'}
+            {col.pool && <> — {trackOf(col.pool)?.name}</>}
+          </p>
+        </div>
+        <div className={`px-2 py-1 text-center text-xs border-b ${over ? 'bg-destructive/10 text-destructive font-medium' : 'bg-muted/40'}`}>
+          {arNum(used)}/{arNum(col.capacity)} دقيقة — {arNum(list.length)} طالبة
+        </div>
+        {list.length === 0 ? (
+          <p className="text-center text-xs text-muted-foreground py-3">—</p>
+        ) : (
+          <div className={wide ? 'grid sm:grid-cols-3 lg:grid-cols-4' : ''}>
+            {list.map(x => (
+              <div key={x.applicant.id}
+                className={`border-t px-2 py-1.5 text-xs leading-snug ${x.overflow ? 'bg-destructive/10' : tintOf(x.applicant.track_id)}`}
+                title={x.overflow ? 'فوق السعة — تحتاج نقلًا لموعد آخر' : x.track?.name}>
+                <p className="font-medium flex items-center gap-1">
+                  {x.overflow && <AlertTriangle size={11} className="text-destructive shrink-0" />}
+                  {x.applicant.full_name}
+                </p>
+                <p className="text-muted-foreground">{x.track?.name ?? 'بلا مسار'} — {arNum(x.minutes)}د</p>
+                {x.applicant.phone && <p dir="ltr" className="text-left text-muted-foreground">{x.applicant.phone}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const totalCapacity = columns.reduce((a, c) => a + c.capacity, 0);
   const totalNeeded = applicants.reduce((a, x) => a + trackMinutes(trackOf(x.track_id)), 0);
   const fullCols = columns.filter(c => (cells[keyOf(c)] ?? []).some(x => x.overflow)).length;
@@ -173,42 +221,26 @@ export default function SortingPage() {
           {columns.length === 0 ? (
             <p className="text-muted-foreground text-sm">لا مواعيد توفر مسجلة للمسمعات بعد.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="flex gap-3 items-start min-w-max pb-2">
-                {columns.map(c => {
-                  const list = cells[keyOf(c)] ?? [];
-                  const used = list.reduce((a, x) => a + x.minutes, 0);
-                  const over = used > c.capacity;
-                  return (
-                    <div key={keyOf(c)} className="w-60 shrink-0 border rounded-xl overflow-hidden print:break-inside-avoid">
-                      <div className={`px-2 py-1.5 text-center ${over ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
-                        <p className="font-display text-sm leading-tight">{c.label}</p>
-                        <p className="text-[11px] opacity-90">
-                          {c.teachers.join('، ') || 'بلا مسمعة'}
-                          {c.pool && <> — {trackOf(c.pool)?.name}</>}
+            <div className="space-y-3">
+              {/* المواعيد الدورية (تتكرر عدة أيام) — شريط عرضي فوق التقويم */}
+              {multiDayCols.map(c => <SlotCard key={keyOf(c)} col={c} wide />)}
+
+              {/* التقويم الأسبوعي: عمود لكل يوم فيه مواعيد */}
+              {calendarDays.length > 0 && (
+                <div className="overflow-x-auto">
+                  <div className="grid gap-2 items-start min-w-max"
+                    style={{ gridTemplateColumns: `repeat(${calendarDays.length}, minmax(210px, 1fr))` }}>
+                    {calendarDays.map(d => (
+                      <div key={d} className="space-y-2">
+                        <p className="text-center font-display bg-primary text-primary-foreground rounded-lg py-1.5">
+                          {WEEKDAYS[d]}
                         </p>
+                        {singleDayCols.filter(c => c.value === d).map(c => <SlotCard key={keyOf(c)} col={c} />)}
                       </div>
-                      <div className={`px-2 py-1 text-center text-xs border-b ${over ? 'bg-destructive/10 text-destructive font-medium' : 'bg-muted/60'}`}>
-                        {arNum(used)}/{arNum(c.capacity)} دقيقة — {arNum(list.length)} طالبة
-                      </div>
-                      {list.length === 0 ? (
-                        <p className="text-center text-xs text-muted-foreground py-3">—</p>
-                      ) : list.map(x => (
-                        <div key={x.applicant.id}
-                          className={`border-t px-2 py-1.5 text-xs leading-snug ${x.overflow ? 'bg-destructive/10' : tintOf(x.applicant.track_id)}`}
-                          title={x.overflow ? 'فوق السعة — تحتاج نقلًا لموعد آخر' : x.track?.name}>
-                          <p className="font-medium flex items-center gap-1">
-                            {x.overflow && <AlertTriangle size={11} className="text-destructive shrink-0" />}
-                            {x.applicant.full_name}
-                          </p>
-                          <p className="text-muted-foreground">{x.track?.name ?? 'بلا مسار'} — {arNum(x.minutes)}د</p>
-                          {x.applicant.phone && <p dir="ltr" className="text-left text-muted-foreground">{x.applicant.phone}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
