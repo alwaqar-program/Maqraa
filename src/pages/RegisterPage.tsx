@@ -109,7 +109,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const liveOptions = deriveOptions(poolRows);
   const activeOptions: DayOption[] = liveOptions.length > 0 ? liveOptions : config.day_options;
 
-  // ---- سعة المواعيد بالدقائق (صفحة = دقيقتان) ----
+  // ---- سعة المواعيد بالدقائق (صفحة = دقيقة و٤٠ ثانية) ----
   // دقائق الطالبة في موعدها حسب مسارها، والمتبقي في كل موعد = سعة نوافذ مسمعاته
   // ناقص دقائق من اخترنه أولوية أولى. الاكتفاء نسبي: موعد ممتلئ لمسار الختمة قد يتسع لخمسة أجزاء.
   const myTrack = tracks.find(t => t.id === trackId);
@@ -296,7 +296,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                 {myMinutes > 0 && liveOptions.length > 0 && (
                   <p className="text-xs border border-accent/30 bg-accent/5 rounded-lg px-3 py-2">
                     مسارك «{myTrack?.name}» يحتاج <b>{myMinutes} دقيقة</b> في الموعد الواحد
-                    ({sessionPages(myTrack)} صفحة × دقيقتان) — لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
+                    ({sessionPages(myTrack)} صفحة × دقيقة و٤٠ ثانية) — لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
                   </p>
                 )}
 

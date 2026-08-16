@@ -690,7 +690,7 @@ export default function CirclesPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               سعة الحلقة: {formCapacity} دقيقة —
-              تُستهلك بحسب مسار كل طالبة، والصفحة دقيقتان (٥أجزاء=١٤د، ١٠=٢٨د، ٢٠=٥٨د، ختمة=٨٦د)
+              تُستهلك بحسب مسار كل طالبة، والصفحة دقيقة و٤٠ ثانية (٥أجزاء=١٢د، ١٠=٢٤د، ٢٠=٤٩د، ختمة=٧٢د)
             </p>
             <Button className="w-full" onClick={handleSave}>{editing ? 'حفظ التعديل' : 'إنشاء'}</Button>
           </div>

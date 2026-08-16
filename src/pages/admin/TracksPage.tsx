@@ -90,7 +90,7 @@ export default function TracksPage() {
                   <TableHead>الأجزاء</TableHead>
                   <TableHead>نصاب الفصل (صفحة)</TableHead>
                   <TableHead>نصاب الجلسة تقريبًا (÷14)</TableHead>
-                  <TableHead>دقائق الموعد (صفحة = دقيقتان)</TableHead>
+                  <TableHead>دقائق الموعد (صفحة = ١:٤٠)</TableHead>
                   <TableHead>نشط</TableHead>
                   <TableHead />
                 </TableRow>

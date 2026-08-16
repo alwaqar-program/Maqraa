@@ -2,8 +2,8 @@
 
 /** عدد جلسات الفصل — كما في صفحة المسارات (نصاب الفصل ÷ ١٤ = نصاب الجلسة) */
 export const SESSIONS_PER_SEASON = 14;
-/** تسميع الصفحة الواحدة يأخذ دقيقتين (نظيره في القاعدة: app_settings.minutes_per_page) */
-export const MINUTES_PER_PAGE = 2;
+/** تسميع الصفحة الواحدة = دقيقة و٤٠ ثانية (نظيره في القاعدة: app_settings.seconds_per_page) */
+export const SECONDS_PER_PAGE = 100;
 
 /** مسار كما يصل من القاعدة، أو عدد أجزائه فقط (توافق مع نداءات قديمة) */
 export type TrackLike =
@@ -22,9 +22,10 @@ export function sessionPages(track: TrackLike): number {
   return 43;
 }
 
-/** دقائق الطالبة في موعدها = صفحات الجلسة × دقيقتان (٧ص→١٤د، ١٤ص→٢٨د، ٢٩ص→٥٨د، ٤٣ص→٨٦د) */
+/** دقائق الطالبة في موعدها = صفحات الجلسة × ١٠٠ ثانية، مقرَّبة لأعلى دقيقة
+ *  (٧ص→١٢د، ١٤ص→٢٤د، ٢٩ص→٤٩د، ٤٣ص→٧٢د) */
 export function trackMinutes(track: TrackLike): number {
-  return sessionPages(track) * MINUTES_PER_PAGE;
+  return Math.max(1, Math.ceil(sessionPages(track) * SECONDS_PER_PAGE / 60));
 }
 
 /** صف توفر: يوم ووقت — مصدره v_public_circle_times أو availability_slots */
@@ -67,7 +68,7 @@ export function addMinutes(time: string, mins: number): string {
 }
 
 /** أوقات كل دقيقتين داخل نافذة الحلقة — لتعديل وقت الطالبة يدويًا
- *  (الخطوة دقيقتان لأن الأوقات المولَّدة تتراكم بمضاعفات ١٤/٢٨/٥٨/٨٦) */
+ *  (الخطوة دقيقتان لأن الأوقات المولَّدة تتراكم بمضاعفات ١٢/٢٤/٤٩/٧٢) */
 export function timeOptionsWithin(start: string, end: string, step = 2): string[] {
   const out: string[] = [];
   for (let t = start.slice(0, 5); t < end.slice(0, 5); t = addMinutes(t, step)) out.push(t);
