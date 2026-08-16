@@ -124,12 +124,15 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const showDayButtons = availableDays.length > 0;
   const showGrid = visibleOptions.length > 0 || showAll || activeDay !== null;
 
+  // الحقول المدمجة التي قد يُبنى عليها شرط ظهور سؤال/فقرة إضافية
+  const baseAnswers = { track: trackId, period, pledge: pledge ? 'نعم' : 'لا' };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (preview) return;
     if (!pledge) { toast({ title: 'التعهد بالالتزام بنظام الحضور والغياب مطلوب', variant: 'destructive' }); return; }
     if (!trackId) { toast({ title: 'اختاري المسار', variant: 'destructive' }); return; }
-    const missing = missingRequired(questions, extra);
+    const missing = missingRequired(questions, extra, baseAnswers);
     if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     setSaving(true);
     const { error } = await supabase.from('applicants').insert({
@@ -356,7 +359,8 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
               <section className="px-5 sm:px-8 py-6 space-y-4">
                 <SectionHead title={config.section_pledge_title} />
 
-                <ExtraQuestions questions={questions} answers={extra} onChange={setExtra} />
+                <ExtraQuestions questions={questions} answers={extra} onChange={setExtra}
+                  baseAnswers={baseAnswers} />
 
                 {config.absence_policy?.trim() && (
                   <div className="border border-accent/40 bg-accent/5 rounded-xl p-4 space-y-1">

@@ -46,7 +46,7 @@ export default function StudentHostingsPage() {
     const d = drafts[h.id];
     if (!d?.rating) { toast({ title: 'اختاري تقييمك أولًا', variant: 'destructive' }); return; }
     const extra = extraByHosting[h.id] ?? {};
-    const missing = missingRequired(questions, extra);
+    const missing = missingRequired(questions, extra, { rating: String(d.rating) });
     if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     const { error } = await supabase.from('hosting_feedback').insert({
       hosting_id: h.id, student_id: studentId, rating: d.rating, comment: d.comment || null,
@@ -118,7 +118,8 @@ export default function StudentHostingsPage() {
                         <Textarea rows={2} placeholder={config.comment_placeholder} value={d.comment}
                           onChange={e => setDrafts({ ...drafts, [h.id]: { ...d, comment: e.target.value } })} />
                         <ExtraQuestions questions={questions} answers={extraByHosting[h.id] ?? {}}
-                          onChange={a => setExtraByHosting({ ...extraByHosting, [h.id]: a })} />
+                          onChange={a => setExtraByHosting({ ...extraByHosting, [h.id]: a })}
+                          baseAnswers={{ rating: String(d.rating || '') }} />
                         <Button size="sm" onClick={() => submit(h)}>إرسال التقييم</Button>
                       </div>
                     )}

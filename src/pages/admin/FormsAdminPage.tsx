@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
-import { FORM_DEFAULTS, FormKey, FormQuestion, headerUrl } from '@/lib/form-settings';
+import { FORM_DEFAULTS, FormKey, FormQuestion, headerUrl, BASE_FIELDS } from '@/lib/form-settings';
 import { useUrlState } from '@/lib/use-url-state';
 import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
 import headerDefault from '@/assets/header.png';
@@ -22,7 +22,7 @@ const FORM_LABELS: Record<FormKey, { label: string; url: string }> = {
   teacher_agreement: { label: 'اتفاقية المسمعات', url: '/register-teacher' },
   hosting_feedback: { label: 'قياس رضا الاستضافات', url: '' },
 };
-const QTYPE_LABELS = { text: 'نص حر', select: 'اختيار واحد', multiselect: 'اختيار متعدد' };
+const QTYPE_LABELS = { text: 'نص حر', select: 'اختيار واحد', multiselect: 'اختيار متعدد', note: 'نص إرشادي' };
 
 /** أسئلة المسودة: الجديدة تحمل معرفًا مؤقتًا new-... حتى تُحفظ */
 type DraftQuestion = FormQuestion & { _new?: boolean };
@@ -36,7 +36,32 @@ export default function FormsAdminPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const { toast } = useToast();
+
+  // المسارات = خيارات شرط الحقل المدمج «المسار»
+  useEffect(() => {
+    supabase.from('tracks').select('id, name').eq('is_active', true).order('sort_order')
+      .then(({ data }) => setTracks(data || []));
+  }, []);
+
+  /** مصادر الشرط المتاحة لسؤال في الموضع i: الحقول المدمجة + الأسئلة الإضافية قبله */
+  const conditionSources = (i: number) => [
+    ...BASE_FIELDS[key].map(f => ({
+      value: `base:${f.key}`,
+      label: `حقل النموذج: ${f.label}`,
+      options: f.dynamic === 'tracks'
+        ? tracks.map(t => ({ value: t.id, label: t.name }))
+        : (f.options ?? []),
+    })),
+    ...questions.slice(0, i)
+      .filter(p => (p.qtype === 'select' || p.qtype === 'multiselect') && p.is_active)
+      .map(p => ({
+        value: p.id,
+        label: `سؤال: ${p.label}`,
+        options: p.options.filter(o => o.trim()).map(o => ({ value: o, label: o })),
+      })),
+  ];
 
   const fetchAll = useCallback(async () => {
     const [{ data: row }, { data: qs }] = await Promise.all([
@@ -96,8 +121,9 @@ export default function FormsAdminPage() {
     for (const q of questions) {
       const payload = {
         form_key: key, label: q.label, qtype: q.qtype,
-        options: q.options.filter(o => o.trim()),
-        required: q.required, sort_order: q.sort_order, is_active: q.is_active,
+        options: q.qtype === 'note' ? [] : q.options.filter(o => o.trim()),
+        required: q.qtype === 'note' ? false : q.required,   // الفقرة الإرشادية بلا إجابة
+        sort_order: q.sort_order, is_active: q.is_active,
       };
       if (q._new) {
         const { data, error } = await supabase.from('form_questions').insert(payload).select('id').single();
@@ -111,8 +137,13 @@ export default function FormsAdminPage() {
     }
     for (const q of questions) {
       const dep = q.depends_on ? realId[q.depends_on] ?? q.depends_on : null;
+      const field = q.depends_field ?? null;
       const { error } = await supabase.from('form_questions')
-        .update({ depends_on: dep, depends_value: dep ? (q.depends_value ?? null) : null })
+        .update({
+          depends_on: field ? null : dep,
+          depends_field: field,
+          depends_value: (field || dep) ? (q.depends_value ?? null) : null,
+        })
         .eq('id', realId[q.id]);
       if (error) { toast({ title: 'خطأ في حفظ شرط الظهور', description: error.message, variant: 'destructive' }); setSaving(false); return; }
     }
@@ -293,7 +324,12 @@ export default function FormsAdminPage() {
           {questions.map((q, i) => (
             <div key={q.id} className={`border rounded-lg p-3 space-y-3 ${!q.is_active ? 'opacity-50' : ''}`}>
               <div className="flex items-center gap-2">
-                <Input value={q.label} onChange={e => patchQuestion(q.id, { label: e.target.value })} />
+                {q.qtype === 'note' ? (
+                  <Textarea rows={2} className="flex-1" placeholder="نص الفقرة التي ستظهر في النموذج"
+                    value={q.label} onChange={e => patchQuestion(q.id, { label: e.target.value })} />
+                ) : (
+                  <Input value={q.label} onChange={e => patchQuestion(q.id, { label: e.target.value })} />
+                )}
                 <Select value={q.qtype} onValueChange={v => patchQuestion(q.id, { qtype: v as any })}>
                   <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -304,40 +340,43 @@ export default function FormsAdminPage() {
                 <button onClick={() => move(i, 1)} disabled={i === questions.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown size={15} /></button>
                 <button onClick={() => removeQuestion(q)} title="حذف" className="text-muted-foreground hover:text-destructive"><Trash2 size={15} /></button>
               </div>
-              {q.qtype !== 'text' && (
+              {q.qtype !== 'text' && q.qtype !== 'note' && (
                 <div className="space-y-1">
                   <Label className="text-xs">الخيارات (سطر لكل خيار)</Label>
                   <Textarea rows={3} value={q.options.join('\n')}
                     onChange={e => patchQuestion(q.id, { options: e.target.value.split('\n') })} />
                 </div>
               )}
-              {/* شرط الظهور: يظهر بناء على إجابة سؤال اختيار سابق */}
+              {/* شرط الظهور: حقل مدمج في النموذج أو سؤال اختيار سابق */}
               {(() => {
-                const candidates = questions.slice(0, i).filter(p => p.qtype !== 'text' && p.is_active);
-                if (!candidates.length && !q.depends_on) return null;
-                const dep = questions.find(p => p.id === q.depends_on);
+                const sources = conditionSources(i);
+                const current = q.depends_field ? `base:${q.depends_field}` : (q.depends_on ?? 'always');
+                const src = sources.find(s => s.value === current);
+                if (!sources.length && current === 'always') return null;
                 return (
                   <div className="flex items-center gap-2 flex-wrap text-sm">
                     <Label className="text-xs shrink-0">يظهر:</Label>
-                    <Select value={q.depends_on ?? 'always'}
+                    <Select value={current}
                       onValueChange={v => patchQuestion(q.id, v === 'always'
-                        ? { depends_on: null, depends_value: null }
-                        : { depends_on: v, depends_value: null })}>
-                      <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        ? { depends_on: null, depends_field: null, depends_value: null }
+                        : v.startsWith('base:')
+                          ? { depends_on: null, depends_field: v.slice(5), depends_value: null }
+                          : { depends_on: v, depends_field: null, depends_value: null })}>
+                      <SelectTrigger className="w-64 h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="always">دائمًا</SelectItem>
-                        {candidates.map(p => (
-                          <SelectItem key={p.id} value={p.id}>بشرط إجابة: {p.label}</SelectItem>
+                        {sources.map(s => (
+                          <SelectItem key={s.value} value={s.value}>بشرط — {s.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {dep && (
+                    {src && (
                       <>
                         <span className="text-muted-foreground text-xs">=</span>
                         <Select value={q.depends_value ?? ''} onValueChange={v => patchQuestion(q.id, { depends_value: v })}>
                           <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="اختاري الإجابة" /></SelectTrigger>
                           <SelectContent>
-                            {dep.options.filter(o => o.trim()).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                            {src.options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </>
@@ -346,10 +385,12 @@ export default function FormsAdminPage() {
                 );
               })()}
               <div className="flex items-center gap-4 text-sm">
-                <label className="flex items-center gap-1.5">
-                  <Switch checked={q.required} onCheckedChange={v => patchQuestion(q.id, { required: v })} />
-                  إلزامي
-                </label>
+                {q.qtype !== 'note' && (
+                  <label className="flex items-center gap-1.5">
+                    <Switch checked={q.required} onCheckedChange={v => patchQuestion(q.id, { required: v })} />
+                    إلزامي
+                  </label>
+                )}
                 <label className="flex items-center gap-1.5">
                   <Switch checked={q.is_active} onCheckedChange={v => patchQuestion(q.id, { is_active: v })} />
                   ظاهر في النموذج

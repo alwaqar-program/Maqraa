@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -6,17 +7,26 @@ import { FormQuestion } from '@/lib/form-settings';
 
 export type ExtraAnswers = Record<string, string | string[]>;
 
-/** هل السؤال ظاهر؟ الشرطي يظهر فقط إذا أجيب سؤاله المشار إليه بالإجابة المحددة */
-export function isVisible(q: FormQuestion, answers: ExtraAnswers): boolean {
-  if (!q.depends_on || !q.depends_value) return true;
-  const a = answers[q.depends_on];
-  return Array.isArray(a) ? a.includes(q.depends_value) : a === q.depends_value;
+/** إجابات الحقول المدمجة في النموذج (المسار/الفترة/التعهد/التقييم) — مصدر شرط أيضًا */
+export type BaseAnswers = Record<string, string | string[] | undefined>;
+
+const matches = (a: string | string[] | undefined, want: string) =>
+  Array.isArray(a) ? a.includes(want) : a === want;
+
+/** هل السؤال ظاهر؟ الشرطي يظهر فقط إذا أُجيب مصدره (حقل مدمج أو سؤال سابق) بالإجابة المحددة */
+export function isVisible(q: FormQuestion, answers: ExtraAnswers, base: BaseAnswers = {}): boolean {
+  if (!q.depends_value) return true;
+  if (q.depends_field) return matches(base[q.depends_field], q.depends_value);
+  if (q.depends_on) return matches(answers[q.depends_on], q.depends_value);
+  return true;
 }
 
 /** يتحقق أن كل الأسئلة الإلزامية الظاهرة مجابة — يعيد نص السؤال الناقص أو null */
-export function missingRequired(questions: FormQuestion[], answers: ExtraAnswers): string | null {
+export function missingRequired(
+  questions: FormQuestion[], answers: ExtraAnswers, base: BaseAnswers = {},
+): string | null {
   for (const q of questions) {
-    if (!q.required || !isVisible(q, answers)) continue;
+    if (!q.required || q.qtype === 'note' || !isVisible(q, answers, base)) continue;
     const a = answers[q.id];
     if (a == null || a === '' || (Array.isArray(a) && a.length === 0)) return q.label;
   }
@@ -24,23 +34,39 @@ export function missingRequired(questions: FormQuestion[], answers: ExtraAnswers
 }
 
 /** الأسئلة الإضافية المعرفة من لوحة الإدارة — تُعرض بترتيبها وتُخزن إجاباتها مع الطلب */
-export default function ExtraQuestions({ questions, answers, onChange }: {
+export default function ExtraQuestions({ questions, answers, onChange, baseAnswers }: {
   questions: FormQuestion[];
   answers: ExtraAnswers;
   onChange: (a: ExtraAnswers) => void;
+  baseAnswers?: BaseAnswers;
 }) {
+  // تغيّر حقل مدمج (كالمسار) قد يُخفي سؤالًا مُجابًا — تُمسح إجابته كي لا تُرسل
+  useEffect(() => {
+    const stale = questions.filter(q => answers[q.id] !== undefined && !isVisible(q, answers, baseAnswers));
+    if (!stale.length) return;
+    const next = { ...answers };
+    stale.forEach(q => delete next[q.id]);
+    onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(baseAnswers)]);
+
   if (questions.length === 0) return null;
 
   // عند تغيير إجابة: تُحذف إجابات الأسئلة الشرطية التي اختفت كي لا تُرسل خطأً
   const set = (id: string, v: string | string[]) => {
     const next = { ...answers, [id]: v };
-    questions.forEach(q => { if (!isVisible(q, next)) delete next[q.id]; });
+    questions.forEach(q => { if (!isVisible(q, next, baseAnswers)) delete next[q.id]; });
     onChange(next);
   };
 
   return (
     <>
-      {questions.filter(q => isVisible(q, answers)).map(q => (
+      {questions.filter(q => isVisible(q, answers, baseAnswers)).map(q => q.qtype === 'note' ? (
+        // فقرة إرشادية — نص فقط بلا إجابة
+        <p key={q.id} className="border border-accent/40 bg-accent/5 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap">
+          {q.label}
+        </p>
+      ) : (
         <div key={q.id} className="space-y-2">
           <Label>{q.label} {q.required && <span className="text-destructive">*</span>}</Label>
 

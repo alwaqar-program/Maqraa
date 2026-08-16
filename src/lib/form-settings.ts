@@ -9,14 +9,47 @@ export interface FormQuestion {
   id: string;
   form_key: FormKey;
   label: string;
-  qtype: 'text' | 'select' | 'multiselect';
+  qtype: 'text' | 'select' | 'multiselect' | 'note';   // note = فقرة إرشادية بلا إجابة
   options: string[];
   required: boolean;
   sort_order: number;
   is_active: boolean;
-  depends_on?: string | null;      // سؤال شرطي: يظهر فقط إذا أجيب السؤال المشار إليه...
+  depends_on?: string | null;      // شرطي بسؤال إضافي سابق: يظهر إذا أجيب السؤال المشار إليه...
+  depends_field?: string | null;   // أو بحقل مدمج في النموذج (مفتاح من BASE_FIELDS)...
   depends_value?: string | null;   // ...بهذه الإجابة تحديدًا
 }
+
+/** حقل مدمج في النموذج يصلح شرطًا لظهور سؤال/فقرة.
+ *  dynamic='tracks' يعني أن خياراته تُقرأ حيًا من جدول المسارات (القيمة = معرف المسار). */
+export interface BaseField {
+  key: string;
+  label: string;
+  options?: { value: string; label: string }[];
+  dynamic?: 'tracks';
+}
+
+/** الحقول المدمجة القابلة لأن تكون شرطًا — مصدر واحد للمحرر والنماذج */
+export const BASE_FIELDS: Record<FormKey, BaseField[]> = {
+  student_register: [
+    { key: 'track', label: 'المسار', dynamic: 'tracks' },
+    { key: 'period', label: 'الفترة الأنسب', options: [
+      { value: 'morning', label: 'الصباح' },
+      { value: 'evening', label: 'المساء' },
+      { value: 'both', label: 'كلاهما' },
+    ] },
+    { key: 'pledge', label: 'التعهد', options: [
+      { value: 'نعم', label: 'وافقت على التعهد' },
+      { value: 'لا', label: 'لم توافق بعد' },
+    ] },
+  ],
+  // حقول اتفاقية المسمعات كلها نصية — الشرط فيها على الأسئلة الإضافية فقط
+  teacher_agreement: [],
+  hosting_feedback: [
+    { key: 'rating', label: 'التقييم', options: [1, 2, 3, 4, 5].map(n => ({
+      value: String(n), label: `${'★'.repeat(n)} (${n})`,
+    })) },
+  ],
+};
 
 /** موعد يوم واحد (value)، أو دوري بنفس الوقت من يوم value إلى يوم to.
  *  daily (قديم): يعني من الاثنين إلى السبت — يُقرأ للتوافق مع إعدادات محفوظة سابقًا */
