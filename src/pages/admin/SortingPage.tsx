@@ -6,11 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ListOrdered, Printer, AlertTriangle } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
-import { trackMinutes, slotCapacity, durationMinutes, TimeRow } from '@/lib/circles';
+import { trackMinutes, slotCapacity, durationMinutes, TimeRow, fillTone, teacherColor, textOn } from '@/lib/circles';
 import { genSlotLabel, optionDays, DayOption } from '@/lib/form-settings';
 
-interface Row { weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean; teacher_id?: string; teacher_name?: string }
-interface Track { id: string; name: string; juz_count: number; quota_pages_per_season: number; seconds_per_page?: number; sessions_per_week?: number }
+interface Row { weekday: number; start_time: string; end_time: string; track_id: string | null; is_daily?: boolean; teacher_id?: string; teacher_name?: string; teacher_color?: string | null }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season: number; seconds_per_page?: number; }
 interface Applicant {
   id: string; full_name: string; phone: string | null; track_id: string | null;
   preferred_slots: string[]; preferred_period: string | null; created_at: string; status: string;
@@ -20,7 +20,7 @@ interface Seat { applicant: Applicant; track: Track | undefined; minutes: number
 /** حلقة مسمعة واحدة في يوم واحد — وحدة العرض في التقويم */
 interface Event {
   key: string; day: number; start: string; end: string;
-  teacherId: string; teacher: string; label: string; pool: string | null;
+  teacherId: string; teacher: string; color: string | null; label: string; pool: string | null;
   capacity: number; seats: Seat[];
   lane: number; lanes: number;
 }
@@ -50,9 +50,9 @@ export default function SortingPage() {
     (async () => {
       const [{ data: slots, error }, { data: tks }, { data: apps }] = await Promise.all([
         supabase.from('availability_slots')
-          .select('teacher_id, weekday, start_time, end_time, is_daily, teachers(full_name, track_id, is_active)')
+          .select('teacher_id, weekday, start_time, end_time, is_daily, teachers(full_name, track_id, is_active, color)')
           .range(0, 1999),
-        supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week')
+        supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page')
           .eq('is_active', true).order('sort_order'),
         supabase.from('applicants')
           .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status, sort_teacher_id, sort_slot_label')
@@ -65,6 +65,7 @@ export default function SortingPage() {
           weekday: s.weekday, start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
           is_daily: s.is_daily, track_id: s.teachers?.track_id ?? null,
           teacher_id: s.teacher_id, teacher_name: s.teachers?.full_name ?? '—',
+          teacher_color: s.teachers?.color ?? null,
         })));
       setTracks((tks || []) as Track[]);
       setApplicants((apps || []) as Applicant[]);
@@ -166,8 +167,8 @@ export default function SortingPage() {
       // مسمعات هذا الموعد (كل واحدة حلقة مستقلة) وأيامها
       const teacherRows = poolRows.filter(r => days.includes(r.weekday)
         && r.start_time === opt.start && r.end_time === opt.end);
-      const teachers = [...new Map(teacherRows.map(r => [r.teacher_id!, r.teacher_name!])).entries()]
-        .map(([id, name]) => ({ id, name }))
+      const teachers = [...new Map(teacherRows.map(r => [r.teacher_id!, r])).values()]
+        .map(r => ({ id: r.teacher_id!, name: r.teacher_name!, color: r.teacher_color ?? null }))
         .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
       if (!teachers.length) return;
       const perTeacher = durationMinutes(opt.start!, opt.end!);
@@ -198,7 +199,7 @@ export default function SortingPage() {
         [...new Set(daysOfTeacher)].forEach(day => {
           evs.push({
             key: `${key}|${t.id}|${day}`, day, start: opt.start!, end: opt.end!,
-            teacherId: t.id, teacher: t.name, label: opt.label, pool: opt.pool,
+            teacherId: t.id, teacher: t.name, color: t.color, label: opt.label, pool: opt.pool,
             capacity: perTeacher, seats: buckets[i], lane: 0, lanes: 1,
           });
         });

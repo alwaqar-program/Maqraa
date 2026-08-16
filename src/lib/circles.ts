@@ -7,17 +7,8 @@ export const SECONDS_PER_PAGE = 100;
 
 /** مسار كما يصل من القاعدة، أو عدد أجزائه فقط (توافق مع نداءات قديمة) */
 export type TrackLike =
-  | {
-      quota_pages_per_season?: number | null; juz_count?: number | null;
-      seconds_per_page?: number | null; sessions_per_week?: number | null;
-    }
+  | { quota_pages_per_season?: number | null; juz_count?: number | null; seconds_per_page?: number | null }
   | number | null | undefined;
-
-/** جلسات الطالبة أسبوعيًا في هذا المسار (١ للأسبوعي، ٥–٦ لليومي) */
-export function trackSessionsPerWeek(track: TrackLike): number {
-  const n = track && typeof track === 'object' ? Number(track.sessions_per_week ?? 0) : 0;
-  return n > 0 ? n : 1;
-}
 
 /** ثواني الصفحة لهذا المسار (عمود tracks.seconds_per_page) */
 export function trackSeconds(track: TrackLike): number {
@@ -31,14 +22,12 @@ export function paceLabel(seconds: number): string {
   return m ? `${m}:${String(s).padStart(2, '0')}` : `${s} ثانية`;
 }
 
-/** صفحات الجلسة الواحدة = نصاب الفصل ÷ (أسابيع الفصل × جلسات الأسبوع).
- *  المسار الأسبوعي: ٧ / ١٤ / ٢٩ / ٤٣ — واليومي يُقسَّم أيضًا على أيامه
- *  (ختمة أسبوعية ٦٠٤ص في ٦ جلسات ⇒ نحو ١٠١ صفحة للجلسة لا ٦٠٤). */
-export function sessionPages(track: TrackLike): number {
+/** صفحات الطالبة في الأسبوع = نصاب الفصل ÷ عدد أسابيع الفصل.
+ *  المسار الأسبوعي جلسة واحدة (٧ / ١٤ / ٢٩ / ٤٣ صفحة)، والختمة الدورية
+ *  ٦٠٤ صفحة موزَّعة على جلسات أيامها — والمقارنة أسبوعية في الطرفين. */
+export function weeklyPages(track: TrackLike): number {
   if (track && typeof track === 'object' && track.quota_pages_per_season != null) {
-    return Math.max(1, Math.round(
-      Number(track.quota_pages_per_season) / SESSIONS_PER_SEASON / trackSessionsPerWeek(track)
-    ));
+    return Math.max(1, Math.round(Number(track.quota_pages_per_season) / SESSIONS_PER_SEASON));
   }
   const juz = Number((typeof track === 'number' ? track : track?.juz_count) ?? 0);
   if (juz <= 5) return 7;
@@ -47,26 +36,25 @@ export function sessionPages(track: TrackLike): number {
   return 43;
 }
 
-/** دقائق الطالبة في موعدها = صفحات الجلسة × ثواني الصفحة لمسارها، مقرَّبة لأعلى دقيقة */
+/** دقائق الطالبة أسبوعيًا = صفحات أسبوعها × ثواني الصفحة لمسارها، مقرَّبة لأعلى دقيقة.
+ *  للمسار الأسبوعي هي دقائق موعدها الواحد، وللختمة الدورية مجموع أيامها. */
 export function trackMinutes(track: TrackLike): number {
-  return Math.max(1, Math.ceil(sessionPages(track) * trackSeconds(track) / 60));
+  return Math.max(1, Math.ceil(weeklyPages(track) * trackSeconds(track) / 60));
 }
 
 /** صف توفر: يوم ووقت — مصدره v_public_circle_times أو availability_slots */
 export interface TimeRow { weekday: number; start_time: string; end_time: string }
 
-/** سعة الموعد بالدقائق **للجلسة الواحدة** = مجموع نوافذ المسمعات التي تعرضه.
- *  الخيار الواحد قد يمثل عدة مسمعات بنفس اليوم والوقت (تُجمع نوافذهن)،
- *  والموعد الدوري يتكرر عدة أيام بنفس النافذة — والطالبة تحضره كل يوم،
- *  فسعته لا تتضاعف بعدد الأيام: نقسم على عدد الأيام المطابقة. */
+/** سعة الموعد **أسبوعيًا** = مجموع نوافذه في كل أيامه ولكل مسمعاته.
+ *  فالموعد الدوري (الاثنين–السبت ٤–٦ مساءً) سعته ١٢ ساعة أسبوعيًا،
+ *  وهي التي تُقارن بحاجة الطالبة الأسبوعية — فتغطي طالبة ختمة أسبوعية. */
 export function slotCapacity(rows: TimeRow[], opt: { days: number[]; start?: string; end?: string }): number {
   if (!opt.start || !opt.end) return 0;
-  const matched = rows.filter(r => opt.days.includes(r.weekday)
-    && r.start_time.slice(0, 5) === opt.start!.slice(0, 5)
-    && r.end_time.slice(0, 5) === opt.end!.slice(0, 5));
-  if (!matched.length) return 0;
-  const dayCount = new Set(matched.map(r => r.weekday)).size;
-  return Math.round(matched.reduce((a, r) => a + durationMinutes(r.start_time, r.end_time), 0) / dayCount);
+  return rows
+    .filter(r => opt.days.includes(r.weekday)
+      && r.start_time.slice(0, 5) === opt.start!.slice(0, 5)
+      && r.end_time.slice(0, 5) === opt.end!.slice(0, 5))
+    .reduce((a, r) => a + durationMinutes(r.start_time, r.end_time), 0);
 }
 
 /** مدة الحلقة بالدقائق من وقتي البداية والنهاية "HH:MM" */
@@ -100,6 +88,60 @@ export function timeOptionsWithin(start: string, end: string, step = 2): string[
   const out: string[] = [];
   for (let t = start.slice(0, 5); t < end.slice(0, 5); t = addMinutes(t, step)) out.push(t);
   return out;
+}
+
+/** لوحة ألوان المسمعات — درجات هادئة متناسقة مع كريمي وبني وذهبي الهوية */
+export const TEACHER_COLORS = [
+  '#8C6A4A', // بني القهوة
+  '#C08A2E', // ذهبي
+  '#6E8B6B', // زيتوني
+  '#4F7A8A', // أزرق مغبر
+  '#8A5A6E', // توتي
+  '#A0703C', // عسلي
+  '#5F6B8A', // نيلي هادئ
+  '#7A8C4F', // أخضر ليموني
+  '#9A5C4A', // طوبي
+  '#6B5B8A', // بنفسجي هادئ
+];
+
+/** لون المسمعة المحفوظ، أو لون ثابت من اللوحة حسب ترتيبها */
+export function teacherColor(color: string | null | undefined, index = 0): string {
+  return color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : TEACHER_COLORS[index % TEACHER_COLORS.length];
+}
+
+/** لون نص مقروء فوق لون معطى (أبيض للداكن، فحمي للفاتح) */
+export function textOn(hex: string): string {
+  const c = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16) / 255);
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.6 ? '#1c1917' : '#ffffff';
+}
+
+/** درجات امتلاء الحلقة بألوان النظام: شاغرة رمادي، متاحة أخضر،
+ *  تقترب ذهبي (لون الهوية)، مكتملة كهرماني، متجاوزة أحمر */
+export interface FillTone { key: string; label: string; block: string; gauge: string; text: string }
+export function fillTone(used: number, capacity: number, over = false): FillTone {
+  const pct = capacity > 0 ? (used / capacity) * 100 : 0;
+  if (over || pct > 100) return {
+    key: 'over', label: 'متجاوزة',
+    block: 'border-destructive/60 bg-destructive/5', gauge: 'bg-destructive', text: 'text-destructive',
+  };
+  if (used === 0) return {
+    key: 'empty', label: 'شاغرة',
+    block: 'border-border bg-muted/20', gauge: 'bg-muted-foreground/25', text: 'text-muted-foreground',
+  };
+  if (pct < 60) return {
+    key: 'open', label: 'متاحة',
+    block: 'border-success/40 bg-success/5', gauge: 'bg-success', text: 'text-success',
+  };
+  if (pct < 90) return {
+    key: 'filling', label: 'تقترب من الاكتمال',
+    block: 'border-accent/60 bg-accent/10', gauge: 'bg-accent', text: 'text-accent-foreground',
+  };
+  return {
+    key: 'full', label: 'مكتملة',
+    block: 'border-warning/60 bg-warning/10', gauge: 'bg-warning', text: 'text-warning',
+  };
 }
 
 /** فئة المتبقي للختمة (بالصفحات، الختمة 604) — كتظليل النموذج السابق */

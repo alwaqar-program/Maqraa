@@ -280,7 +280,7 @@ export default function CirclesPage() {
   };
   const fetchUnassigned = useCallback(async () => {
     const { data } = await supabase.from('students')
-      .select('id, full_name, is_active, status, tracks(name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week)')
+      .select('id, full_name, is_active, status, tracks(name, juz_count, quota_pages_per_season, seconds_per_page)')
       .eq('is_active', true).order('full_name').range(0, 1999);
     const inCircle = new Set(members.map(m => m.student_id));
     setUnassigned((data || [])
@@ -328,7 +328,7 @@ export default function CirclesPage() {
     setDistributing(true);
     const [{ data: students }, { data: applicants }] = await Promise.all([
       supabase.from('students')
-        .select('id, full_name, national_id, is_active, status, track_id, tracks(name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week)')
+        .select('id, full_name, national_id, is_active, status, track_id, tracks(name, juz_count, quota_pages_per_season, seconds_per_page)')
         .eq('is_active', true).range(0, 1999),
       supabase.from('applicants')
         .select('national_id, created_at, preferred_slots, preferred_period, sort_teacher_id, sort_slot_label')

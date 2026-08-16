@@ -14,9 +14,9 @@ import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
 import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
-import { trackMinutes, sessionPages, slotCapacity, trackSeconds, paceLabel } from '@/lib/circles';
+import { trackMinutes, weeklyPages, slotCapacity, trackSeconds, paceLabel } from '@/lib/circles';
 
-interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; seconds_per_page?: number; sessions_per_week?: number; sort_order: number; }
+interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; seconds_per_page?: number; sort_order: number; }
 
 /** preview: يُمرَّر من صفحة «النماذج» لعرض المسودة بنفس الصفحة الحقيقية (الإرسال معطل) */
 export default function RegisterPage({ preview }: { preview?: { config: any; questions: FormQuestion[] } }) {
@@ -47,7 +47,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
   const [loadReady, setLoadReady] = useState(false);
 
   useEffect(() => {
-    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sessions_per_week, sort_order')
+    supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page, sort_order')
       .eq('is_active', true).order('sort_order')
       .then(({ data }) => setTracks(data || []));
     supabase.from('v_public_circle_times' as any).select('*')
@@ -295,8 +295,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                 {/* مسارك يحدد المدة التي تحجزينها في الموعد — والمواعيد الممتلئة تُقفل تبعًا لها */}
                 {myMinutes > 0 && liveOptions.length > 0 && (
                   <p className="text-xs border border-accent/30 bg-accent/5 rounded-lg px-3 py-2">
-                    مسارك «{myTrack?.name}» يحتاج <b>{myMinutes} دقيقة</b> في الموعد الواحد
-                    ({sessionPages(myTrack)} صفحة × {paceLabel(trackSeconds(myTrack))}) — لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
+                    مسارك «{myTrack?.name}» يحتاج <b>{myMinutes} دقيقة أسبوعيًا</b>
+                    ({weeklyPages(myTrack)} صفحة × {paceLabel(trackSeconds(myTrack))}) — والموعد الدوري تُجمع أيامه كلها،
+                    لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
                   </p>
                 )}
 
@@ -347,7 +348,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                             {d.label}
                             {full ? (
                               <span className="block text-xs text-destructive mt-0.5">
-                                مكتمل — مسارك يحتاج {myMinutes} دقيقة ولم يبقَ سوى {Math.max(0, rem ?? 0)}
+                                مكتمل — مسارك يحتاج {myMinutes} دقيقة أسبوعيًا ولم يبقَ سوى {Math.max(0, rem ?? 0)}
                               </span>
                             ) : rem !== null && (
                               <span className="block text-xs text-muted-foreground mt-0.5">متبقٍ {rem} دقيقة</span>
