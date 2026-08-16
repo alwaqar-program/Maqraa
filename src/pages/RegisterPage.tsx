@@ -14,7 +14,7 @@ import logoImg from '@/assets/logo-maqraa.png';
 import headerImg from '@/assets/header.png';
 import { useFormSettings, headerUrl, FormQuestion, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 import ExtraQuestions, { ExtraAnswers, missingRequired } from '@/components/forms/ExtraQuestions';
-import { trackMinutes, weeklyPages, slotCapacity, trackSeconds, paceLabel } from '@/lib/circles';
+import { trackMinutes, slotCapacity } from '@/lib/circles';
 
 interface Track { id: string; name: string; juz_count: number; quota_pages_per_season?: number; seconds_per_page?: number; sort_order: number; }
 
@@ -292,12 +292,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
               <section className="px-5 sm:px-8 py-6 space-y-4">
                 <SectionHead title={config.section_times_title} hint={config.times_note} />
 
-                {/* مسارك يحدد المدة التي تحجزينها في الموعد — والمواعيد الممتلئة تُقفل تبعًا لها */}
+                {/* الحساب الداخلي (الدقائق والسعة) لا يُعرض للطالبة — فقط «متاح» أو «مكتمل» */}
                 {myMinutes > 0 && liveOptions.length > 0 && (
-                  <p className="text-xs border border-accent/30 bg-accent/5 rounded-lg px-3 py-2">
-                    مسارك «{myTrack?.name}» يحتاج <b>{myMinutes} دقيقة أسبوعيًا</b>
-                    ({weeklyPages(myTrack)} صفحة × {paceLabel(trackSeconds(myTrack))}) — والموعد الدوري تُجمع أيامه كلها،
-                    لذا قد يظهر موعد مكتملًا لكِ وهو متاح لمسار أقصر.
+                  <p className="text-xs text-muted-foreground">
+                    المواعيد المكتملة تظهر معطّلة — والاتساع يختلف بحسب مسارك.
                   </p>
                 )}
 
@@ -347,11 +345,9 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                           <span className="text-sm flex-1">
                             {d.label}
                             {full ? (
-                              <span className="block text-xs text-destructive mt-0.5">
-                                مكتمل — مسارك يحتاج {myMinutes} دقيقة أسبوعيًا ولم يبقَ سوى {Math.max(0, rem ?? 0)}
-                              </span>
+                              <span className="block text-xs text-destructive mt-0.5">مكتمل</span>
                             ) : rem !== null && (
-                              <span className="block text-xs text-muted-foreground mt-0.5">متبقٍ {rem} دقيقة</span>
+                              <span className="block text-xs text-success mt-0.5">متاح</span>
                             )}
                           </span>
                         </Label>
