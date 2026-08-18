@@ -58,7 +58,8 @@ export default function ApplicantsPage() {
     setApplicants((data || []).map((r: any) => ({ ...r, track_name: r.tracks?.name, extra_answers: r.extra_answers ?? {} })));
     const { data: qs } = await sb.from('form_questions').select('*')
       .eq('form_key', 'student_register').order('sort_order');
-    setExtraQs((qs || []) as FormQuestion[]);
+    // «النص الإرشادي» فقرة عرض بلا إجابة — لا عمود له في الجدول ولا في CSV
+    setExtraQs(((qs || []) as FormQuestion[]).filter(q => q.qtype !== 'note'));
     setLoading(false);
   }, [toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
