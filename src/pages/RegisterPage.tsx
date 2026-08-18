@@ -188,6 +188,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     if (preview) return;
     if (!pledge) { toast({ title: 'التعهد بالالتزام بنظام الحضور والغياب مطلوب', variant: 'destructive' }); return; }
     if (!trackId) { toast({ title: 'اختاري المسار', variant: 'destructive' }); return; }
+    if (!selectedSlots.length) { toast({ title: 'اختاري موعدًا واحدًا على الأقل', variant: 'destructive' }); return; }
     const missing = missingRequired(questions, extra, baseAnswers);
     if (missing) { toast({ title: `«${missing}» مطلوب`, variant: 'destructive' }); return; }
     if (selectedSlots.includes(CUSTOM_KEY) && !customText.trim()) {
