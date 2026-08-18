@@ -376,7 +376,7 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                             {d.label}
                             {/* الموعد الممتلئ يبقى قابلًا للاختيار — لكنه قائمة انتظار */}
                             {rem !== null && (full
-                              ? <span className="block text-xs text-warning mt-0.5">اختيارك له يضعك في قائمة الانتظار</span>
+                              ? <span className="block text-xs text-warning mt-0.5">قائمة الانتظار</span>
                               : <span className="block text-xs text-success mt-0.5">متاح{fitsLabel(d) ? ` — ${fitsLabel(d)}` : ''}</span>)}
                           </span>
                         </Label>
