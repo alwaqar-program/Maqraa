@@ -154,9 +154,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
     return `متبقٍ مقعد لمسار ${shortTrackName(largest.name)}${hasSmaller ? ' فأقل' : ''}`;
   };
 
-  // عند تبديل المسار (أو وصول بيانات السعة): أزيلي المواعيد التي لم تعد معروضة أو لم تعد تتسع
+  // عند تبديل المسار: أزيلي المواعيد التي لم تعد معروضة
+  // (المكتمل يبقى اختيارًا صالحًا — قائمة انتظار)
   useEffect(() => {
-    const valid = new Set(activeOptions.filter(d => !isFullFor(d)).map(slotKey));
+    const valid = new Set(activeOptions.map(slotKey));
     // «آخر» يبقى ما دام المسار مرتبطًا بمسمعة، ويُمسح نصه إن لم يعد متاحًا
     setSelectedSlots(prev => prev.filter(k => valid.has(k) || (k === CUSTOM_KEY && isLinkedPool)));
     if (!isLinkedPool) setCustomText('');
@@ -322,10 +323,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
               <section className="px-5 sm:px-8 py-6 space-y-4">
                 <SectionHead title={config.section_times_title} hint={config.times_note} />
 
-                {/* الحساب الداخلي (الدقائق والسعة) لا يُعرض للطالبة — فقط «متاح» أو «مكتمل» */}
+                {/* الحساب الداخلي (الدقائق والسعة) لا يُعرض للطالبة */}
                 {myMinutes > 0 && liveOptions.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    المواعيد المكتملة تظهر معطّلة — واتساع الموعد يختلف بحسب طول مسارك.
+                    يمكنك اختيار أي موعد — والموعد المكتمل يضعك في قائمة الانتظار له.
                   </p>
                 )}
 
@@ -367,20 +368,16 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
                       const full = isFullFor(d);
                       return (
                         <Label key={`${d.value}-${i}`} htmlFor={`slot-${d.value}-${i}`}
-                          className={`${pill(selectedSlots.includes(slotKey(d)))} ${full ? 'opacity-55 cursor-not-allowed bg-muted/40' : ''}`}
-                          onClick={full ? e => e.preventDefault() : undefined}>
-                          <Checkbox id={`slot-${d.value}-${i}`} disabled={full}
+                          className={pill(selectedSlots.includes(slotKey(d)))}>
+                          <Checkbox id={`slot-${d.value}-${i}`}
                             checked={selectedSlots.includes(slotKey(d))}
-                            onCheckedChange={() => !full && toggleSlot(d)} />
+                            onCheckedChange={() => toggleSlot(d)} />
                           <span className="text-sm flex-1">
                             {d.label}
-                            {rem !== null && (() => {
-                              const fits = fitsLabel(d);
-                              if (!fits) return <span className="block text-xs text-destructive mt-0.5">مكتمل</span>;
-                              return full
-                                ? <span className="block text-xs text-destructive mt-0.5">مكتمل لمسارك — {fits}</span>
-                                : <span className="block text-xs text-success mt-0.5">متاح — {fits}</span>;
-                            })()}
+                            {/* الموعد الممتلئ يبقى قابلًا للاختيار — لكنه قائمة انتظار */}
+                            {rem !== null && (full
+                              ? <span className="block text-xs text-warning mt-0.5">اختيارك له يضعك في قائمة الانتظار</span>
+                              : <span className="block text-xs text-success mt-0.5">متاح{fitsLabel(d) ? ` — ${fitsLabel(d)}` : ''}</span>)}
                           </span>
                         </Label>
                       );
