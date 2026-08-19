@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +15,7 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Check, X, MessageSquareText, Eye } from 'lucide-react';
+import { UserPlus, Check, X, MessageSquareText, Eye, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { WEEKDAYS } from '@/lib/schedule';
 import { supabase as sb } from '@/integrations/supabase/client';
@@ -46,6 +48,9 @@ export default function ApplicantsPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [extraQs, setExtraQs] = useState<FormQuestion[]>([]);
   const [tab, setTab] = useUrlState('tab', 'pending');
+  const [search, setSearch] = useUrlState('q');
+  const [trackFilter, setTrackFilter] = useUrlState('track', 'all');
+  const [periodFilter, setPeriodFilter] = useUrlState('period', 'all');
   const [action, setAction] = useState<{ a: Applicant; type: 'accept' | 'reject' } | null>(null);
   const [viewing, setViewing] = useState<Applicant | null>(null);   // بطاقة تفاصيل المتقدمة
   const [loading, setLoading] = useState(true);
@@ -99,7 +104,11 @@ export default function ApplicantsPage() {
     track: { get: r => r.track_name, type: 'text' },
     created: { get: r => r.created_at, type: 'date' },
   };
-  let filtered = applicants.filter(a => a.status === tab);
+  const trackNames = [...new Set(applicants.map(a => a.track_name).filter(Boolean))] as string[];
+  let filtered = applicants.filter(a => a.status === tab
+    && (!search || a.full_name.includes(search) || (a.national_id ?? '').includes(search) || a.phone.includes(search))
+    && (trackFilter === 'all' || a.track_name === trackFilter)
+    && (periodFilter === 'all' || a.preferred_period === periodFilter));
   if (sortKey && SORTS[sortKey]) filtered = sortRows(filtered, SORTS[sortKey].get, sortDir, SORTS[sortKey].type);
 
   return (
@@ -141,6 +150,32 @@ export default function ApplicantsPage() {
           ))}
         </TabsList>
       </Tabs>
+
+      {/* بحث وفلاتر — تُحفظ في الرابط */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-64">
+          <Search size={15} className="absolute right-3 top-3 text-muted-foreground" />
+          <Input className="pr-9" placeholder="بحث بالاسم أو الهوية أو الجوال"
+            value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={trackFilter} onValueChange={setTrackFilter}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل المسارات</SelectItem>
+            {trackNames.map(t => <SelectItem key={t} value={t}>{t.split(/\s*(?=\()/)[0]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={periodFilter} onValueChange={setPeriodFilter}>
+          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الفترات</SelectItem>
+            <SelectItem value="morning">صباح</SelectItem>
+            <SelectItem value="evening">مساء</SelectItem>
+            <SelectItem value="both">كلاهما</SelectItem>
+          </SelectContent>
+        </Select>
+        <Badge variant="outline">{filtered.length} نتيجة</Badge>
+      </div>
 
       <Card>
         <CardContent className="pt-6 overflow-x-auto">
