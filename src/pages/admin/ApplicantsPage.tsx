@@ -19,6 +19,7 @@ import { WEEKDAYS } from '@/lib/schedule';
 import { supabase as sb } from '@/integrations/supabase/client';
 import { FormQuestion } from '@/lib/form-settings';
 import { answerText } from '@/components/forms/ExtraQuestions';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { exportToCsv, CsvColumnDef } from '@/lib/csv-utils';
 import { Download } from 'lucide-react';
 
@@ -46,6 +47,7 @@ export default function ApplicantsPage() {
   const [extraQs, setExtraQs] = useState<FormQuestion[]>([]);
   const [tab, setTab] = useUrlState('tab', 'pending');
   const [action, setAction] = useState<{ a: Applicant; type: 'accept' | 'reject' } | null>(null);
+  const [viewing, setViewing] = useState<Applicant | null>(null);   // بطاقة تفاصيل المتقدمة
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -145,7 +147,7 @@ export default function ApplicantsPage() {
           {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : filtered.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">لا طلبات في هذه الفئة.</p>
           ) : (
-            <Table>
+            <Table className="[&_td]:py-2 [&_th]:whitespace-nowrap">
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
@@ -156,7 +158,6 @@ export default function ApplicantsPage() {
                   <TableHead>المواعيد (بالأولوية)</TableHead>
                   <TableHead>الفترة</TableHead>
                   <TableHead>ملاحظات</TableHead>
-                  {extraQs.filter(q => q.is_active).map(q => <TableHead key={q.id}>{q.label}</TableHead>)}
                   <SortableHead label="سُجّل في" sortKey="created" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead />
                 </TableRow>
@@ -165,32 +166,32 @@ export default function ApplicantsPage() {
                 {filtered.map((a, i) => (
                   <TableRow key={a.id}
                     onClick={e => {
-                      // المقبولة لها ملف طالبة — الصف كله يفتحه (نفس البيانات بلا تكرار)
-                      if (!a.student_id) return;
                       if ((e.target as HTMLElement).closest('button,a,input,[role="switch"],[role="checkbox"]')) return;
-                      navigate(`/students/${a.student_id}`);
+                      setViewing(a);
                     }}
-                    className={a.student_id ? 'cursor-pointer' : undefined}>
+                    className="cursor-pointer">
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                    <TableCell className="font-medium">{a.full_name}</TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">{a.full_name}</TableCell>
                     <TableCell dir="ltr">{a.national_id ?? '—'}</TableCell>
                     <TableCell dir="ltr">{a.phone}</TableCell>
-                    <TableCell>{a.track_name ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap" title={a.track_name ?? undefined}>{a.track_name?.split(/\s*(?=\()/)[0] ?? '—'}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      {a.preferred_slots?.length
-                        ? a.preferred_slots.map((sl, i) => `${i + 1}) ${sl}`).join(' · ')
-                        : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}
+                      {a.preferred_slots?.length ? (
+                        <>
+                          {a.preferred_slots[0]}
+                          {a.preferred_slots.length > 1 && (
+                            <span className="mr-1.5 rounded-full border border-accent/50 bg-accent/10 px-1.5 text-xs">
+                              +{a.preferred_slots.length - 1}
+                            </span>
+                          )}
+                        </>
+                      ) : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}
                     </TableCell>
                     <TableCell>{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : a.preferred_period === 'both' ? 'كلاهما' : '—'}</TableCell>
                     <TableCell>
-                      {a.suggestions
-                        ? <span title={a.suggestions}><MessageSquareText size={16} className="text-info" /></span>
-                        : '—'}
+                      {a.suggestions ? <MessageSquareText size={16} className="text-info" /> : '—'}
                     </TableCell>
-                    {extraQs.filter(q => q.is_active).map(q => (
-                      <TableCell key={q.id} className="text-sm">{answerText(a.extra_answers[q.id])}</TableCell>
-                    ))}
-                    <TableCell className="text-sm text-muted-foreground">{a.created_at.slice(0, 10)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{a.created_at.slice(0, 10)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       {a.student_id && (
                         <Button variant="ghost" size="icon" title="ملف الطالبة"
@@ -218,6 +219,77 @@ export default function ApplicantsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* بطاقة المتقدمة الكاملة — كل ما في الاستمارة في مكان واحد */}
+      <Dialog open={!!viewing} onOpenChange={open => !open && setViewing(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {viewing && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 flex-wrap">
+                  {viewing.full_name}
+                  <Badge variant="outline">{STATUS_LABEL[viewing.status]}</Badge>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground">الهوية</p><p dir="ltr" className="text-right">{viewing.national_id ?? '—'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">الجوال</p><p dir="ltr" className="text-right">{viewing.phone}</p></div>
+                  <div><p className="text-xs text-muted-foreground">المسار</p><p>{viewing.track_name ?? '—'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">الفترة الأنسب</p><p>{viewing.preferred_period === 'morning' ? 'صباح' : viewing.preferred_period === 'evening' ? 'مساء' : viewing.preferred_period === 'both' ? 'كلاهما' : '—'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">سُجّلت في</p><p>{viewing.created_at.slice(0, 10)}</p></div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5">مواعيدها بترتيب الأولوية</p>
+                  {viewing.preferred_slots?.length ? (
+                    <div className="space-y-1">
+                      {viewing.preferred_slots.map((sl, j) => (
+                        <p key={j} className="flex items-center gap-2">
+                          <span className="w-5 h-5 shrink-0 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center">{j + 1}</span>
+                          {sl}
+                        </p>
+                      ))}
+                    </div>
+                  ) : <p>{(viewing.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}</p>}
+                </div>
+
+                {viewing.suggestions && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">ملاحظاتها ومقترحاتها</p>
+                    <p className="border border-accent/30 bg-accent/5 rounded-lg p-3 leading-relaxed whitespace-pre-wrap">{viewing.suggestions}</p>
+                  </div>
+                )}
+
+                {extraQs.filter(q => q.is_active && answerText(viewing.extra_answers[q.id]) !== '—').map(q => (
+                  <div key={q.id}>
+                    <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                    <p className="whitespace-pre-wrap">{answerText(viewing.extra_answers[q.id])}</p>
+                  </div>
+                ))}
+
+                <div className="flex gap-2 pt-2 border-t">
+                  {viewing.status === 'pending' && (
+                    <>
+                      <Button className="gap-1 flex-1" onClick={() => { setAction({ a: viewing, type: 'accept' }); setViewing(null); }}>
+                        <Check size={15} /> قبول
+                      </Button>
+                      <Button variant="outline" className="gap-1 flex-1 text-destructive" onClick={() => { setAction({ a: viewing, type: 'reject' }); setViewing(null); }}>
+                        <X size={15} /> رفض
+                      </Button>
+                    </>
+                  )}
+                  {viewing.student_id && (
+                    <Button variant="outline" className="gap-1 flex-1" onClick={() => navigate(`/students/${viewing.student_id}`)}>
+                      <Eye size={15} /> ملف الطالبة
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!action} onOpenChange={open => !open && setAction(null)}>
         <AlertDialogContent>
