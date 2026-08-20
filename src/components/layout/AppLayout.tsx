@@ -101,7 +101,9 @@ const roleLabels: Record<AppRole, string> = {
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, signOut, roles } = useAuth();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  // على الآيباد (768–1279) تبدأ القائمة مطوية شريط أيقونات؛ وعلى الشاشات الواسعة ممددة
+  const [collapsed, setCollapsed] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1279px)').matches);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // أغلق القائمة الجوّالة عند أي تنقّل — يمنع بقاء طبقة التعتيم عالقة فوق الصفحة
@@ -113,7 +115,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex">
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 bg-foreground/20 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 bg-foreground/20 z-40 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Sidebar */}
@@ -121,7 +123,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         className={cn(
           'fixed top-0 right-0 h-full z-50 book-cover text-sidebar-foreground flex flex-col transition-all duration-300',
           collapsed ? 'w-16' : 'w-64',
-          mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
+          mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
       >
         {/* علامة المصحف الذهبية — توقيع الهوية */}
@@ -146,6 +148,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 to={item.href}
+                title={collapsed ? item.label : undefined}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors',
@@ -184,16 +187,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex absolute top-4 -left-3 w-6 h-6 rounded-full bg-card border border-border items-center justify-center text-muted-foreground hover:text-foreground"
+          className="hidden md:flex absolute top-4 -left-3 w-6 h-6 rounded-full bg-card border border-border items-center justify-center text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft size={14} className={cn('transition-transform', collapsed && 'rotate-180')} />
         </button>
       </aside>
 
       {/* Main content */}
-      <main className={cn('flex-1 transition-all duration-300', collapsed ? 'lg:mr-16' : 'lg:mr-64')}>
+      <main className={cn('flex-1 transition-all duration-300', collapsed ? 'md:mr-16' : 'md:mr-64')}>
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-card">
+        <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
             <Menu size={20} />
           </Button>
@@ -201,7 +204,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="w-10" />
         </header>
 
-        <div className="p-4 lg:p-6 animate-fade-in">
+        <div className="p-4 md:p-6 animate-fade-in">
           {children}
         </div>
       </main>
