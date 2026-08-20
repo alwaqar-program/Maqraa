@@ -187,13 +187,13 @@ export default function ApplicantsPage() {
                 <TableRow>
                   <TableHead>#</TableHead>
                   <SortableHead label="الاسم" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead className="hidden lg:table-cell" label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>الجوال</TableHead>
                   <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>المواعيد (بالأولوية)</TableHead>
-                  <TableHead>الفترة</TableHead>
+                  <TableHead className="hidden lg:table-cell">الفترة</TableHead>
                   <TableHead>ملاحظات</TableHead>
-                  <SortableHead label="سُجّل في" sortKey="created" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead className="hidden lg:table-cell" label="سُجّل في" sortKey="created" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -207,7 +207,7 @@ export default function ApplicantsPage() {
                     className="cursor-pointer">
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium whitespace-nowrap">{a.full_name}</TableCell>
-                    <TableCell dir="ltr">{a.national_id ?? '—'}</TableCell>
+                    <TableCell dir="ltr" className="hidden lg:table-cell">{a.national_id ?? '—'}</TableCell>
                     <TableCell dir="ltr">{a.phone}</TableCell>
                     <TableCell className="whitespace-nowrap" title={a.track_name ?? undefined}>{a.track_name?.split(/\s*(?=\()/)[0] ?? '—'}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
@@ -222,11 +222,11 @@ export default function ApplicantsPage() {
                         </>
                       ) : (a.preferred_days || []).map(d => WEEKDAYS[d]).join('، ') || '—'}
                     </TableCell>
-                    <TableCell>{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : a.preferred_period === 'both' ? 'كلاهما' : '—'}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{a.preferred_period === 'morning' ? 'صباح' : a.preferred_period === 'evening' ? 'مساء' : a.preferred_period === 'both' ? 'كلاهما' : '—'}</TableCell>
                     <TableCell>
                       {a.suggestions ? <MessageSquareText size={16} className="text-info" /> : '—'}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{a.created_at.slice(0, 10)}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground whitespace-nowrap">{a.created_at.slice(0, 10)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       {a.student_id && (
                         <Button variant="ghost" size="icon" title="ملف الطالبة"
