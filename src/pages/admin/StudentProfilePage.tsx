@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, User } from 'lucide-react';
+import { ArrowRight, User, ScrollText } from 'lucide-react';
 import { surahNameOf } from '@/lib/mushaf';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { choiceLabel } from '@/lib/circles';
@@ -123,6 +123,11 @@ export default function StudentProfilePage() {
             🌿 {khatmat === 1 ? 'ختمة' : `${khatmat} ختمات`}
           </Badge>
         )}
+        {/* كل تغيير جرى على سجلاتها */}
+        <Button variant="outline" size="sm" className="gap-1 mr-auto"
+          onClick={() => navigate(`/activity-log?student=${student.id}`)}>
+          <ScrollText size={14} /> سجل النشاط
+        </Button>
         {student.user_id
           ? <Badge variant="outline" className="text-success border-success">حساب مفعّل</Badge>
           : <Badge variant="outline" className="text-muted-foreground">بلا حساب</Badge>}

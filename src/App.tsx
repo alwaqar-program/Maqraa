@@ -45,6 +45,7 @@ import FormsAdminPage from "./pages/admin/FormsAdminPage";
 import CirclesPage from "./pages/admin/CirclesPage";
 import CirclesReportPage from "./pages/admin/CirclesReportPage";
 import SortingPage from "./pages/admin/SortingPage";
+import ActivityLogPage from "./pages/admin/ActivityLogPage";
 import StudentsArchivePage from "./pages/admin/StudentsArchivePage";
 import StudentProfilePage from "./pages/admin/StudentProfilePage";
 import MyCirclePage from "./pages/student/MyCirclePage";
@@ -177,7 +178,7 @@ const App = () => (
             <Route path="/reports" element={<ProtectedRoute roles={['admin', 'report_viewer']}><ReportsPage /></ProtectedRoute>} />
             <Route path="/monthly-report" element={<ProtectedRoute roles={['admin', 'report_viewer']}><MonthlyReportPage /></ProtectedRoute>} />
             <Route path="/season-report" element={<ProtectedRoute roles={['admin', 'report_viewer']}><SeasonReportPage /></ProtectedRoute>} />
-            <Route path="/activity-log" element={<ProtectedRoute roles={['admin']}><Placeholder title="سجل النشاط" /></ProtectedRoute>} />
+            <Route path="/activity-log" element={<ProtectedRoute roles={['admin']}><ActivityLogPage /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute roles={['admin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/forms" element={<ProtectedRoute roles={['admin']}><FormsAdminPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
