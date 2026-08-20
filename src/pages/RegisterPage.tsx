@@ -207,6 +207,10 @@ export default function RegisterPage({ preview }: { preview?: { config: any; que
       preferred_slots: selectedSlots.map(k => k === CUSTOM_KEY
         ? `آخر: ${customText.trim()}`
         : k.split('|').slice(1).join('|')),
+      // المواعيد التي كانت مكتملة لمسارها لحظة الاختيار — قائمة انتظار
+      waitlisted_slots: selectedSlots
+        .filter(k => { const d = activeOptions.find(o => slotKey(o) === k); return d && isFullFor(d); })
+        .map(k => k.split('|').slice(1).join('|')),
       preferred_period: period || null,
       suggestions: suggestions.trim() || null,
       ...(Object.keys(extra).length ? { extra_answers: extra } : {}),

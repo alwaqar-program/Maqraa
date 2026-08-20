@@ -34,6 +34,7 @@ interface Applicant {
   track_name?: string;
   preferred_days: number[];
   preferred_slots?: string[];
+  waitlisted_slots?: string[];
   preferred_period: string | null;
   suggestions: string | null;
   status: 'pending' | 'accepted' | 'rejected';
@@ -214,6 +215,9 @@ export default function ApplicantsPage() {
                       {a.preferred_slots?.length ? (
                         <>
                           {a.preferred_slots[0]}
+                          {a.waitlisted_slots?.includes(a.preferred_slots[0]) && (
+                            <Badge variant="outline" className="mr-1.5 text-warning border-warning text-xs">انتظار</Badge>
+                          )}
                           {a.preferred_slots.length > 1 && (
                             <span className="mr-1.5 rounded-full border border-accent/50 bg-accent/10 px-1.5 text-xs">
                               +{a.preferred_slots.length - 1}
@@ -283,6 +287,9 @@ export default function ApplicantsPage() {
                         <p key={j} className="flex items-center gap-2">
                           <span className="w-5 h-5 shrink-0 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center">{j + 1}</span>
                           {sl}
+                          {viewing.waitlisted_slots?.includes(sl) && (
+                            <Badge variant="outline" className="text-warning border-warning text-xs">قائمة انتظار — كان مكتملًا عند تسجيلها</Badge>
+                          )}
                         </p>
                       ))}
                     </div>
