@@ -57,7 +57,7 @@ export default function SortingPage() {
         supabase.from('tracks').select('id, name, juz_count, quota_pages_per_season, seconds_per_page')
           .eq('is_active', true).order('sort_order'),
         supabase.from('applicants')
-          .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status, sort_teacher_id, sort_slot_label')
+          .select('id, full_name, phone, track_id, preferred_slots, preferred_period, created_at, status, sort_teacher_id, sort_slot_label, students:student_id(full_name, phone, track_id, status)')
           .neq('status', 'rejected').order('created_at').range(0, 4999),
       ]);
       if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
@@ -70,7 +70,16 @@ export default function SortingPage() {
           teacher_color: s.teachers?.color ?? null,
         })));
       setTracks((tks || []) as Track[]);
-      setApplicants((apps || []) as Applicant[]);
+      // المقبولة تُعرض ببياناتها الحالية كطالبة (المسار المعدَّل والاسم والجوال)،
+      // ومن انسحبت أو استُبعدت طالبتُها تخرج من الفرز
+      setApplicants(((apps || []) as any[])
+        .filter(a => !a.students || (a.students.status ?? 'active') === 'active')
+        .map(a => ({
+          ...a,
+          full_name: a.students?.full_name ?? a.full_name,
+          phone: a.students?.phone ?? a.phone,
+          track_id: a.students?.track_id ?? a.track_id,
+        })) as Applicant[]);
       setLoading(false);
     })();
   }, [toast]);
