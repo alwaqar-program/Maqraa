@@ -13,7 +13,7 @@ type LinkTable = 'students' | 'teachers' | 'supervisors';
 interface CreateUserRequest {
   email: string;
   password?: string;                 // إن غابت تُولَّد
-  role: 'admin' | 'teacher' | 'supervisor' | 'student' | 'report_viewer';
+  role: 'super_admin' | 'admin' | 'teacher' | 'supervisor' | 'student' | 'report_viewer';
   link?: { table: LinkTable; id: string };
   full_name?: string;
 }
@@ -63,13 +63,13 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data: roleRow } = await admin
+    const { data: roleRows } = await admin
       .from('user_roles')
-      .select('id')
+      .select('role')
       .eq('user_id', callerUser.id)
-      .eq('role', 'admin')
-      .maybeSingle();
-    if (!roleRow) return json({ error: 'غير مصرح: هذه العملية لمديرة النظام فقط' }, 403);
+      .in('role', ['admin', 'super_admin']);
+    if (!roleRows?.length) return json({ error: 'غير مصرح: هذه العملية لمديرة النظام فقط' }, 403);
+    const callerIsSuper = roleRows.some((r) => r.role === 'super_admin');
 
     // 3) الطلبات (مفرد أو دفعة)
     const payload: Payload = await req.json();
@@ -84,6 +84,7 @@ Deno.serve(async (req) => {
     for (const r of requests) {
       try {
         if (!r.email || !r.role) throw new Error('البريد والدور مطلوبان');
+        if (r.role === 'super_admin' && !callerIsSuper) throw new Error('منح دور «مديرة عليا» حكر على المديرة العليا');
         const password = r.password || generatePassword();
         const { data, error } = await admin.auth.admin.createUser({
           email: r.email,

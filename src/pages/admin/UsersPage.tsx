@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, X, UserPlus, Copy } from 'lucide-react';
-import { AppRole } from '@/contexts/AuthContext';
+import { AppRole, useAuth } from '@/contexts/AuthContext';
 
 interface UserRow {
   id: string;
@@ -29,7 +29,7 @@ interface UserRow {
 interface LinkCandidate { id: string; full_name: string; email: string | null; }
 
 const ROLE_LABELS: Record<AppRole, string> = {
-  admin: 'مديرة النظام', teacher: 'مسمعة', supervisor: 'مشرفة',
+  super_admin: 'مديرة عليا', admin: 'مديرة النظام', teacher: 'مسمعة', supervisor: 'مشرفة',
   student: 'طالبة', report_viewer: 'مُطّلع تقارير',
 };
 
@@ -43,6 +43,10 @@ export default function UsersPage() {
   const [candidates, setCandidates] = useState<{ teachers: LinkCandidate[]; students: LinkCandidate[] }>({ teachers: [], students: [] });
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const { toast } = useToast();
+  const { hasRole } = useAuth();
+  // منح وسحب دور «مديرة عليا» حكر على حاملته (القاعدة تمنعه أيضًا عبر السياسة)
+  const canSuper = hasRole('super_admin');
+  const grantableRoles = (Object.keys(ROLE_LABELS) as AppRole[]).filter(r => r !== 'super_admin' || canSuper);
 
   const fetchAll = useCallback(async () => {
     const [{ data: userRows, error }, { data: roleRows }] = await Promise.all([
@@ -157,11 +161,13 @@ export default function UsersPage() {
                       <div className="flex flex-wrap gap-1">
                         {u.roles.length === 0 && <span className="text-muted-foreground text-sm">بلا دور</span>}
                         {u.roles.map(r => (
-                          <Badge key={r} variant={r === 'admin' ? 'default' : 'outline'} className="gap-1">
+                          <Badge key={r} variant={r === 'admin' || r === 'super_admin' ? 'default' : 'outline'} className="gap-1">
                             {ROLE_LABELS[r] ?? r}
-                            <button onClick={() => setRemoving({ u, role: r })} title="إزالة الدور">
-                              <X size={11} />
-                            </button>
+                            {(r !== 'super_admin' || canSuper) && (
+                              <button onClick={() => setRemoving({ u, role: r })} title="إزالة الدور">
+                                <X size={11} />
+                              </button>
+                            )}
                           </Badge>
                         ))}
                       </div>
@@ -170,7 +176,7 @@ export default function UsersPage() {
                       <Select value="" onValueChange={v => addRole(u, v as AppRole)}>
                         <SelectTrigger className="w-36"><SelectValue placeholder="+ دور" /></SelectTrigger>
                         <SelectContent>
-                          {(Object.keys(ROLE_LABELS) as AppRole[])
+                          {grantableRoles
                             .filter(r => !u.roles.includes(r))
                             .map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
                         </SelectContent>
@@ -199,7 +205,7 @@ export default function UsersPage() {
               <Select value={cForm.role} onValueChange={v => setCForm(f => ({ ...f, role: v as AppRole, linkId: '' }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(ROLE_LABELS) as AppRole[]).map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
+                  {grantableRoles.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

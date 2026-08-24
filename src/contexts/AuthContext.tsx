@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 // أدوار مقرأة الوقار — لا signUp في هذا النظام إطلاقًا (الحسابات تُنشأ من الإدارة)
-export type AppRole = 'admin' | 'teacher' | 'supervisor' | 'student' | 'report_viewer';
+export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'supervisor' | 'student' | 'report_viewer';
 
 interface AuthContextType {
   user: User | null;
@@ -21,7 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function homePathForRoles(roles: AppRole[]): string {
-  if (roles.includes('admin')) return '/';
+  if (roles.includes('admin') || roles.includes('super_admin')) return '/';
   if (roles.includes('teacher')) return '/teacher';
   if (roles.includes('supervisor')) return '/supervisor';
   if (roles.includes('student')) return '/me';
@@ -45,7 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('role')
       .eq('user_id', userId);
     if (data) {
-      setRoles(data.map(r => r.role as AppRole));
+      const rs = data.map(r => r.role as AppRole);
+      // المديرة العليا ترث admin تلقائيًا — كل فحوص المسارات والقوائم تمر دون تعديلها
+      if (rs.includes('super_admin') && !rs.includes('admin')) rs.unshift('admin');
+      setRoles(rs);
     }
     rolesForUser.current = userId;
     setRolesLoaded(true);

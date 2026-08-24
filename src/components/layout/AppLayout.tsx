@@ -91,6 +91,7 @@ const navItems: NavItem[] = [
 ];
 
 const roleLabels: Record<AppRole, string> = {
+  super_admin: 'المديرة العليا',
   admin: 'إدارة المقرأة',
   teacher: 'مسمعة',
   supervisor: 'مشرفة',
@@ -171,7 +172,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <div className="mb-2 px-2">
               <p className="text-sm font-medium truncate">{user?.email}</p>
               <p className="text-xs text-sidebar-foreground/60">
-                {roles.map(r => roleLabels[r] || r).join('، ')}
+                {roles
+                  .filter(r => !(r === 'admin' && roles.includes('super_admin')))
+                  .map(r => roleLabels[r] || r).join('، ')}
               </p>
             </div>
           )}
