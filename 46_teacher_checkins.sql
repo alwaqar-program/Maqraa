@@ -51,6 +51,12 @@ CREATE POLICY "Admins manage checkins" ON public.teacher_checkins
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+-- تغطية سجل النشاط (نمط ملف 43) — يوثق الإنشاء والتعديل والحذف
+DROP TRIGGER IF EXISTS trg_log_teacher_checkins ON public.teacher_checkins;
+CREATE TRIGGER trg_log_teacher_checkins
+  AFTER INSERT OR UPDATE OR DELETE ON public.teacher_checkins
+  FOR EACH ROW EXECUTE FUNCTION public.log_activity();
+
 -- أجر الساعة (ريال) لحساب المكافأة — تعدَّل من صفحة «دوام المسمعات»
 INSERT INTO public.app_settings (key, value)
 VALUES ('teacher_hour_rate', '0')
