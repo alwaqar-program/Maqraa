@@ -10,9 +10,7 @@ import NotFound from "./pages/NotFound";
 import Placeholder from "./pages/Placeholder";
 import TracksPage from "./pages/admin/TracksPage";
 import SeasonsPage from "./pages/admin/SeasonsPage";
-import SchedulingPage from "./pages/admin/SchedulingPage";
 import TeacherAvailabilityPage from "./pages/teacher/TeacherAvailabilityPage";
-import StudentBookingPage from "./pages/student/StudentBookingPage";
 import SardPage from "./pages/student/SardPage";
 import TasmeePage from "./pages/teacher/TasmeePage";
 import StudentHomePage from "./pages/student/StudentHomePage";
@@ -66,7 +64,6 @@ const PAGE_TITLES: [string, string][] = [
   ['/teachers', 'المسمعات'],
   ['/teacher-time', 'دوام المسمعات'],
   ['/applicants', 'المتقدمات'],
-  ['/scheduling', 'الجدولة والحجوزات'],
   ['/recitation', 'التسميع'],
   ['/attendance', 'الحضور'],
   ['/exams', 'الاختبارات'],
@@ -165,8 +162,7 @@ const App = () => (
             <Route path="/circles" element={<ProtectedRoute roles={['admin']}><CirclesPage /></ProtectedRoute>} />
             <Route path="/circles-report" element={<ProtectedRoute roles={['admin', 'supervisor', 'report_viewer']}><CirclesReportPage /></ProtectedRoute>} />
             <Route path="/students-archive" element={<ProtectedRoute roles={['admin']}><StudentsArchivePage /></ProtectedRoute>} />
-            {/* الجدولة القديمة (حجوزات فردية) — أبقيت الرابط للاطلاع على التاريخ فقط */}
-            <Route path="/scheduling" element={<ProtectedRoute roles={['admin']}><SchedulingPage /></ProtectedRoute>} />
+            {/* صفحة «الجدولة والحجوزات» القديمة حُذفت — نظام الحلقات حل محل الحجز الفردي */}
             <Route path="/recitation" element={<ProtectedRoute roles={['admin']}><RecitationAdminPage /></ProtectedRoute>} />
             <Route path="/attendance" element={<ProtectedRoute roles={['admin']}><AttendanceAdminPage /></ProtectedRoute>} />
             <Route path="/exams" element={<ProtectedRoute roles={['admin']}><ExamsAdminPage /></ProtectedRoute>} />

@@ -9,8 +9,8 @@ interface Stats {
   students: number;
   teachers: number;
   weeklyHours: number;
-  activeBookings: number;
-  vacantSlots: number;
+  inCircles: number;
+  withoutCircle: number;
   tasmeePages: number;
   selfPages: number;
   khatmahEquiv: number;
@@ -22,12 +22,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     (async () => {
-      const [students, teachers, hours, bookings, slots, tasmee, selfLogs, alerts] = await Promise.all([
+      const [students, teachers, hours, members, tasmee, selfLogs, alerts] = await Promise.all([
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('teachers').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('v_teacher_weekly_hours').select('total_hours'),
-        supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('availability_slots').select('id, bookings(status)').eq('is_active', true),
+        supabase.from('circle_members').select('id', { count: 'exact', head: true }),
         supabase.from('teacher_recitation_log').select('pages').eq('is_deleted', false),
         supabase.from('self_recitation_log').select('pages').eq('is_deleted', false),
         supabase.from('v_absence_alerts').select('*'),
@@ -38,8 +37,9 @@ export default function DashboardPage() {
         students: students.count ?? 0,
         teachers: teachers.count ?? 0,
         weeklyHours: Math.round((hours.data || []).reduce((a: number, r: any) => a + Number(r.total_hours || 0), 0) * 10) / 10,
-        activeBookings: bookings.count ?? 0,
-        vacantSlots: (slots.data || []).filter((s: any) => !(s.bookings || []).some((b: any) => b.status === 'active')).length,
+        // الطالبة في حلقة واحدة (student_id فريد في circle_members) — والباقيات بلا حلقة
+        inCircles: members.count ?? 0,
+        withoutCircle: Math.max(0, (students.count ?? 0) - (members.count ?? 0)),
         tasmeePages: Math.round(tasmeePages),
         selfPages: Math.round(selfPages),
         khatmahEquiv: Math.round(((tasmeePages + selfPages) / 604) * 100) / 100,
@@ -53,12 +53,12 @@ export default function DashboardPage() {
   const tiles = [
     { label: 'الطالبات', value: stats.students, icon: <Users size={20} />, href: '/students' },
     { label: 'المسمعات', value: stats.teachers, icon: <GraduationCap size={20} />, href: '/teachers' },
-    { label: 'ساعة أسبوعية', value: stats.weeklyHours, icon: <CalendarClock size={20} />, href: '/scheduling' },
-    { label: 'موعد محجوز', value: stats.activeBookings, icon: <CalendarClock size={20} />, href: '/scheduling' },
+    { label: 'ساعة أسبوعية', value: stats.weeklyHours, icon: <CalendarClock size={20} />, href: '/teacher-time' },
+    { label: 'طالبة في حلقة', value: stats.inCircles, icon: <CalendarClock size={20} />, href: '/circles' },
     { label: 'وجه تسميع', value: stats.tasmeePages, icon: <Mic size={20} />, href: '/reports' },
     { label: 'وجه سرد ذاتي', value: stats.selfPages, icon: <BookOpen size={20} />, href: '/reports' },
     { label: 'ختمة مكافئة', value: stats.khatmahEquiv, icon: <Repeat size={20} />, href: '/reports' },
-    { label: 'موعد شاغر', value: stats.vacantSlots, icon: <CalendarClock size={20} />, href: '/scheduling' },
+    { label: 'طالبة بلا حلقة', value: stats.withoutCircle, icon: <CalendarClock size={20} />, href: '/circles' },
   ];
 
   return (

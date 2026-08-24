@@ -15,7 +15,7 @@ import { WEEKDAYS, formatTime, totalWeeklyHours, Slot } from '@/lib/schedule';
 import { TimeSelect } from '@/components/TimeSelect';
 
 interface SlotWithBooking extends Slot {
-  booking?: { id: string; student_name: string } | null;
+  circleNumber?: number | null;
 }
 
 export default function TeacherAvailabilityPage() {
@@ -36,7 +36,7 @@ export default function TeacherAvailabilityPage() {
     setMeetingLink(teacher.meeting_link || '');
 
     const [{ data: slotRows }, { data: settings }] = await Promise.all([
-      supabase.from('availability_slots').select('*, bookings(id, status, students(full_name))')
+      supabase.from('availability_slots').select('*, circle_slots(circles(number))')
         .eq('teacher_id', teacher.id).order('weekday').order('start_time'),
       supabase.from('app_settings').select('key, value')
         .in('key', ['teacher_min_hours_per_week', 'teacher_max_hours_per_week']),
@@ -45,10 +45,9 @@ export default function TeacherAvailabilityPage() {
       min: Number(settings?.find(s => s.key === 'teacher_min_hours_per_week')?.value ?? 2),
       max: Number(settings?.find(s => s.key === 'teacher_max_hours_per_week')?.value ?? 12),
     });
-    setSlots((slotRows || []).map((s: any) => {
-      const active = (s.bookings || []).find((b: any) => b.status === 'active');
-      return { ...s, booking: active ? { id: active.id, student_name: active.students?.full_name ?? '—' } : null };
-    }));
+    setSlots((slotRows || []).map((s: any) => (
+      { ...s, circleNumber: s.circle_slots?.[0]?.circles?.number ?? null }
+    )));
     setLoading(false);
   }, []);
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -83,7 +82,7 @@ export default function TeacherAvailabilityPage() {
   };
 
   const removeSlot = async (s: SlotWithBooking) => {
-    if (s.booking) { toast({ title: 'الموعد محجوز — ألغي الحجز أولًا من صفحة جلساتي', variant: 'destructive' }); return; }
+    if (s.circleNumber != null) { toast({ title: `الموعد مرتبط بحلقة ${s.circleNumber} — تواصلي مع الإدارة لتعديل الحلقة أولًا`, variant: 'destructive' }); return; }
     const { error } = await supabase.from('availability_slots').delete().eq('id', s.id);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     else fetchAll();
@@ -153,12 +152,12 @@ export default function TeacherAvailabilityPage() {
                     <TableCell>{formatTime(s.start_time)}</TableCell>
                     <TableCell>{formatTime(s.end_time)}</TableCell>
                     <TableCell>
-                      {s.booking
-                        ? <Badge className="bg-accent text-accent-foreground">محجوزة: {s.booking.student_name}</Badge>
-                        : <Badge variant="outline">شاغرة</Badge>}
+                      {s.circleNumber != null
+                        ? <Badge className="bg-accent text-accent-foreground">حلقة {s.circleNumber}</Badge>
+                        : <Badge variant="outline">غير مرتبطة بحلقة</Badge>}
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => removeSlot(s)} disabled={!!s.booking}>
+                      <Button variant="ghost" size="icon" onClick={() => removeSlot(s)} disabled={s.circleNumber != null}>
                         <Trash2 size={16} />
                       </Button>
                     </TableCell>

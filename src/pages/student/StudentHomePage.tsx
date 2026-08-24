@@ -15,7 +15,7 @@ interface HomeData {
   selfPages: number;
   teacherPages: number;
   khatmahEquiv: number;
-  booking: { weekday: number; start_time: string; teacher: string; link: string | null } | null;
+  circle: { number: number; weekday: number; start_time: string; my_time: string | null; teacher: string; link: string | null } | null;
 }
 
 export default function StudentHomePage() {
@@ -28,16 +28,16 @@ export default function StudentHomePage() {
         .select('id, full_name, tracks(name, quota_pages_per_season)').limit(1).maybeSingle();
       if (!me) { setLoading(false); return; }
 
-      const [{ data: selfLogs }, { data: teacherLogs }, { data: booking }] = await Promise.all([
+      const [{ data: selfLogs }, { data: teacherLogs }, { data: membership }] = await Promise.all([
         supabase.from('self_recitation_log').select('pages').eq('student_id', me.id).eq('is_deleted', false),
         supabase.from('teacher_recitation_log').select('pages').eq('student_id', me.id).eq('is_deleted', false),
-        supabase.from('bookings')
-          .select('availability_slots(weekday, start_time, teachers(full_name, meeting_link))')
-          .eq('student_id', me.id).eq('status', 'active').maybeSingle(),
+        supabase.from('circle_members')
+          .select('start_time, circles(number, weekday, start_time, teachers(full_name, meeting_link))')
+          .eq('student_id', me.id).maybeSingle(),
       ]);
       const selfPages = (selfLogs || []).reduce((s: number, r: any) => s + Number(r.pages || 0), 0);
       const teacherPages = (teacherLogs || []).reduce((s: number, r: any) => s + Number(r.pages || 0), 0);
-      const slot: any = booking?.availability_slots;
+      const c: any = membership?.circles;
       const track: any = me.tracks;
       setData({
         name: me.full_name,
@@ -45,9 +45,10 @@ export default function StudentHomePage() {
         quotaPages: track?.quota_pages_per_season ?? null,
         selfPages, teacherPages,
         khatmahEquiv: Math.round(((selfPages + teacherPages) / 604) * 100) / 100,
-        booking: slot ? {
-          weekday: slot.weekday, start_time: slot.start_time,
-          teacher: slot.teachers?.full_name ?? '—', link: slot.teachers?.meeting_link ?? null,
+        circle: c ? {
+          number: c.number, weekday: c.weekday, start_time: c.start_time,
+          my_time: (membership as any)?.start_time ?? null,
+          teacher: c.teachers?.full_name ?? '—', link: c.teachers?.meeting_link ?? null,
         } : null,
       });
       setLoading(false);
@@ -95,24 +96,25 @@ export default function StudentHomePage() {
         </CardContent>
       </Card>
 
-      {/* موعدي */}
+      {/* حلقتي */}
       <Card>
-        <CardHeader><CardTitle className="text-base font-body">موعدك الأسبوعي</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base font-body">حلقتك</CardTitle></CardHeader>
         <CardContent>
-          {data.booking ? (
+          {data.circle ? (
             <div className="flex flex-wrap items-center gap-4">
-              <p><b>{WEEKDAYS[data.booking.weekday]}</b> {formatTime(data.booking.start_time)} — المسمعة {data.booking.teacher}</p>
-              {data.booking.link && (
+              <p>
+                <b>حلقة {data.circle.number}</b> — {WEEKDAYS[data.circle.weekday]} {formatTime(data.circle.start_time)}
+                {data.circle.my_time && <> (وقتك {formatTime(data.circle.my_time)})</>} — المسمعة {data.circle.teacher}
+              </p>
+              {data.circle.link && (
                 <Button asChild size="sm" className="gap-1">
-                  <a href={data.booking.link} target="_blank" rel="noreferrer"><ExternalLink size={14} /> دخول الجلسة</a>
+                  <a href={data.circle.link} target="_blank" rel="noreferrer"><ExternalLink size={14} /> دخول الجلسة</a>
                 </Button>
               )}
+              <Button asChild size="sm" variant="outline"><Link to="/me/circle">تفاصيل حلقتي</Link></Button>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <p className="text-muted-foreground">لم تحجزي موعدك بعد</p>
-              <Button asChild size="sm"><Link to="/me/booking">احجزي الآن</Link></Button>
-            </div>
+            <p className="text-muted-foreground">لم توضعي في حلقة بعد — سيتم توزيع الحلقات وستجدينها في «حلقتي».</p>
           )}
         </CardContent>
       </Card>

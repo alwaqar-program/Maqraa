@@ -38,7 +38,7 @@ interface Teacher {
   booked?: number;
 }
 
-interface SlotRow { key: string; id?: string; weekday: number; start_time: string; end_time: string; is_daily?: boolean; booked?: boolean; studentName?: string }
+interface SlotRow { key: string; id?: string; weekday: number; start_time: string; end_time: string; is_daily?: boolean; booked?: boolean; circleLabel?: string }
 
 const DAILY_DAYS = [1, 2, 3, 4, 5, 6];   // الاثنين → السبت
 let slotKeySeq = 0;
@@ -101,10 +101,11 @@ export default function TeachersPage() {
   };
 
   const fetchAll = useCallback(async () => {
-    const [{ data: rows, error }, { data: hours }, { data: bookings }, { data: agr }] = await Promise.all([
+    const [{ data: rows, error }, { data: hours }, { data: members }, { data: agr }] = await Promise.all([
       supabase.from('teachers').select('*').order('full_name'),
       supabase.from('v_teacher_weekly_hours').select('*'),
-      supabase.from('bookings').select('slot_id, status, availability_slots(teacher_id)').eq('status', 'active'),
+      // طالبات كل مسمعة من عضويات حلقاتها
+      supabase.from('circle_members').select('circles(teacher_id)').range(0, 4999),
       supabase.from('teacher_agreements').select('*').eq('status', 'pending').order('created_at'),
     ]);
     setAgreements(agr || []);
@@ -112,7 +113,8 @@ export default function TeachersPage() {
     setTeachers((rows || []).map((t: any) => ({
       ...t,
       total_hours: (hours || []).find((h: any) => h.teacher_id === t.id)?.total_hours ?? 0,
-      booked: (bookings || []).filter((b: any) => b.availability_slots?.teacher_id === t.id).length,
+      // عدد طالباتها = عضويات حلقاتها
+      booked: (members || []).filter((m: any) => m.circles?.teacher_id === t.id).length,
     })));
     setLoading(false);
   }, [toast]);
@@ -149,15 +151,16 @@ export default function TeachersPage() {
       phone: t.phone ?? '', email: t.email ?? '', meeting_link: t.meeting_link ?? '',
       track_id: t.track_id ?? '', color: t.color ?? '',
     });
+    // ارتباط كل موعد بحلقته (إن وُجد) — حذفُ موعد مرتبط يقلّص مواعيد الحلقة وسعتها
     const { data } = await supabase.from('availability_slots')
-      .select('id, weekday, start_time, end_time, is_daily, bookings(id, status, students(full_name))')
+      .select('id, weekday, start_time, end_time, is_daily, circle_slots(circles(number))')
       .eq('teacher_id', t.id).order('weekday').order('start_time');
     const rows: SlotRow[] = (data || []).map((s: any) => {
-      const active = (s.bookings || []).find((b: any) => b.status === 'active');
+      const circleNo = s.circle_slots?.[0]?.circles?.number;
       return {
         key: s.id, id: s.id, weekday: s.weekday, is_daily: !!s.is_daily,
         start_time: s.start_time.slice(0, 5), end_time: s.end_time.slice(0, 5),
-        booked: !!active, studentName: active?.students?.full_name,
+        booked: circleNo != null, circleLabel: circleNo != null ? `حلقة ${circleNo}` : undefined,
       };
     });
     setSlots(rows); setOrigSlots(rows);
@@ -468,8 +471,8 @@ export default function TeachersPage() {
                 const updateRows = (keys: string[], patch: Partial<SlotRow>) =>
                   setSlots(slots.map(x => keys.includes(x.key) ? { ...x, ...patch } : x));
                 const removeOrAsk = (rows: SlotRow[]) => {
-                  const booked = rows.filter(r => r.booked);
-                  if (booked.length) setConfirmDelete({ keys: rows.map(r => r.key), names: booked.map(r => r.studentName ?? 'طالبة') });
+                  const linked = rows.filter(r => r.booked);
+                  if (linked.length) setConfirmDelete({ keys: rows.map(r => r.key), names: [...new Set(linked.map(r => r.circleLabel ?? 'حلقة'))] });
                   else setSlots(slots.filter(x => !rows.some(r => r.key === x.key)));
                 };
                 // تعديل مدى الدوري (من يوم/إلى يوم): تُعاد كتابة صفوف المجموعة
@@ -478,7 +481,7 @@ export default function TeachersPage() {
                   const days = Array.from({ length: to - from + 1 }, (_, i) => from + i);
                   const dropped = rows.filter(r => !days.includes(r.weekday));
                   if (dropped.some(r => r.booked)) {
-                    toast({ title: 'يوم ضمن المدى محجوز من طالبة', description: 'ألغي الحجز أولًا ثم ضيّقي المدى', variant: 'destructive' });
+                    toast({ title: 'يوم ضمن المدى مرتبط بحلقة', description: 'عدّلي مواعيد الحلقة من صفحة الحلقات أولًا ثم ضيّقي المدى', variant: 'destructive' });
                     return;
                   }
                   const kept = rows.filter(r => days.includes(r.weekday));
@@ -493,7 +496,7 @@ export default function TeachersPage() {
                 return groups.map(g => {
                   const keys = g.rows.map(r => r.key);
                   const first = g.rows[0], last = g.rows[g.rows.length - 1];
-                  const bookedNames = g.rows.filter(r => r.booked).map(r => r.studentName ?? 'طالبة');
+                  const linkedCircles = [...new Set(g.rows.filter(r => r.booked).map(r => r.circleLabel ?? 'حلقة'))];
                   return (
                     <div key={first.key} className="flex items-center gap-2 flex-wrap border rounded-lg p-2">
                       {g.range ? (
@@ -525,9 +528,9 @@ export default function TeachersPage() {
                       <span className="text-muted-foreground text-sm">إلى</span>
                       <TimeSelect className="w-28" value={first.end_time} onChange={v => updateRows(keys, { end_time: v })} />
                       <span className="mr-auto flex items-center gap-2">
-                        {bookedNames.length > 0 && (
+                        {linkedCircles.length > 0 && (
                           <Badge variant="outline" className="text-warning border-warning">
-                            محجوز — {bookedNames.join('، ')}
+                            مرتبط — {linkedCircles.join('، ')}
                           </Badge>
                         )}
                         <button type="button" className="text-muted-foreground hover:text-destructive"
@@ -560,15 +563,15 @@ export default function TeachersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* تأكيد حذف موعد محجوز */}
+      {/* تأكيد حذف موعد مرتبط بحلقة */}
       <AlertDialog open={confirmDelete !== null} onOpenChange={open => !open && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف موعد محجوز</AlertDialogTitle>
+            <AlertDialogTitle>حذف موعد مرتبط بحلقة</AlertDialogTitle>
             <AlertDialogDescription>
-              هذا الموعد محجوز من {confirmDelete?.names.join('، ') ?? 'طالبة'}.
-              حذفه يلغي الحجز وتصبح الطالبة بلا موعد — ستظهر مميزة بـ«بلا موعد» في صفحة الطالبات حتى تحجز من جديد.
-              الحذف يُنفذ عند «حفظ التعديل».
+              هذا الموعد من مواعيد {confirmDelete?.names.join('، ') ?? 'حلقة'}.
+              حذفه يزيل هذا اليوم من مواعيد الحلقة وتقل سعتها — الطالبات يبقين في الحلقة،
+              فراجعي توزيعهن من صفحة الحلقات بعد الحذف. الحذف يُنفذ عند «حفظ التعديل».
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -588,7 +591,7 @@ export default function TeachersPage() {
             <AlertDialogTitle>حذف المسمعة نهائيًا</AlertDialogTitle>
             <AlertDialogDescription>
               ستُحذف «{deletingTeacher?.full_name}» ومواعيد توفرها نهائيًا.
-              {(deletingTeacher?.booked ?? 0) > 0 && ` لديها ${deletingTeacher?.booked} حجوزات نشطة ستُلغى.`}
+              {(deletingTeacher?.booked ?? 0) > 0 && ` في حلقاتها ${deletingTeacher?.booked} طالبة.`}
               {isSuper
                 ? ' ستُحذف حلقاتها وعضويات طالباتها فيها أيضًا. يبقى مانع واحد: إن كان لها سجلات تسميع أو تحضير فهي تاريخ الطالبات ولن تُحذف — الأنسب حينها تعطيلها بمفتاح «نشطة».'
                 : ' إن كان لها سجلات (حلقة أو تسميع أو حضور أو اختبارات) فسيمنع النظام الحذف حفاظًا على السجلات — وحينها الأنسب تعطيلها بمفتاح «نشطة».'}

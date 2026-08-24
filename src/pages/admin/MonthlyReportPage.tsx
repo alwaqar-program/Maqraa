@@ -48,7 +48,7 @@ export default function MonthlyReportPage() {
                         new Date(`${month}-01T12:00:00`).getMonth() + 1, 0)
       .toISOString().slice(0, 10);
 
-    const [sup, teach, sts, slots, tasmee, sard, allTasmee, allSard, bookings] = await Promise.all([
+    const [sup, teach, sts, slots, tasmee, sard, allTasmee, allSard, members] = await Promise.all([
       supabase.from('supervisors').select('id', { count: 'exact', head: true }),
       supabase.from('teachers').select('id, full_name').eq('is_active', true),
       supabase.from('students').select('id', { count: 'exact', head: true }).eq('is_active', true),
@@ -57,7 +57,7 @@ export default function MonthlyReportPage() {
       supabase.from('self_recitation_log').select('pages').gte('date', from).lte('date', to).eq('is_deleted', false),
       supabase.from('teacher_recitation_log').select('student_id, pages, date').lte('date', to).eq('is_deleted', false),
       supabase.from('self_recitation_log').select('student_id, pages, date').lte('date', to).eq('is_deleted', false),
-      supabase.from('bookings').select('availability_slots(teacher_id)').eq('status', 'active'),
+      supabase.from('circle_members').select('circles(teacher_id)').range(0, 4999),
     ]);
     if (teach.error) { toast({ title: 'خطأ', description: teach.error.message, variant: 'destructive' }); return; }
 
@@ -77,7 +77,7 @@ export default function MonthlyReportPage() {
 
     const perTeacher: TeacherRow[] = (teach.data || []).map((t: any) => ({
       name: t.full_name,
-      students: (bookings.data || []).filter((b: any) => b.availability_slots?.teacher_id === t.id).length,
+      students: (members.data || []).filter((m: any) => m.circles?.teacher_id === t.id).length,
       hours: Math.round((slots.data || []).filter((s: any) => s.teacher_id === t.id)
         .reduce((a: number, s: any) => a + slotHours(s.start_time, s.end_time), 0) * 10) / 10,
     })).filter(t => t.students > 0 || t.hours > 0);
