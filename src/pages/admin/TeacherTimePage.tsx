@@ -142,7 +142,7 @@ export default function TeacherTimePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>المسمعة</TableHead>
-                  <TableHead>الجلسات</TableHead>
+                  <TableHead>الفترات</TableHead>
                   <TableHead>مجموع الوقت (ساعة:دقيقة)</TableHead>
                   <TableHead>المكافأة</TableHead>
                   <TableHead>ملاحظات</TableHead>

@@ -27,7 +27,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 export default function TeacherHomePage() {
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [circles, setCircles] = useState<CircleToday[]>([]);
-  const [checkins, setCheckins] = useState<Record<string, Checkin>>({});
+  // كل فترات اليوم لكل حلقة — يجوز البدء أكثر من مرة (خروج ثم عودة لطالبة متأخرة)
+  const [checkins, setCheckins] = useState<Record<string, Checkin[]>>({});
   const [attState, setAttState] = useState<Record<string, { status: string; reason: string }>>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -48,9 +49,11 @@ export default function TeacherHomePage() {
       supabase.from('session_attendance').select('student_id, status, reason')
         .eq('teacher_id', me.id).eq('date', todayStr).eq('is_deleted', false),
       supabase.from('teacher_checkins').select('id, circle_id, started_at, ended_at, minutes')
-        .eq('teacher_id', me.id).eq('date', todayStr),
+        .eq('teacher_id', me.id).eq('date', todayStr).order('started_at'),
     ]);
-    setCheckins(Object.fromEntries((cks || []).map((c: any) => [c.circle_id, c])));
+    const grouped: Record<string, Checkin[]> = {};
+    (cks || []).forEach((k: any) => { (grouped[k.circle_id] ??= []).push(k); });
+    setCheckins(grouped);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setCircles((cs || []).map((c: any) => ({
       id: c.id, number: c.number, start_time: c.start_time, end_time: c.end_time,
@@ -81,26 +84,29 @@ export default function TeacherHomePage() {
     setAttState(prev => ({ ...prev, [studentId]: { status, reason: status === 'present' ? '' : reason } }));
   };
 
-  // تسجيل بدء الحلقة (check-in)
+  // تسجيل بدء فترة جديدة (check-in) — يجوز أكثر من فترة في اليوم
   const startCircle = async (circleId: string) => {
     if (!teacherId) return;
     const { data, error } = await supabase.from('teacher_checkins')
       .insert({ teacher_id: teacherId, circle_id: circleId, date: todayStr })
       .select('id, circle_id, started_at, ended_at, minutes').single();
     if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
-    setCheckins(prev => ({ ...prev, [circleId]: data as Checkin }));
+    setCheckins(prev => ({ ...prev, [circleId]: [...(prev[circleId] ?? []), data as Checkin] }));
     toast({ title: 'سُجّل بدء الحلقة' });
   };
 
-  // تسجيل انتهاء الحلقة (check-out)
+  // تسجيل انتهاء الفترة الجارية (check-out)
   const endCircle = async (circleId: string) => {
-    const ck = checkins[circleId];
-    if (!ck) return;
+    const open = (checkins[circleId] ?? []).find(k => !k.ended_at);
+    if (!open) return;
     const { data, error } = await supabase.from('teacher_checkins')
-      .update({ ended_at: new Date().toISOString() }).eq('id', ck.id)
+      .update({ ended_at: new Date().toISOString() }).eq('id', open.id)
       .select('id, circle_id, started_at, ended_at, minutes').single();
     if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
-    setCheckins(prev => ({ ...prev, [circleId]: data as Checkin }));
+    setCheckins(prev => ({
+      ...prev,
+      [circleId]: (prev[circleId] ?? []).map(k => k.id === open.id ? data as Checkin : k),
+    }));
     toast({ title: 'سُجّل انتهاء الحلقة' });
   };
 
@@ -131,24 +137,34 @@ export default function TeacherHomePage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {(() => {
-                  const ck = checkins[c.id];
-                  if (!ck) return (
-                    <Button size="sm" className="w-full gap-1.5" onClick={() => startCircle(c.id)}>
-                      <Play size={14} /> تسجيل بدء الحلقة
-                    </Button>
-                  );
-                  if (!ck.ended_at) return (
-                    <div className="flex items-center gap-2 flex-wrap rounded-lg border border-success/40 bg-success/5 px-3 py-2">
-                      <span className="text-sm">بدأتِ الساعة <b>{clockOf(ck.started_at)}</b> — الحلقة جارية</span>
-                      <Button size="sm" variant="outline" className="mr-auto gap-1.5" onClick={() => endCircle(c.id)}>
-                        <Square size={13} /> تسجيل انتهاء الحلقة
-                      </Button>
-                    </div>
+                  const list = checkins[c.id] ?? [];
+                  const open = list.find(k => !k.ended_at);
+                  const done = list.filter(k => k.ended_at);
+                  const totalMins = done.reduce((s, k) => s + (k.minutes ?? 0), 0);
+                  const summary = done.length > 0 && (
+                    <p className="text-sm text-muted-foreground rounded-lg border px-3 py-2">
+                      {done.length === 1
+                        ? <>بدأت {clockOf(done[0].started_at)} — انتهت {clockOf(done[0].ended_at!)}</>
+                        : <>{done.length} فترات ({done.map(k => `${clockOf(k.started_at)}–${clockOf(k.ended_at!)}`).join('، ')})</>}
+                      {' · '}المجموع <b>{totalMins} دقيقة</b>
+                    </p>
                   );
                   return (
-                    <p className="text-sm text-muted-foreground rounded-lg border px-3 py-2">
-                      بدأت {clockOf(ck.started_at)} — انتهت {clockOf(ck.ended_at)} · المدة <b>{ck.minutes} دقيقة</b>
-                    </p>
+                    <div className="space-y-2">
+                      {summary}
+                      {open ? (
+                        <div className="flex items-center gap-2 flex-wrap rounded-lg border border-success/40 bg-success/5 px-3 py-2">
+                          <span className="text-sm">بدأتِ الساعة <b>{clockOf(open.started_at)}</b> — الحلقة جارية</span>
+                          <Button size="sm" variant="outline" className="mr-auto gap-1.5" onClick={() => endCircle(c.id)}>
+                            <Square size={13} /> تسجيل انتهاء الحلقة
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" className="w-full gap-1.5" onClick={() => startCircle(c.id)}>
+                          <Play size={14} /> {done.length > 0 ? 'بدء فترة جديدة (طالبة متأخرة ونحوه)' : 'تسجيل بدء الحلقة'}
+                        </Button>
+                      )}
+                    </div>
                   );
                 })()}
                 {c.members.length === 0 && <p className="text-sm text-muted-foreground">لا طالبات في هذه الحلقة.</p>}

@@ -2,8 +2,9 @@
 -- 46_teacher_checkins.sql — تسجيل بدء/انتهاء الحلقة للمسمعة (check-in/out)
 -- المسمعة تسجل «بدأتُ الحلقة» عند البدء و«أنهيتُها» عند الانتهاء،
 -- والمدة تُحسب تلقائيًا بالدقائق لاحتساب المكافأة على الوقت الفعلي.
--- التتبع يظهر لمديرة النظام في صفحة «دوام المسمعات».
--- سجل واحد لكل حلقة في اليوم. آمن لإعادة التنفيذ.
+-- يجوز أكثر من فترة للحلقة في اليوم نفسه (تخرج ثم تعود لطالبة متأخرة)
+-- والمجموع يتراكم. التتبع يظهر لمديرة النظام في «دوام المسمعات».
+-- آمن لإعادة التنفيذ.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.teacher_checkins (
@@ -20,9 +21,11 @@ CREATE TABLE IF NOT EXISTS public.teacher_checkins (
     END
   ) STORED,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (circle_id, date),
   CHECK (ended_at IS NULL OR ended_at >= started_at)
 );
+-- إن نُفذ الملف بصيغته الأولى (قيد سجل واحد/حلقة/يوم) فأزيلي القيد
+ALTER TABLE public.teacher_checkins
+  DROP CONSTRAINT IF EXISTS teacher_checkins_circle_id_date_key;
 CREATE INDEX IF NOT EXISTS idx_teacher_checkins_teacher_date
   ON public.teacher_checkins (teacher_id, date);
 
