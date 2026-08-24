@@ -29,7 +29,7 @@ interface UserRow {
 interface LinkCandidate { id: string; full_name: string; email: string | null; }
 
 const ROLE_LABELS: Record<AppRole, string> = {
-  super_admin: 'مديرة عليا', admin: 'مديرة النظام', teacher: 'مسمعة', supervisor: 'مشرفة',
+  super_admin: 'مسؤولة تقنية', admin: 'مديرة النظام', teacher: 'مسمعة', supervisor: 'مشرفة',
   student: 'طالبة', report_viewer: 'مُطّلع تقارير',
 };
 

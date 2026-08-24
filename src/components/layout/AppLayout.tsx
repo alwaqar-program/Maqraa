@@ -32,6 +32,7 @@ import {
   Home,
   FileEdit,
   ListOrdered,
+  Timer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logoAlwaqar from '@/assets/logo-alwaqar.png';
@@ -49,6 +50,7 @@ const navItems: NavItem[] = [
   { label: 'لوحة المعلومات', href: '/', icon: <LayoutDashboard size={20} />, roles: ['admin'] },
   { label: 'الطالبات', href: '/students', icon: <Users size={20} />, roles: ['admin'] },
   { label: 'المسمعات', href: '/teachers', icon: <GraduationCap size={20} />, roles: ['admin'] },
+  { label: 'دوام المسمعات', href: '/teacher-time', icon: <Timer size={20} />, roles: ['admin'] },
   { label: 'المتقدمات', href: '/applicants', icon: <UserPlus size={20} />, roles: ['admin'] },
   { label: 'فرز الطالبات', href: '/sorting', icon: <ListOrdered size={20} />, roles: ['admin'] },
   { label: 'الحلقات', href: '/circles', icon: <CalendarClock size={20} />, roles: ['admin'] },
@@ -70,10 +72,11 @@ const navItems: NavItem[] = [
   { label: 'النماذج', href: '/forms', icon: <FileEdit size={20} />, roles: ['admin'] },
   { label: 'الإعدادات', href: '/settings', icon: <Settings size={20} />, roles: ['admin'] },
   // المسمعة
-  { label: 'حلقاتي والتحضير', href: '/teacher', icon: <Home size={20} />, roles: ['teacher'] },
+  { label: 'حلقاتي', href: '/teacher', icon: <Home size={20} />, roles: ['teacher'] },
   { label: 'أوقات توفري', href: '/teacher/availability', icon: <CalendarClock size={20} />, roles: ['teacher'] },
   { label: 'تسجيل التسميع', href: '/teacher/tasmee', icon: <Mic size={20} />, roles: ['teacher'] },
-  // «الحضور» أزيل — التحضير يتم من «حلقاتي والتحضير»؛ «الاختبارات» مخفية مؤقتًا بطلب الإدارة
+  { label: 'التحضير', href: '/teacher/attendance', icon: <ClipboardCheck size={20} />, roles: ['teacher'] },
+  // «الاختبارات» مخفية مؤقتًا بطلب الإدارة
   { label: 'طالباتي', href: '/teacher/students', icon: <Users size={20} />, roles: ['teacher'] },
   { label: 'اقتراحاتي', href: '/teacher/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['teacher'] },
   // المشرفة
@@ -90,7 +93,7 @@ const navItems: NavItem[] = [
 ];
 
 const roleLabels: Record<AppRole, string> = {
-  super_admin: 'المديرة العليا',
+  super_admin: 'مسؤولة تقنية',
   admin: 'إدارة المقرأة',
   teacher: 'مسمعة',
   supervisor: 'مشرفة',
