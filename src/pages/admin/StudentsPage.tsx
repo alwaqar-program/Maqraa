@@ -15,6 +15,7 @@ import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Users, Search, UserMinus, Archive, Eye } from 'lucide-react';
+import { SuperDeleteButton } from '@/components/ui/super-delete';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
@@ -231,6 +232,18 @@ export default function StudentsPage() {
                         onClick={() => { setLeaving(s); setLeaveForm({ kind: 'withdrawn', date: new Date().toISOString().slice(0, 10), reason: '' }); }}>
                         <UserMinus size={16} />
                       </Button>
+                      <SuperDeleteButton title={`حذف ${s.full_name} نهائيًا`}
+                        description={`ستُحذف الطالبة بكل سجلاتها: التسميع والسرد والحضور والاختبارات وعضوية الحلقة والتعهدات. الانسحاب/الاستبعاد يحفظ السجلات — الحذف يمحوها.${s.user_id ? ' ولها حساب دخول — عطّليه من صفحة المستخدمين بعد الحذف.' : ''}`}
+                        onConfirm={async () => {
+                          // سجل المتقدمات لا يُحذف — يُفك ربطه فقط (المرجع الوحيد بلا حذف متسلسل)
+                          const { error: unlinkErr } = await supabase.from('applicants')
+                            .update({ student_id: null }).eq('student_id', s.id);
+                          if (unlinkErr) { toast({ title: 'تعذر فك ارتباط المتقدمات', description: unlinkErr.message, variant: 'destructive' }); return; }
+                          const { error } = await supabase.from('students').delete().eq('id', s.id);
+                          if (error) { toast({ title: 'تعذر الحذف', description: error.message, variant: 'destructive' }); return; }
+                          toast({ title: `حُذفت ${s.full_name} وكل سجلاتها نهائيًا` });
+                          fetchAll();
+                        }} />
                     </TableCell>
                   </TableRow>
                 ))}

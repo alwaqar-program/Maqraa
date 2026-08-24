@@ -12,6 +12,7 @@ import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Mic, Search } from 'lucide-react';
 import { surahNameOf } from '@/lib/mushaf';
+import { SuperDeleteButton, useSuperAdmin } from '@/components/ui/super-delete';
 
 interface Row {
   id: string; date: string; student_name: string; teacher_name?: string;
@@ -30,6 +31,15 @@ export default function RecitationAdminPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const isSuper = useSuperAdmin();
+
+  const hardDelete = async (r: Row) => {
+    const table = tab === 'tasmee' ? 'teacher_recitation_log' : 'self_recitation_log';
+    const { error } = await supabase.from(table).delete().eq('id', r.id);
+    if (error) { toast({ title: 'تعذر الحذف', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: `حُذف سجل ${r.student_name} — ${r.date} نهائيًا` });
+    fetchAll();
+  };
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -110,6 +120,7 @@ export default function RecitationAdminPage() {
                     <SortableHead label="التقدير" sortKey="grade" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                     <SortableHead label="المسمعة" sortKey="teacher" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   </>}
+                  {isSuper && <TableHead />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -126,6 +137,14 @@ export default function RecitationAdminPage() {
                       <TableCell><Badge variant={r.grade === 'ممتاز' ? 'default' : 'outline'}>{r.grade}</Badge></TableCell>
                       <TableCell>{r.teacher_name}</TableCell>
                     </>}
+                    {isSuper && (
+                      <TableCell>
+                        <SuperDeleteButton
+                          title={tab === 'tasmee' ? 'حذف سجل التسميع' : 'حذف سجل السرد'}
+                          description={`سيُحذف سجل ${r.student_name} بتاريخ ${r.date} (${r.pages} صفحة) وينقص إنجازها بمقداره.`}
+                          onConfirm={() => hardDelete(r)} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
