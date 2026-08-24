@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -35,6 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [authLoading, setAuthLoading] = useState(true);
   const [rolesLoaded, setRolesLoaded] = useState(false);
+  // آخر مستخدم حُمِّلت أدواره — كي لا تُعاد شاشة التحميل عند تجديد التوكن
+  // (العودة للتبويب تُطلق onAuthStateChange لنفس المستخدم فتفكّك الصفحة وتفقد مكانها)
+  const rolesForUser = useRef<string | null>(null);
 
   const fetchRoles = async (userId: string) => {
     const { data } = await supabase
@@ -44,35 +47,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       setRoles(data.map(r => r.role as AppRole));
     }
+    rolesForUser.current = userId;
     setRolesLoaded(true);
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          setRolesLoaded(false);
-          setTimeout(() => fetchRoles(session.user.id), 0);
-        } else {
-          setRoles([]);
-          setRolesLoaded(true);
-        }
-        setAuthLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const handleSession = (session: Session | null) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchRoles(session.user.id);
+        if (rolesForUser.current !== session.user.id) {
+          setRolesLoaded(false);
+          const userId = session.user.id;
+          setTimeout(() => fetchRoles(userId), 0);
+        }
       } else {
+        rolesForUser.current = null;
+        setRoles([]);
         setRolesLoaded(true);
       }
       setAuthLoading(false);
-    });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => handleSession(session)
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => handleSession(session));
 
     return () => subscription.unsubscribe();
   }, []);
