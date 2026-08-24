@@ -93,7 +93,7 @@ const navItems: NavItem[] = [
 ];
 
 const roleLabels: Record<AppRole, string> = {
-  super_admin: 'المديرة العليا',
+  super_admin: 'مسؤولة تقنية',
   admin: 'إدارة المقرأة',
   teacher: 'مسمعة',
   supervisor: 'مشرفة',

@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     for (const r of requests) {
       try {
         if (!r.email || !r.role) throw new Error('البريد والدور مطلوبان');
-        if (r.role === 'super_admin' && !callerIsSuper) throw new Error('منح دور «مديرة عليا» حكر على المديرة العليا');
+        if (r.role === 'super_admin' && !callerIsSuper) throw new Error('منح دور «مسؤولة تقنية» حكر على حاملته');
         const password = r.password || generatePassword();
         const { data, error } = await admin.auth.admin.createUser({
           email: r.email,
