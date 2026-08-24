@@ -42,6 +42,10 @@ export function trackMinutes(track: TrackLike): number {
   return Math.max(1, Math.ceil(weeklyPages(track) * trackSeconds(track) / 60));
 }
 
+/** علامة «مستبعدة من الفرز» — تُخزن في applicants.sort_slot_label (بلا مسمعة):
+ *  تخرج الطالبة من شبكة الفرز ويتجاوزها التوزيع التلقائي حتى تُعاد */
+export const SORT_EXCLUDED = '__مستبعدة من الفرز__';
+
 /** صف توفر: يوم ووقت — مصدره v_public_circle_times أو availability_slots */
 export interface TimeRow { weekday: number; start_time: string; end_time: string }
 

@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Users2, Wand2, Trash2, ChevronDown, ChevronUp, UserPlus, CalendarPlus } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { Checkbox } from '@/components/ui/checkbox';
-import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin } from '@/lib/circles';
+import { trackMinutes, durationMinutes, choiceLabel, addMinutes, timeOptionsWithin, SORT_EXCLUDED } from '@/lib/circles';
 import { useFormSettings, DayOption, genSlotLabel, optionDays } from '@/lib/form-settings';
 
 interface Circle {
@@ -394,6 +394,14 @@ export default function CirclesPage() {
     for (const st of pinnedFirst) {
       const tId = st.app?.sort_teacher_id;
       const label = st.app?.sort_slot_label;
+      // المستبعدات من صفحة الفرز: يتجاوزهن التوزيع، ويبقين قابلات للإسناد اليدوي من المعاينة
+      if (!tId && label === SORT_EXCLUDED) {
+        skipped.push({
+          student_id: st.id, name: st.name, track_name: st.track, minutes: st.minutes,
+          why: 'مستبعدة من الفرز يدويًا — أعيديها من صفحة الفرز أو أسنديها من هنا',
+        });
+        continue;
+      }
       if (!tId) { leftover.push(st); continue; }
       const w = label ? optionWindows[label] : null;
       const target = circles.find(c => c.is_active && c.teacher_id === tId
