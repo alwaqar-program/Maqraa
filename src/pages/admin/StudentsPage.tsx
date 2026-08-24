@@ -50,12 +50,12 @@ export default function StudentsPage() {
   const navigate = useNavigate();
 
   const fetchAll = useCallback(async () => {
-    const [{ data: rows, error }, { data: trackRows }, { data: tasmee }, { data: sard }, { data: bookings }] = await Promise.all([
+    const [{ data: rows, error }, { data: trackRows }, { data: tasmee }, { data: sard }, { data: memberships }] = await Promise.all([
       supabase.from('students').select('*, tracks(name)').order('full_name'),
       supabase.from('tracks').select('id, name').eq('is_active', true).order('sort_order'),
       supabase.from('teacher_recitation_log').select('student_id, pages').eq('is_deleted', false),
       supabase.from('self_recitation_log').select('student_id, pages').eq('is_deleted', false),
-      supabase.from('bookings').select('student_id, availability_slots(weekday, start_time, teachers(full_name))').eq('status', 'active'),
+      supabase.from('circle_members').select('student_id, circles(number, weekday, start_time, teachers(full_name))'),
     ]);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     // الختمات = مجموع صفحات (التسميع + السرد) ÷ 604
@@ -63,11 +63,11 @@ export default function StudentsPage() {
     [...(tasmee || []), ...(sard || [])].forEach((l: any) => {
       pagesBy[l.student_id] = (pagesBy[l.student_id] ?? 0) + Number(l.pages || 0);
     });
-    // موعد كل طالبة المحجوز حاليًا (نص جاهز للعرض)
+    // حلقة كل طالبة (نص جاهز للعرض)
     const bookingBy: Record<string, string> = {};
-    (bookings || []).forEach((b: any) => {
-      const s = b.availability_slots;
-      if (s) bookingBy[b.student_id] = `${WEEKDAYS[s.weekday]} ${formatTime(s.start_time)} — ${s.teachers?.full_name ?? ''}`;
+    (memberships || []).forEach((m: any) => {
+      const c = m.circles;
+      if (c) bookingBy[m.student_id] = `حلقة ${c.number} — ${WEEKDAYS[c.weekday]} ${formatTime(c.start_time)} — ${c.teachers?.full_name ?? ''}`;
     });
     setStudents((rows || []).map((r: any) => ({
       ...r, track_name: r.tracks?.name,
@@ -184,7 +184,7 @@ export default function StudentsPage() {
                   <SortableHead label="الهوية" sortKey="nid" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="الجوال" sortKey="phone" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="المسار" sortKey="track" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="موعدها" sortKey="booking" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="حلقتها" sortKey="booking" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="الختمات" sortKey="khatmat" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="حساب دخول" sortKey="account" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <SortableHead label="نشطة" sortKey="active" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
@@ -211,7 +211,7 @@ export default function StudentsPage() {
                       {s.booking
                         ? <span className="text-sm">{s.booking}</span>
                         : s.is_active
-                          ? <Badge variant="outline" className="text-warning border-warning">بلا موعد</Badge>
+                          ? <Badge variant="outline" className="text-warning border-warning">بلا حلقة</Badge>
                           : <span className="text-muted-foreground text-sm">—</span>}
                     </TableCell>
                     <TableCell>
