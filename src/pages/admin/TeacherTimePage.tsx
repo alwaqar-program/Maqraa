@@ -12,6 +12,7 @@ import { useUrlState } from '@/lib/use-url-state';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Timer, Save } from 'lucide-react';
+import { SuperDeleteButton, useSuperAdmin } from '@/components/ui/super-delete';
 
 // دوام المسمعات — تتبع بدء/انتهاء الحلقات (check-in/out) لمديرة النظام:
 // سجل مفصل + مجموع الوقت لكل مسمعة في الفترة + حساب المكافأة بأجر الساعة.
@@ -37,6 +38,7 @@ export default function TeacherTimePage() {
   const [savingRate, setSavingRate] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const isSuper = useSuperAdmin();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -58,6 +60,13 @@ export default function TeacherTimePage() {
     setLoading(false);
   }, [from, to, toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const deleteRow = async (r: Row) => {
+    const { error } = await supabase.from('teacher_checkins').delete().eq('id', r.id);
+    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'حُذف سجل الدوام' });
+    fetchAll();
+  };
 
   const saveRate = async () => {
     setSavingRate(true);
@@ -184,6 +193,7 @@ export default function TeacherTimePage() {
                   <TableHead>بدأت</TableHead>
                   <TableHead>انتهت</TableHead>
                   <SortableHead label="المدة (د)" sortKey="minutes" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
+                  {isSuper && <TableHead />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -198,6 +208,15 @@ export default function TeacherTimePage() {
                         : <Badge variant="outline" className="text-yellow-600 border-yellow-400">جارية / لم تُنهَ</Badge>}
                     </TableCell>
                     <TableCell>{r.minutes ?? '—'}</TableCell>
+                    {isSuper && (
+                      <TableCell>
+                        <SuperDeleteButton
+                          title="حذف سجل دوام"
+                          description={<>سيُحذف سجل دوام <b>{r.teacher_name}</b> بتاريخ {r.date} ({r.minutes != null ? `${r.minutes} دقيقة` : 'بلا انتهاء'}).</>}
+                          onConfirm={() => deleteRow(r)}
+                        />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
