@@ -6,12 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Home, Mic } from 'lucide-react';
+import { Home, Mic, Play, Square } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { ATTENDANCE_REASONS } from '@/lib/circles';
 
 interface Member { student_id: string; student_name: string; time: string | null; }
 interface CircleToday { id: string; number: number; start_time: string; end_time: string; members: Member[]; }
+interface Checkin { id: string; circle_id: string; started_at: string; ended_at: string | null; minutes: number | null; }
+
+const clockOf = (ts: string) =>
+  new Date(ts).toLocaleTimeString('ar-SA', { hour: 'numeric', minute: '2-digit' });
 
 // حضور أخضر — تعويض برتقالي — غياب أصفر (كصفحة الحضور)
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -23,6 +27,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 export default function TeacherHomePage() {
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [circles, setCircles] = useState<CircleToday[]>([]);
+  const [checkins, setCheckins] = useState<Record<string, Checkin>>({});
   const [attState, setAttState] = useState<Record<string, { status: string; reason: string }>>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -35,14 +40,17 @@ export default function TeacherHomePage() {
     const { data: me } = await supabase.from('teachers').select('id').eq('user_id', user?.id ?? '').maybeSingle();
     if (!me) { setLoading(false); return; }
     setTeacherId(me.id);
-    const [{ data: cs, error }, { data: att }] = await Promise.all([
+    const [{ data: cs, error }, { data: att }, { data: cks }] = await Promise.all([
       supabase.from('circles')
         .select('id, number, start_time, end_time, circle_members(student_id, start_time, students(id, full_name, status))')
         .eq('teacher_id', me.id).eq('is_active', true).eq('weekday', weekday)
         .order('start_time'),
       supabase.from('session_attendance').select('student_id, status, reason')
         .eq('teacher_id', me.id).eq('date', todayStr).eq('is_deleted', false),
+      supabase.from('teacher_checkins').select('id, circle_id, started_at, ended_at, minutes')
+        .eq('teacher_id', me.id).eq('date', todayStr),
     ]);
+    setCheckins(Object.fromEntries((cks || []).map((c: any) => [c.circle_id, c])));
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setCircles((cs || []).map((c: any) => ({
       id: c.id, number: c.number, start_time: c.start_time, end_time: c.end_time,
@@ -73,6 +81,29 @@ export default function TeacherHomePage() {
     setAttState(prev => ({ ...prev, [studentId]: { status, reason: status === 'present' ? '' : reason } }));
   };
 
+  // تسجيل بدء الحلقة (check-in)
+  const startCircle = async (circleId: string) => {
+    if (!teacherId) return;
+    const { data, error } = await supabase.from('teacher_checkins')
+      .insert({ teacher_id: teacherId, circle_id: circleId, date: todayStr })
+      .select('id, circle_id, started_at, ended_at, minutes').single();
+    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+    setCheckins(prev => ({ ...prev, [circleId]: data as Checkin }));
+    toast({ title: 'سُجّل بدء الحلقة' });
+  };
+
+  // تسجيل انتهاء الحلقة (check-out)
+  const endCircle = async (circleId: string) => {
+    const ck = checkins[circleId];
+    if (!ck) return;
+    const { data, error } = await supabase.from('teacher_checkins')
+      .update({ ended_at: new Date().toISOString() }).eq('id', ck.id)
+      .select('id, circle_id, started_at, ended_at, minutes').single();
+    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+    setCheckins(prev => ({ ...prev, [circleId]: data as Checkin }));
+    toast({ title: 'سُجّل انتهاء الحلقة' });
+  };
+
   if (!loading && !teacherId) {
     return <p className="text-muted-foreground mt-10 text-center">حسابك غير مرتبط بملف مسمعة — تواصلي مع الإدارة.</p>;
   }
@@ -99,6 +130,27 @@ export default function TeacherHomePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
+                {(() => {
+                  const ck = checkins[c.id];
+                  if (!ck) return (
+                    <Button size="sm" className="w-full gap-1.5" onClick={() => startCircle(c.id)}>
+                      <Play size={14} /> تسجيل بدء الحلقة
+                    </Button>
+                  );
+                  if (!ck.ended_at) return (
+                    <div className="flex items-center gap-2 flex-wrap rounded-lg border border-success/40 bg-success/5 px-3 py-2">
+                      <span className="text-sm">بدأتِ الساعة <b>{clockOf(ck.started_at)}</b> — الحلقة جارية</span>
+                      <Button size="sm" variant="outline" className="mr-auto gap-1.5" onClick={() => endCircle(c.id)}>
+                        <Square size={13} /> تسجيل انتهاء الحلقة
+                      </Button>
+                    </div>
+                  );
+                  return (
+                    <p className="text-sm text-muted-foreground rounded-lg border px-3 py-2">
+                      بدأت {clockOf(ck.started_at)} — انتهت {clockOf(ck.ended_at)} · المدة <b>{ck.minutes} دقيقة</b>
+                    </p>
+                  );
+                })()}
                 {c.members.length === 0 && <p className="text-sm text-muted-foreground">لا طالبات في هذه الحلقة.</p>}
                 {c.members.map(m => {
                   const st = attState[m.student_id] ?? { status: '', reason: '' };

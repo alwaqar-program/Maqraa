@@ -19,6 +19,7 @@ import StudentHomePage from "./pages/student/StudentHomePage";
 import HistoryPage from "./pages/student/HistoryPage";
 import TeacherHomePage from "./pages/teacher/TeacherHomePage";
 import TeacherAttendancePage from "./pages/teacher/TeacherAttendancePage";
+import TeacherTimePage from "./pages/admin/TeacherTimePage";
 import StudentsPage from "./pages/admin/StudentsPage";
 import TeachersPage from "./pages/admin/TeachersPage";
 import ReportsPage from "./pages/admin/ReportsPage";
@@ -63,6 +64,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/certificate', 'التحقق من الشهادات'],
   ['/students', 'الطالبات'],
   ['/teachers', 'المسمعات'],
+  ['/teacher-time', 'دوام المسمعات'],
   ['/applicants', 'المتقدمات'],
   ['/scheduling', 'الجدولة والحجوزات'],
   ['/recitation', 'التسميع'],
@@ -157,6 +159,7 @@ const App = () => (
             <Route path="/students" element={<ProtectedRoute roles={['admin']}><StudentsPage /></ProtectedRoute>} />
             <Route path="/students/:id" element={<ProtectedRoute roles={['admin']}><StudentProfilePage /></ProtectedRoute>} />
             <Route path="/teachers" element={<ProtectedRoute roles={['admin']}><TeachersPage /></ProtectedRoute>} />
+            <Route path="/teacher-time" element={<ProtectedRoute roles={['admin']}><TeacherTimePage /></ProtectedRoute>} />
             <Route path="/applicants" element={<ProtectedRoute roles={['admin']}><ApplicantsPage /></ProtectedRoute>} />
             <Route path="/sorting" element={<ProtectedRoute roles={['admin']}><SortingPage /></ProtectedRoute>} />
             <Route path="/circles" element={<ProtectedRoute roles={['admin']}><CirclesPage /></ProtectedRoute>} />
