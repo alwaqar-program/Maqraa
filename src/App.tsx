@@ -18,6 +18,7 @@ import TasmeePage from "./pages/teacher/TasmeePage";
 import StudentHomePage from "./pages/student/StudentHomePage";
 import HistoryPage from "./pages/student/HistoryPage";
 import TeacherHomePage from "./pages/teacher/TeacherHomePage";
+import TeacherAttendancePage from "./pages/teacher/TeacherAttendancePage";
 import StudentsPage from "./pages/admin/StudentsPage";
 import TeachersPage from "./pages/admin/TeachersPage";
 import ReportsPage from "./pages/admin/ReportsPage";
@@ -85,7 +86,8 @@ const PAGE_TITLES: [string, string][] = [
   ['/teacher/tasmee', 'تسجيل التسميع'],
   ['/teacher/students', 'طالباتي'],
   ['/teacher/suggestions', 'اقتراحاتي'],
-  ['/teacher', 'حلقاتي والتحضير'],
+  ['/teacher/attendance', 'التحضير'],
+  ['/teacher', 'حلقاتي'],
   ['/me/sard', 'سردي الذاتي'],
   ['/me/booking', 'موعدي'],
   ['/me/history', 'سجلي'],
@@ -184,8 +186,8 @@ const App = () => (
             <Route path="/teacher" element={<ProtectedRoute roles={['teacher']}><TeacherHomePage /></ProtectedRoute>} />
             <Route path="/teacher/availability" element={<ProtectedRoute roles={['teacher']}><TeacherAvailabilityPage /></ProtectedRoute>} />
             <Route path="/teacher/tasmee" element={<ProtectedRoute roles={['teacher']}><TasmeePage /></ProtectedRoute>} />
-            {/* «الحضور» أزيل (التحضير في /teacher)، و«الاختبارات» مخفية مؤقتًا — من فتحت الرابط تُعاد للرئيسية */}
-            <Route path="/teacher/attendance" element={<Navigate to="/teacher" replace />} />
+            <Route path="/teacher/attendance" element={<ProtectedRoute roles={['teacher']}><TeacherAttendancePage /></ProtectedRoute>} />
+            {/* «الاختبارات» مخفية مؤقتًا — من فتحت الرابط تُعاد للرئيسية */}
             <Route path="/teacher/exams" element={<Navigate to="/teacher" replace />} />
             <Route path="/teacher/students" element={<ProtectedRoute roles={['teacher']}><TeacherStudentsPage /></ProtectedRoute>} />
             <Route path="/teacher/suggestions" element={<ProtectedRoute roles={['teacher']}><SuggestionBoxPage /></ProtectedRoute>} />
