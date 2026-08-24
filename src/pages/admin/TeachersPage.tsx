@@ -17,6 +17,7 @@ import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, GraduationCap, FileSignature, Check, X, Trash2 } from 'lucide-react';
+import { useSuperAdmin } from '@/components/ui/super-delete';
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TimeSelect } from '@/components/TimeSelect';
@@ -64,17 +65,34 @@ export default function TeachersPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ keys: string[]; names: string[] } | null>(null);
   const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
   const { toast } = useToast();
+  const isSuper = useSuperAdmin();
 
-  // حذف مسمعة: قاعدة البيانات تمنع الحذف إن كان لها سجلات (حلقات/تسميع/حضور/اختبارات)
+  // حذف مسمعة: قاعدة البيانات تمنع الحذف إن كان لها سجلات (حلقات/تسميع/حضور/اختبارات).
+  // المديرة العليا: حلقاتها ومراجعها القابلة للفك تُزال أولًا، ويبقى المانع الوحيد
+  // سجلات التسميع والتحضير — لأنها تاريخ الطالبات لا تاريخها هي.
   const confirmDeleteTeacher = async () => {
     const t = deletingTeacher;
     if (!t) return;
+    if (isSuper) {
+      const steps = [
+        supabase.from('circles').delete().eq('teacher_id', t.id),
+        supabase.from('exams').update({ teacher_id: null }).eq('teacher_id', t.id),
+        supabase.from('teacher_agreements').update({ teacher_id: null }).eq('teacher_id', t.id),
+        supabase.from('applicants').update({ sort_teacher_id: null }).eq('sort_teacher_id', t.id),
+      ];
+      for (const q of steps) {
+        const { error } = await q;
+        if (error) { setDeletingTeacher(null); toast({ title: `تعذر حذف ${t.full_name}`, description: error.message, variant: 'destructive' }); fetchAll(); return; }
+      }
+    }
     const { error } = await supabase.from('teachers').delete().eq('id', t.id);
     setDeletingTeacher(null);
     if (error) {
-      const friendly = error.code === '23503' || error.message.includes('foreign key') || error.message.includes('violates')
-        ? 'لها سجلات مرتبطة (حلقة أو تسميع أو حضور أو اختبارات) — الحذف ممنوع حفاظًا على السجلات. عطّليها بمفتاح «نشطة» بدلًا من ذلك.'
-        : error.message;
+      const blocked = error.code === '23503' || error.message.includes('foreign key') || error.message.includes('violates');
+      const friendly = !blocked ? error.message
+        : isSuper
+          ? 'لها سجلات تسميع أو تحضير — وهي تاريخ الطالبات وإنجازهن، فلا تُحذف معها. عطّليها بمفتاح «نشطة» بدلًا من ذلك.'
+          : 'لها سجلات مرتبطة (حلقة أو تسميع أو حضور أو اختبارات) — الحذف ممنوع حفاظًا على السجلات. عطّليها بمفتاح «نشطة» بدلًا من ذلك.';
       toast({ title: `تعذر حذف ${t.full_name}`, description: friendly, variant: 'destructive' });
     } else {
       toast({ title: `حُذفت ${t.full_name} نهائيًا` });
@@ -571,7 +589,9 @@ export default function TeachersPage() {
             <AlertDialogDescription>
               ستُحذف «{deletingTeacher?.full_name}» ومواعيد توفرها نهائيًا.
               {(deletingTeacher?.booked ?? 0) > 0 && ` لديها ${deletingTeacher?.booked} حجوزات نشطة ستُلغى.`}
-              {' '}إن كان لها سجلات (حلقة أو تسميع أو حضور أو اختبارات) فسيمنع النظام الحذف حفاظًا على السجلات — وحينها الأنسب تعطيلها بمفتاح «نشطة».
+              {isSuper
+                ? ' ستُحذف حلقاتها وعضويات طالباتها فيها أيضًا. يبقى مانع واحد: إن كان لها سجلات تسميع أو تحضير فهي تاريخ الطالبات ولن تُحذف — الأنسب حينها تعطيلها بمفتاح «نشطة».'
+                : ' إن كان لها سجلات (حلقة أو تسميع أو حضور أو اختبارات) فسيمنع النظام الحذف حفاظًا على السجلات — وحينها الأنسب تعطيلها بمفتاح «نشطة».'}
               {deletingTeacher?.user_id && ' ولها حساب دخول — عطّليه من صفحة المستخدمين بعد الحذف.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

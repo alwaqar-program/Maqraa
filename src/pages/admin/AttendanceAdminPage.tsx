@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ClipboardCheck, Search, AlertTriangle, Save } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { ATTENDANCE_REASONS } from '@/lib/circles';
+import { SuperDeleteButton, useSuperAdmin } from '@/components/ui/super-delete';
 
 interface LogRow {
   id: string; date: string; status: string; reason: string | null;
@@ -56,6 +57,14 @@ export default function AttendanceAdminPage() {
   const [recState, setRecState] = useState<Record<string, { status: string; reason: string }>>({});
   const [recSaving, setRecSaving] = useState(false);
   const { toast } = useToast();
+  const isSuper = useSuperAdmin();
+
+  const hardDelete = async (r: LogRow) => {
+    const { error } = await supabase.from('session_attendance').delete().eq('id', r.id);
+    if (error) { toast({ title: 'تعذر الحذف', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: `حُذف حضور ${r.student_name} — ${r.date} نهائيًا` });
+    fetchAll();
+  };
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -277,6 +286,7 @@ export default function AttendanceAdminPage() {
                   <SortableHead label="الحالة" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
                   <TableHead>السبب</TableHead>
                   <TableHead>عداد الغياب</TableHead>
+                  {isSuper && <TableHead />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -292,6 +302,13 @@ export default function AttendanceAdminPage() {
                         ? <Badge variant="outline" className="text-yellow-600 border-yellow-400">غياب {absCount[r.student_id] ?? 1}</Badge>
                         : '—'}
                     </TableCell>
+                    {isSuper && (
+                      <TableCell>
+                        <SuperDeleteButton title="حذف سجل الحضور"
+                          description={`سيُحذف سجل «${STATUS[r.status]?.label ?? r.status}» للطالبة ${r.student_name} بتاريخ ${r.date}${r.status === 'absent' ? ' وينقص عداد غيابها' : ''}.`}
+                          onConfirm={() => hardDelete(r)} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

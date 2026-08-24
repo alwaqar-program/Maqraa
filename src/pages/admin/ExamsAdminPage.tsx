@@ -13,6 +13,7 @@ import { Plus, Pencil, FileCheck } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import ExamForm, { ExamFormValue } from '@/components/exams/ExamForm';
 import { EXAM_TYPES, examGradeText, gradeColors, scoreColor } from '@/lib/exams';
+import { SuperDeleteButton } from '@/components/ui/super-delete';
 
 interface Exam {
   id: string; date: string; exam_type: string;
@@ -150,7 +151,17 @@ export default function ExamsAdminPage() {
                       </TableCell>
                       <TableCell><Badge variant="outline" className={gradeColors[grade] || ''}>{grade}</Badge></TableCell>
                       <TableCell>{x.teacher_name ?? 'الإدارة'}</TableCell>
-                      <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(x)}><Pencil size={16} /></Button></TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(x)}><Pencil size={16} /></Button>
+                        <SuperDeleteButton title="حذف الاختبار"
+                          description={`سيُحذف اختبار «${EXAM_TYPES[x.exam_type] ?? x.exam_type}» للطالبة ${x.student_name} (${x.total_score}/${x.max_score}) ويمكنها أداؤه من جديد.`}
+                          onConfirm={async () => {
+                            const { error } = await supabase.from('exams').delete().eq('id', x.id);
+                            if (error) { toast({ title: 'تعذر الحذف', description: error.message, variant: 'destructive' }); return; }
+                            toast({ title: `حُذف اختبار ${x.student_name} نهائيًا` });
+                            fetchAll();
+                          }} />
+                      </TableCell>
                     </TableRow>
                   );
                 })}
