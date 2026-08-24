@@ -13,6 +13,7 @@ interface Row {
   full_name: string;
   track_name: string | null;
   quota: number;
+  circle_number: number;
   weekday: number;
   start_time: string;
   tasmee_pages: number;
@@ -34,40 +35,43 @@ export default function TeacherStudentsPage() {
     if (!me) { setLoading(false); return; }
     setTeacherId(me.id);
 
-    const [{ data: bookings, error }, { data: logs }, { data: att }] = await Promise.all([
-      supabase.from('bookings')
-        .select('students(id, full_name, tracks(name, quota_pages_per_season)), availability_slots!inner(teacher_id, weekday, start_time)')
-        .eq('status', 'active').eq('availability_slots.teacher_id', me.id),
+    const [{ data: circles, error }, { data: logs }, { data: att }] = await Promise.all([
+      supabase.from('circles')
+        .select('number, weekday, start_time, circle_members(start_time, students(id, full_name, status, tracks(name, quota_pages_per_season)))')
+        .eq('teacher_id', me.id).eq('is_active', true),
       supabase.from('teacher_recitation_log')
         .select('student_id, pages, score, date')
         .eq('teacher_id', me.id).eq('is_deleted', false),
       supabase.from('session_attendance')
-        .select('student_id, status, is_excused')
+        .select('student_id, status')
         .eq('teacher_id', me.id).eq('is_deleted', false),
     ]);
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
 
-    setRows((bookings || []).map((b: any) => {
-      const st = b.students;
-      const myLogs = (logs || []).filter((l: any) => l.student_id === st?.id);
-      const pages = myLogs.reduce((a: number, l: any) => a + Number(l.pages || 0), 0);
-      const lastDate = myLogs.map((l: any) => l.date).sort().pop() ?? null;
-      return {
-        student_id: st?.id,
-        full_name: st?.full_name ?? '—',
-        track_name: st?.tracks?.name ?? null,
-        quota: Number(st?.tracks?.quota_pages_per_season ?? 0),
-        weekday: b.availability_slots.weekday,
-        start_time: b.availability_slots.start_time,
-        tasmee_pages: Math.round(pages * 100) / 100,
-        sessions: myLogs.length,
-        avg_score: myLogs.length
-          ? Math.round((myLogs.reduce((a: number, l: any) => a + Number(l.score || 0), 0) / myLogs.length) * 100) / 100
-          : null,
-        absences: (att || []).filter((a: any) => a.student_id === st?.id && a.status === 'absent' && !a.is_excused).length,
-        last_date: lastDate,
-      };
-    }).filter(r => r.student_id));
+    setRows((circles || []).flatMap((c: any) => (c.circle_members || [])
+      .filter((m: any) => m.students && m.students.status === 'active')
+      .map((m: any) => {
+        const st = m.students;
+        const myLogs = (logs || []).filter((l: any) => l.student_id === st.id);
+        const pages = myLogs.reduce((a: number, l: any) => a + Number(l.pages || 0), 0);
+        const lastDate = myLogs.map((l: any) => l.date).sort().pop() ?? null;
+        return {
+          student_id: st.id,
+          full_name: st.full_name ?? '—',
+          track_name: st.tracks?.name ?? null,
+          quota: Number(st.tracks?.quota_pages_per_season ?? 0),
+          circle_number: c.number,
+          weekday: c.weekday,
+          start_time: m.start_time || c.start_time,
+          tasmee_pages: Math.round(pages * 100) / 100,
+          sessions: myLogs.length,
+          avg_score: myLogs.length
+            ? Math.round((myLogs.reduce((a: number, l: any) => a + Number(l.score || 0), 0) / myLogs.length) * 100) / 100
+            : null,
+          absences: (att || []).filter((a: any) => a.student_id === st.id && a.status === 'absent').length,
+          last_date: lastDate,
+        };
+      })).sort((a, b) => a.circle_number - b.circle_number || a.start_time.localeCompare(b.start_time)));
     setLoading(false);
   }, [toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -87,7 +91,7 @@ export default function TeacherStudentsPage() {
       <Card>
         <CardContent className="pt-6 overflow-x-auto">
           {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : rows.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">لا طالبات محجوزات معك بعد.</p>
+            <p className="text-muted-foreground text-center py-6">لا طالبات في حلقاتك بعد.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -109,7 +113,7 @@ export default function TeacherStudentsPage() {
                     <TableRow key={r.student_id}>
                       <TableCell className="font-medium">{r.full_name}</TableCell>
                       <TableCell>{r.track_name ?? '—'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{WEEKDAYS[r.weekday]} {formatTime(r.start_time)}</TableCell>
+                      <TableCell className="whitespace-nowrap">حلقة {r.circle_number} — {WEEKDAYS[r.weekday]} {formatTime(r.start_time)}</TableCell>
                       <TableCell className="min-w-36">
                         {pct !== null ? (
                           <div className="flex items-center gap-2">

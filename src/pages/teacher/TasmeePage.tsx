@@ -13,7 +13,7 @@ import { Mic } from 'lucide-react';
 import RangePicker from '@/components/recitation/RangePicker';
 import { keyToDb, surahNameOf } from '@/lib/mushaf';
 
-interface BookedStudent { id: string; full_name: string; booking_id: string; }
+interface CircleStudent { id: string; full_name: string; }
 interface TasmeeRow {
   id: string; date: string; student_name: string;
   from_surah: number; from_verse: number; to_surah: number; to_verse: number;
@@ -23,7 +23,7 @@ interface TasmeeRow {
 
 export default function TasmeePage() {
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [students, setStudents] = useState<BookedStudent[]>([]);
+  const [students, setStudents] = useState<CircleStudent[]>([]);
   const [rows, setRows] = useState<TasmeeRow[]>([]);
   const [studentId, setStudentId] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -42,18 +42,20 @@ export default function TasmeePage() {
     if (!me) { setLoading(false); return; }
     setTeacherId(me.id);
 
-    const [{ data: bookings }, { data: logs }] = await Promise.all([
-      supabase.from('bookings')
-        .select('id, students(id, full_name), availability_slots!inner(teacher_id)')
-        .eq('status', 'active').eq('availability_slots.teacher_id', me.id),
+    const [{ data: circles }, { data: logs }] = await Promise.all([
+      supabase.from('circles')
+        .select('circle_members(students(id, full_name, status))')
+        .eq('teacher_id', me.id).eq('is_active', true),
       supabase.from('teacher_recitation_log')
         .select('id, date, from_surah, from_verse, to_surah, to_verse, pages, error_count, lahn_count, score, grade, students(full_name)')
         .eq('teacher_id', me.id).eq('is_deleted', false)
         .order('date', { ascending: false }).limit(20),
     ]);
-    setStudents((bookings || []).map((b: any) => ({
-      id: b.students?.id, full_name: b.students?.full_name ?? '—', booking_id: b.id,
-    })).filter((s: BookedStudent) => s.id));
+    setStudents((circles || [])
+      .flatMap((c: any) => (c.circle_members || []).map((m: any) => m.students))
+      .filter((s: any) => s && s.status === 'active')
+      .map((s: any) => ({ id: s.id, full_name: s.full_name ?? '—' }))
+      .sort((a: CircleStudent, b: CircleStudent) => a.full_name.localeCompare(b.full_name, 'ar')));
     setRows((logs || []).map((r: any) => ({ ...r, student_name: r.students?.full_name ?? '—' })));
     setLoading(false);
   }, []);
@@ -65,9 +67,8 @@ export default function TasmeePage() {
     const to = keyToDb(toKey);
     if (!from || !to) { toast({ title: 'حدّدي نطاق التسميع كاملًا', variant: 'destructive' }); return; }
     setSaving(true);
-    const booking = students.find(s => s.id === studentId)?.booking_id ?? null;
     const { error } = await supabase.from('teacher_recitation_log').insert({
-      student_id: studentId, teacher_id: teacherId, booking_id: booking, date,
+      student_id: studentId, teacher_id: teacherId, date,
       from_surah: from.surah, from_verse: from.verse,
       to_surah: to.surah, to_verse: to.verse,
       error_count: errors, lahn_count: lahn,

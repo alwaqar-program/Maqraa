@@ -4,26 +4,30 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Home, Mic, Check, X, Clock } from 'lucide-react';
+import { Home, Mic } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
+import { ATTENDANCE_REASONS } from '@/lib/circles';
 
-interface Session {
-  booking_id: string;
-  student_id: string;
-  student_name: string;
-  start_time: string;
-  end_time: string;
-  attendance_status: string | null;
-}
+interface Member { student_id: string; student_name: string; time: string | null; }
+interface CircleToday { id: string; number: number; start_time: string; end_time: string; members: Member[]; }
+
+// حضور أخضر — تعويض برتقالي — غياب أصفر (كصفحة الحضور)
+const STATUS: Record<string, { label: string; cls: string }> = {
+  present: { label: 'حضور', cls: 'bg-success text-success-foreground' },
+  makeup: { label: 'تعويض', cls: 'bg-orange-500 text-white' },
+  absent: { label: 'غياب', cls: 'bg-yellow-400 text-yellow-950' },
+};
 
 export default function TeacherHomePage() {
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [circles, setCircles] = useState<CircleToday[]>([]);
+  const [attState, setAttState] = useState<Record<string, { status: string; reason: string }>>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const today = new Date();
-  const weekday = today.getDay(); // 0=الأحد بتقويم JS الأمريكي؟ لا: 0=Sunday يطابق ترقيمنا 0=الأحد
+  const weekday = today.getDay(); // 0=الأحد يطابق ترقيمنا
   const todayStr = today.toISOString().slice(0, 10);
 
   const fetchAll = useCallback(async () => {
@@ -31,81 +35,102 @@ export default function TeacherHomePage() {
     const { data: me } = await supabase.from('teachers').select('id').eq('user_id', user?.id ?? '').maybeSingle();
     if (!me) { setLoading(false); return; }
     setTeacherId(me.id);
-    const [{ data: bookings }, { data: att }] = await Promise.all([
-      supabase.from('bookings')
-        .select('id, students(id, full_name), availability_slots!inner(teacher_id, weekday, start_time, end_time)')
-        .eq('status', 'active')
-        .eq('availability_slots.teacher_id', me.id)
-        .eq('availability_slots.weekday', weekday),
-      supabase.from('session_attendance').select('student_id, status')
+    const [{ data: cs, error }, { data: att }] = await Promise.all([
+      supabase.from('circles')
+        .select('id, number, start_time, end_time, circle_members(student_id, start_time, students(id, full_name, status))')
+        .eq('teacher_id', me.id).eq('is_active', true).eq('weekday', weekday)
+        .order('start_time'),
+      supabase.from('session_attendance').select('student_id, status, reason')
         .eq('teacher_id', me.id).eq('date', todayStr).eq('is_deleted', false),
     ]);
-    setSessions((bookings || []).map((b: any) => ({
-      booking_id: b.id,
-      student_id: b.students?.id,
-      student_name: b.students?.full_name ?? '—',
-      start_time: b.availability_slots.start_time,
-      end_time: b.availability_slots.end_time,
-      attendance_status: (att || []).find((a: any) => a.student_id === b.students?.id)?.status ?? null,
-    })).sort((a: Session, b: Session) => a.start_time.localeCompare(b.start_time)));
+    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    setCircles((cs || []).map((c: any) => ({
+      id: c.id, number: c.number, start_time: c.start_time, end_time: c.end_time,
+      members: (c.circle_members || [])
+        .filter((m: any) => m.students && m.students.status === 'active')
+        .map((m: any) => ({
+          student_id: m.students.id,
+          student_name: m.students.full_name,
+          time: m.start_time,
+        }))
+        .sort((a: Member, b: Member) => (a.time ?? '').localeCompare(b.time ?? '')),
+    })));
+    const st: Record<string, { status: string; reason: string }> = {};
+    (att || []).forEach((a: any) => { st[a.student_id] = { status: a.status, reason: a.reason ?? '' }; });
+    setAttState(st);
     setLoading(false);
-  }, [weekday, todayStr]);
+  }, [weekday, todayStr, toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const mark = async (s: Session, status: 'present' | 'absent' | 'late') => {
+  const save = async (circleId: string, studentId: string, status: string, reason: string) => {
     if (!teacherId) return;
     const { error } = await supabase.from('session_attendance').upsert({
-      booking_id: s.booking_id, student_id: s.student_id, teacher_id: teacherId,
+      student_id: studentId, teacher_id: teacherId, circle_id: circleId,
       date: todayStr, status,
+      reason: status === 'present' ? null : (reason || null),
     }, { onConflict: 'student_id,date' });
-    if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    else fetchAll();
+    if (error) { toast({ title: 'خطأ', description: error.message, variant: 'destructive' }); return; }
+    setAttState(prev => ({ ...prev, [studentId]: { status, reason: status === 'present' ? '' : reason } }));
   };
 
   if (!loading && !teacherId) {
     return <p className="text-muted-foreground mt-10 text-center">حسابك غير مرتبط بملف مسمعة — تواصلي مع الإدارة.</p>;
   }
 
-  const ATT_BADGE: Record<string, { label: string; cls: string }> = {
-    present: { label: 'حاضرة', cls: 'bg-success text-success-foreground' },
-    absent: { label: 'غائبة', cls: 'bg-destructive text-destructive-foreground' },
-    late: { label: 'متأخرة', cls: 'bg-warning text-warning-foreground' },
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Home className="text-accent" />
-        <h1 className="text-2xl font-display">جلسات اليوم — {WEEKDAYS[weekday]}</h1>
+        <h1 className="text-2xl font-display">حلقات اليوم — {WEEKDAYS[weekday]}</h1>
       </div>
 
-      {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : sessions.length === 0 ? (
+      {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : circles.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">
-          لا جلسات لك اليوم. مواعيدك حسب مواعيد توفرك المحجوزة.
+          لا حلقات لك اليوم.
         </CardContent></Card>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {sessions.map(s => (
-            <Card key={s.booking_id}>
+        <div className="space-y-4">
+          {circles.map(c => (
+            <Card key={c.id}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center justify-between">
-                  <span>{s.student_name}</span>
-                  <Badge variant="outline">{formatTime(s.start_time)} – {formatTime(s.end_time)}</Badge>
+                  <span>حلقة {c.number}</span>
+                  <Badge variant="outline">{formatTime(c.start_time)} – {formatTime(c.end_time)}</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">الحضور:</span>
-                  {s.attendance_status
-                    ? <Badge className={ATT_BADGE[s.attendance_status]?.cls}>{ATT_BADGE[s.attendance_status]?.label}</Badge>
-                    : <span className="text-sm text-muted-foreground">لم يُسجل</span>}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => mark(s, 'present')}><Check size={14} /> حاضرة</Button>
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => mark(s, 'late')}><Clock size={14} /> متأخرة</Button>
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => mark(s, 'absent')}><X size={14} /> غائبة</Button>
-                </div>
-                <Button asChild size="sm" className="w-full gap-1">
+              <CardContent className="space-y-2">
+                {c.members.length === 0 && <p className="text-sm text-muted-foreground">لا طالبات في هذه الحلقة.</p>}
+                {c.members.map(m => {
+                  const st = attState[m.student_id] ?? { status: '', reason: '' };
+                  return (
+                    <div key={m.student_id} className="flex items-center gap-2 flex-wrap border rounded-lg px-3 py-2">
+                      <span className="font-medium text-sm min-w-36">{m.student_name}</span>
+                      {m.time && <Badge variant="outline" className="text-muted-foreground">{formatTime(m.time)}</Badge>}
+                      <span className="mr-auto flex items-center gap-1.5 flex-wrap">
+                        {(['present', 'makeup', 'absent'] as const).map(k => (
+                          <button key={k} type="button"
+                            onClick={() => save(c.id, m.student_id, k, st.reason)}
+                            className={`rounded-full px-3.5 py-1 text-xs font-medium border transition-colors ${
+                              st.status === k ? STATUS[k].cls + ' border-transparent'
+                              : 'border-border text-muted-foreground hover:border-foreground/40'}`}>
+                            {STATUS[k].label}
+                          </button>
+                        ))}
+                        {(st.status === 'absent' || st.status === 'makeup') && (
+                          <Select value={st.reason || undefined} onValueChange={v => save(c.id, m.student_id, st.status, v)}>
+                            <SelectTrigger className="h-7 w-32 text-xs">
+                              <SelectValue placeholder={st.status === 'absent' ? 'سبب الغياب' : 'سبب التعويض'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ATTENDANCE_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+                <Button asChild size="sm" className="w-full gap-1 mt-2">
                   <Link to="/teacher/tasmee"><Mic size={14} /> سجّلي التسميع</Link>
                 </Button>
               </CardContent>

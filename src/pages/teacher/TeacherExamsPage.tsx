@@ -38,16 +38,20 @@ export default function TeacherExamsPage() {
     const { data: me } = await supabase.from('teachers').select('id').eq('user_id', user?.id ?? '').maybeSingle();
     if (!me) { setLoading(false); return; }
     setTeacherId(me.id);
-    const [{ data: bookings }, { data: rows }] = await Promise.all([
-      supabase.from('bookings')
-        .select('students(id, full_name), availability_slots!inner(teacher_id)')
-        .eq('status', 'active').eq('availability_slots.teacher_id', me.id),
+    const [{ data: circles }, { data: rows }] = await Promise.all([
+      supabase.from('circles')
+        .select('circle_members(students(id, full_name, status))')
+        .eq('teacher_id', me.id).eq('is_active', true),
       supabase.from('exams')
         .select('id, date, exam_type, error_count, lahn_count, segment_changes, total_score, max_score, student_id, students(full_name)')
         .eq('teacher_id', me.id).eq('is_deleted', false)
         .order('date', { ascending: false }).limit(100),
     ]);
-    setStudents((bookings || []).map((b: any) => b.students).filter(Boolean));
+    setStudents((circles || [])
+      .flatMap((c: any) => (c.circle_members || []).map((m: any) => m.students))
+      .filter((s: any) => s && s.status === 'active')
+      .map((s: any) => ({ id: s.id, full_name: s.full_name }))
+      .sort((a: { full_name: string }, b: { full_name: string }) => a.full_name.localeCompare(b.full_name, 'ar')));
     setExams((rows || []).map((r: any) => ({ ...r, student_name: r.students?.full_name ?? '—' })));
     setLoading(false);
   }, []);
