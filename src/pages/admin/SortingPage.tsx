@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ListOrdered, Printer, AlertTriangle } from 'lucide-react';
+import { useUrlState } from '@/lib/use-url-state';
+import { ListOrdered, Printer, AlertTriangle, Filter } from 'lucide-react';
 import { WEEKDAYS, formatTime } from '@/lib/schedule';
 import { trackMinutes, slotCapacity, durationMinutes, TimeRow, fillTone, teacherColor, textOn } from '@/lib/circles';
 import { genSlotLabel, optionDays, DayOption } from '@/lib/form-settings';
@@ -46,6 +48,10 @@ export default function SortingPage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
+  // فلاتر العرض — تُحفظ في الرابط كبقية الصفحات
+  const [fTeacher, setFTeacher] = useUrlState('teacher');
+  const [fTrack, setFTrack] = useUrlState('track');
+  const [fCircle, setFCircle] = useUrlState('circle');   // قيمته: معرف المسمعة|نص الموعد
   const { toast } = useToast();
 
   useEffect(() => {
@@ -152,7 +158,7 @@ export default function SortingPage() {
   }, [rows]);
 
   /** الأحداث: حلقة لكل (مسمعة × يوم)، وطالبات الأولوية الأولى موزَّعات على المسمعات بأسبقية التسجيل */
-  const { events, noChoice, unknownLabel, totalCapacity, overCount } = useMemo(() => {
+  const { events, allEvents, noChoice, unknownLabel, totalCapacity, overCount } = useMemo(() => {
     const noChoice: Applicant[] = [];
     const unknownLabel: Applicant[] = [];
     const linkedTrackIds = new Set(rows.map(r => r.track_id).filter(Boolean) as string[]);
@@ -221,9 +227,15 @@ export default function SortingPage() {
       });
     });
 
+    // تطبيق الفلاتر: مسمعة/حلقة تُظهر بلوكاتها فقط، والمسار يُظهر الحلقات التي فيها طالباته
+    const shown = evs.filter(e =>
+      (!fTeacher || e.teacherId === fTeacher)
+      && (!fCircle || `${e.teacherId}|${e.label}` === fCircle)
+      && (!fTrack || e.seats.some(s => s.applicant.track_id === fTrack)));
+
     // مسارات التجاور داخل كل يوم (كتقويم Teams): المتزامنات تتقاسم العرض
     const byDay: Record<number, Event[]> = {};
-    evs.forEach(e => { (byDay[e.day] ??= []).push(e); });
+    shown.forEach(e => { (byDay[e.day] ??= []).push(e); });
     Object.values(byDay).forEach(list => {
       list.sort((a, b) => toMin(a.start) - toMin(b.start) || a.teacher.localeCompare(b.teacher, 'ar'));
       let cluster: Event[] = [];
@@ -247,8 +259,8 @@ export default function SortingPage() {
     });
 
     const overCount = evs.filter(e => e.seats.some(s => s.overflow)).length;
-    return { events: evs, noChoice, unknownLabel, totalCapacity, overCount };
-  }, [applicants, options, rows, tracks]);
+    return { events: shown, allEvents: evs, noChoice, unknownLabel, totalCapacity, overCount };
+  }, [applicants, options, rows, tracks, fTeacher, fTrack, fCircle]);
 
   const days = [...new Set(events.map(e => e.day))].sort((a, b) => a - b);
   /** أكبر عدد حلقات متزامنة في اليوم — يحدد عرض عموده */
@@ -264,7 +276,7 @@ export default function SortingPage() {
   /** الحلقات المتاحة للنقل إليها (مسمعة × موعد) — للجوال ولوحة المفاتيح بديلًا عن السحب */
   const circleOptions = useMemo(() => {
     const m = new Map<string, { teacherId: string; teacher: string; label: string; capacity: number; used: number; color: string | null }>();
-    events.forEach(e => {
+    allEvents.forEach(e => {
       const k = `${e.teacherId}|${e.label}`;
       if (m.has(k)) return;
       m.set(k, {
@@ -273,7 +285,20 @@ export default function SortingPage() {
       });
     });
     return [...m.values()].sort((a, b) => a.teacher.localeCompare(b.teacher, 'ar'));
-  }, [events]);
+  }, [allEvents]);
+
+  /** قوائم الفلاتر */
+  const teacherList = useMemo(() =>
+    [...new Map(rows.filter(r => r.teacher_id).map(r => [r.teacher_id!, r.teacher_name ?? '—'])).entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ar')), [rows]);
+  const circleFilterList = circleOptions.filter(c => !fTeacher || c.teacherId === fTeacher);
+  const anyFilter = !!(fTeacher || fTrack || fCircle);
+  /** عدد الطالبات الظاهرات بعد الفلاتر (المسار يُحصي طالباته فقط، وبلا تكرار عبر الأيام) */
+  const shownSeats = new Set(events.flatMap(e =>
+    e.seats.filter(s => !fTrack || s.applicant.track_id === fTrack).map(s => s.applicant.id))).size;
+  /** فلتر المسار يسري أيضًا على من يحتجن إسنادًا يدويًا */
+  const unassigned = [...noChoice, ...unknownLabel].filter(a => !fTrack || a.track_id === fTrack);
 
   /** اسم الطالبة قابل للسحب (شاشة كبيرة) وللنقر (نقل من نافذة) — نفس المكوّن في العرضين */
   const SeatChip = ({ s }: { s: Seat }) => (
@@ -284,6 +309,7 @@ export default function SortingPage() {
       title={`${s.track?.name ?? ''} — ${s.minutes}د${s.applicant.phone ? ' — ' + s.applicant.phone : ''} — اضغطي للنقل`}
       className={`w-full text-right text-[11px] leading-tight rounded px-1 py-0.5 cursor-grab active:cursor-grabbing ${
         dragId === s.applicant.id ? 'opacity-40' : ''} ${
+        fTrack && s.applicant.track_id !== fTrack ? 'opacity-30 ' : ''}${
         s.pinned ? 'ring-1 ring-accent/60 ' : ''}${
         s.overflow ? 'bg-destructive/15 text-destructive' : tintOf(s.applicant.track_id)}`}>
       {s.overflow && <AlertTriangle size={9} className="inline ms-0.5" />}
@@ -312,6 +338,50 @@ export default function SortingPage() {
 
       {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : (
         <>
+          {/* فلاتر العرض: مسمعة / مسار / حلقة */}
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <Filter size={15} className="text-muted-foreground" />
+            <Select value={fTeacher || 'all'} onValueChange={v => {
+              const t = v === 'all' ? '' : v;
+              setFTeacher(t);
+              // حلقة مختارة لمسمعة أخرى تُصفَّر
+              if (t && fCircle && !fCircle.startsWith(`${t}|`)) setFCircle('');
+            }}>
+              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="كل المسمعات" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المسمعات</SelectItem>
+                {teacherList.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={fTrack || 'all'} onValueChange={v => setFTrack(v === 'all' ? '' : v)}>
+              <SelectTrigger className="w-40 h-9"><SelectValue placeholder="كل المسارات" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المسارات</SelectItem>
+                {tracks.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={fCircle || 'all'} onValueChange={v => setFCircle(v === 'all' ? '' : v)}>
+              <SelectTrigger className="w-64 h-9"><SelectValue placeholder="كل الحلقات" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الحلقات</SelectItem>
+                {circleFilterList.map(c => (
+                  <SelectItem key={`${c.teacherId}|${c.label}`} value={`${c.teacherId}|${c.label}`}>
+                    {c.teacher} — {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {anyFilter && (
+              <>
+                <Badge variant="outline">{arNum(shownSeats)} طالبة ظاهرة</Badge>
+                <Button variant="ghost" size="sm" className="h-9"
+                  onClick={() => { setFTeacher(''); setFTrack(''); setFCircle(''); }}>
+                  مسح الفلاتر
+                </Button>
+              </>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl print:hidden">
             {[
               { label: 'الدقائق المطلوبة', value: `${arNum(totalNeeded)} د`, warn: totalNeeded > totalCapacity },
@@ -342,7 +412,9 @@ export default function SortingPage() {
           )}
 
           {events.length === 0 ? (
-            <p className="text-muted-foreground text-sm">لا مواعيد توفر مسجلة للمسمعات بعد.</p>
+            <p className="text-muted-foreground text-sm">
+              {allEvents.length === 0 ? 'لا مواعيد توفر مسجلة للمسمعات بعد.' : 'لا حلقات تطابق الفلاتر المختارة.'}
+            </p>
           ) : (
             <div className="hidden lg:block overflow-x-auto pb-2 print:block">
               <div className="min-w-max">
@@ -479,15 +551,15 @@ export default function SortingPage() {
             </div>
           )}
 
-          {(noChoice.length > 0 || unknownLabel.length > 0) && (
+          {unassigned.length > 0 && (
             <Card className="border-warning/50">
               <CardContent className="pt-5 space-y-2">
                 <p className="font-medium flex items-center gap-2">
                   <AlertTriangle size={16} className="text-warning" />
-                  يحتجن إسنادًا يدويًا ({noChoice.length + unknownLabel.length})
+                  يحتجن إسنادًا يدويًا ({unassigned.length})
                   <span className="text-xs font-normal text-muted-foreground">— اسحبي الاسم إلى حلقة، أو اضغطي عليه لاختيارها</span>
                 </p>
-                {[...noChoice, ...unknownLabel].map(a => (
+                {unassigned.map(a => (
                   <button key={a.id} type="button" draggable
                     onDragStart={ev => { ev.dataTransfer.setData('text/plain', a.id); setDragId(a.id); }}
                     onDragEnd={() => { setDragId(null); setDropKey(null); }}
