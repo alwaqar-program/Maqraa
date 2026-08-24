@@ -70,11 +70,10 @@ const navItems: NavItem[] = [
   { label: 'النماذج', href: '/forms', icon: <FileEdit size={20} />, roles: ['admin'] },
   { label: 'الإعدادات', href: '/settings', icon: <Settings size={20} />, roles: ['admin'] },
   // المسمعة
-  { label: 'جلساتي', href: '/teacher', icon: <Home size={20} />, roles: ['teacher'] },
+  { label: 'حلقاتي والتحضير', href: '/teacher', icon: <Home size={20} />, roles: ['teacher'] },
   { label: 'أوقات توفري', href: '/teacher/availability', icon: <CalendarClock size={20} />, roles: ['teacher'] },
   { label: 'تسجيل التسميع', href: '/teacher/tasmee', icon: <Mic size={20} />, roles: ['teacher'] },
-  { label: 'الحضور', href: '/teacher/attendance', icon: <ClipboardCheck size={20} />, roles: ['teacher'] },
-  { label: 'الاختبارات', href: '/teacher/exams', icon: <FileCheck size={20} />, roles: ['teacher'] },
+  // «الحضور» أزيل — التحضير يتم من «حلقاتي والتحضير»؛ «الاختبارات» مخفية مؤقتًا بطلب الإدارة
   { label: 'طالباتي', href: '/teacher/students', icon: <Users size={20} />, roles: ['teacher'] },
   { label: 'اقتراحاتي', href: '/teacher/suggestions', icon: <MessageSquarePlus size={20} />, roles: ['teacher'] },
   // المشرفة

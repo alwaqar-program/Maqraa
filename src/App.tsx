@@ -31,7 +31,6 @@ import PledgesAdminPage from "./pages/admin/PledgesAdminPage";
 import UsersPage from "./pages/admin/UsersPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 import MyPledgesPage from "./pages/student/MyPledgesPage";
-import TeacherExamsPage from "./pages/teacher/TeacherExamsPage";
 import TeacherStudentsPage from "./pages/teacher/TeacherStudentsPage";
 import SuggestionBoxPage from "./pages/SuggestionBoxPage";
 import SuggestionsAdminPage from "./pages/admin/SuggestionsAdminPage";
@@ -84,11 +83,9 @@ const PAGE_TITLES: [string, string][] = [
   ['/settings', 'الإعدادات'],
   ['/teacher/availability', 'أوقات توفري'],
   ['/teacher/tasmee', 'تسجيل التسميع'],
-  ['/teacher/attendance', 'الحضور'],
-  ['/teacher/exams', 'الاختبارات'],
   ['/teacher/students', 'طالباتي'],
   ['/teacher/suggestions', 'اقتراحاتي'],
-  ['/teacher', 'جلساتي'],
+  ['/teacher', 'حلقاتي والتحضير'],
   ['/me/sard', 'سردي الذاتي'],
   ['/me/booking', 'موعدي'],
   ['/me/history', 'سجلي'],
@@ -187,8 +184,9 @@ const App = () => (
             <Route path="/teacher" element={<ProtectedRoute roles={['teacher']}><TeacherHomePage /></ProtectedRoute>} />
             <Route path="/teacher/availability" element={<ProtectedRoute roles={['teacher']}><TeacherAvailabilityPage /></ProtectedRoute>} />
             <Route path="/teacher/tasmee" element={<ProtectedRoute roles={['teacher']}><TasmeePage /></ProtectedRoute>} />
-            <Route path="/teacher/attendance" element={<ProtectedRoute roles={['teacher']}><Placeholder title="الحضور" /></ProtectedRoute>} />
-            <Route path="/teacher/exams" element={<ProtectedRoute roles={['teacher']}><TeacherExamsPage /></ProtectedRoute>} />
+            {/* «الحضور» أزيل (التحضير في /teacher)، و«الاختبارات» مخفية مؤقتًا — من فتحت الرابط تُعاد للرئيسية */}
+            <Route path="/teacher/attendance" element={<Navigate to="/teacher" replace />} />
+            <Route path="/teacher/exams" element={<Navigate to="/teacher" replace />} />
             <Route path="/teacher/students" element={<ProtectedRoute roles={['teacher']}><TeacherStudentsPage /></ProtectedRoute>} />
             <Route path="/teacher/suggestions" element={<ProtectedRoute roles={['teacher']}><SuggestionBoxPage /></ProtectedRoute>} />
 
