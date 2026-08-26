@@ -3,6 +3,9 @@
  * لإضافة شرح لخاصية جديدة: زيدي TOUR_VERSION، وأضيفي سطرًا في WHATS_NEW،
  * وخطوة في steps الصفحة المعنية مع data-tour على العنصر في الواجهة.
  */
+/** مفتاح الجولة: false يخفي علامة الاستفهام ويمنع البدء التلقائي (الكود يبقى جاهزًا) */
+export const TOUR_ENABLED = false;
+
 export const TOUR_VERSION = 1;
 
 export interface TourStep {

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { GENERAL_STEPS, TOUR_VERSION, WHATS_NEW, stepsForPath, TourStep } from '@/lib/tour-steps';
+import { GENERAL_STEPS, TOUR_ENABLED, TOUR_VERSION, WHATS_NEW, stepsForPath, TourStep } from '@/lib/tour-steps';
 
 const SEEN_VERSION = 'tourSeenVersion';
 const SEEN_GENERAL = 'tourSeenGeneral';
@@ -48,7 +48,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   // أول زيارة للنظام: تبدأ الجولة تلقائيًا مرة واحدة
   useEffect(() => {
-    if (!localStorage.getItem(SEEN_GENERAL)) {
+    if (TOUR_ENABLED && !localStorage.getItem(SEEN_GENERAL)) {
       const t = setTimeout(start, 900);
       return () => clearTimeout(t);
     }
@@ -169,6 +169,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 /** علامة الاستفهام — تشرح الصفحة الحالية، وعليها نقطة عند وجود خصائص جديدة */
 export function HelpButton() {
   const { start, hasNew } = useTour();
+  if (!TOUR_ENABLED) return null;
   return (
     <button type="button" data-tour="help" onClick={start}
       title="جولة تعريفية بهذه الصفحة"
