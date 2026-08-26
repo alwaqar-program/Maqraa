@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -78,6 +79,7 @@ export default function RecitationAdminPage() {
       <div className="flex items-center gap-2">
         <Mic className="text-accent" />
         <h1 className="text-2xl font-display">سجل التسميع والسرد</h1>
+        <ClearFilters />
       </div>
 
       <div className="flex flex-wrap items-end gap-4">

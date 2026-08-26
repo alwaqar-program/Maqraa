@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -412,6 +413,7 @@ export default function SortingPage() {
           <ListOrdered className="text-accent" />
           <h1 className="text-2xl font-display">فرز الطالبات</h1>
           <Badge variant="outline">{applicants.length} متقدمة</Badge>
+          <ClearFilters />
         </div>
         <Button variant="outline" className="gap-1" onClick={() => window.print()}>
           <Printer size={15} /> طباعة

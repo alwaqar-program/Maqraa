@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -161,6 +162,7 @@ export default function StudentsPage() {
           <Users className="text-accent" />
           <h1 className="text-2xl font-display">الطالبات</h1>
           <Badge variant="outline">{students.length}</Badge>
+          <ClearFilters />
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-1" asChild>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -121,6 +122,7 @@ export default function ReportsPage() {
       <div className="flex items-center gap-2">
         <FileBarChart className="text-accent" />
         <h1 className="text-2xl font-display">التقارير</h1>
+        <ClearFilters />
       </div>
 
       <div className="flex flex-wrap items-end gap-4">

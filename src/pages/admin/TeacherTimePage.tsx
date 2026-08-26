@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -111,6 +112,7 @@ export default function TeacherTimePage() {
       <div className="flex items-center gap-2">
         <Timer className="text-accent" />
         <h1 className="text-2xl font-display">دوام المسمعات</h1>
+        <ClearFilters />
       </div>
 
       <p className="text-sm text-muted-foreground">

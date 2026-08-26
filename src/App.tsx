@@ -49,6 +49,7 @@ import StudentsArchivePage from "./pages/admin/StudentsArchivePage";
 import StudentProfilePage from "./pages/admin/StudentProfilePage";
 import MyCirclePage from "./pages/student/MyCirclePage";
 import SupervisorPage from "./pages/supervisor/SupervisorPage";
+import { FilterMemory, ScrollMemory } from '@/lib/navigation-memory';
 import logoImg from '@/assets/logo-maqraa.png';
 
 const queryClient = new QueryClient();
@@ -140,6 +141,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <TitleUpdater />
+        <FilterMemory />
+        <ScrollMemory />
         <AuthProvider>
           <Routes>
             {/* عام */}

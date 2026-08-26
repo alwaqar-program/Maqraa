@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -273,6 +274,7 @@ export default function TeachersPage() {
           <GraduationCap className="text-accent" />
           <h1 className="text-2xl font-display">المسمعات</h1>
           <Badge variant="outline">{teachers.length}</Badge>
+          <ClearFilters />
         </div>
         <Button onClick={openCreate}><Plus size={16} className="ml-1" /> مسمعة جديدة</Button>
       </div>

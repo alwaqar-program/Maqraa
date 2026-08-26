@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ClearFilters } from '@/components/ui/clear-filters';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
@@ -118,6 +119,7 @@ export default function ApplicantsPage() {
         <UserPlus className="text-accent" />
         <h1 className="text-2xl font-display">المتقدمات</h1>
         <Badge variant="outline">{applicants.filter(a => a.status === 'pending').length} بانتظار المراجعة</Badge>
+        <ClearFilters />
         <Button variant="outline" size="sm" className="gap-1 mr-auto" onClick={() => {
           const cols: CsvColumnDef[] = [
             { key: 'full_name', header: 'الاسم' },
