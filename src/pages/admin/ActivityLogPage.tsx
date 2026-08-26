@@ -182,7 +182,7 @@ export default function ActivityLogPage() {
           <Badge variant="outline">{filtered.length}{more ? '+' : ''}</Badge>
           <ClearFilters />
         </div>
-        <Button variant="outline" className="gap-1" onClick={exportCsv} disabled={!filtered.length}>
+        <Button variant="outline" className="gap-1" data-tour="log-export" onClick={exportCsv} disabled={!filtered.length}>
           <Download size={15} /> تصدير CSV
         </Button>
       </div>
@@ -197,7 +197,7 @@ export default function ActivityLogPage() {
         </p>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div data-tour="log-filters" className="flex flex-wrap items-end gap-3">
         <div className="space-y-1"><Label>من</Label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
         <div className="space-y-1"><Label>إلى</Label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
         <div className="space-y-1 min-w-44">

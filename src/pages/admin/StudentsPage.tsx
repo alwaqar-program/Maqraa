@@ -172,7 +172,7 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      <div className="relative max-w-sm">
+      <div data-tour="students-search" className="relative max-w-sm">
         <Search size={16} className="absolute right-3 top-3 text-muted-foreground" />
         <Input className="pr-9" placeholder="بحث بالاسم أو الهوية أو الجوال" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
@@ -180,7 +180,7 @@ export default function StudentsPage() {
       <Card>
         <CardContent className="pt-6">
           {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : (
-            <Table>
+            <Table data-tour="students-table">
               <TableHeader>
                 <TableRow>
                   <SortableHead label="الاسم" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={toggleSort} />
@@ -230,7 +230,7 @@ export default function StudentsPage() {
                     <TableCell className="whitespace-nowrap">
                       <Button variant="ghost" size="icon" title="ملف الطالبة" onClick={() => navigate(`/students/${s.id}`)}><Eye size={16} /></Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Pencil size={16} /></Button>
-                      <Button variant="ghost" size="icon" title="انسحاب / استبعاد" className="text-muted-foreground hover:text-destructive"
+                      <Button variant="ghost" size="icon" data-tour="students-leave" title="انسحاب / استبعاد" className="text-muted-foreground hover:text-destructive"
                         onClick={() => { setLeaving(s); setLeaveForm({ kind: 'withdrawn', date: new Date().toISOString().slice(0, 10), reason: '' }); }}>
                         <UserMinus size={16} />
                       </Button>

@@ -398,7 +398,7 @@ export default function TeachersPage() {
             </div>
             {/* لون المسمعة — يميّز حلقاتها في تقويم الفرز */}
             <div className="space-y-2">
-              <Label>لون المسمعة <span className="text-muted-foreground text-xs">— يميّز حلقاتها في تقويم الفرز</span></Label>
+              <Label data-tour="teacher-color">لون المسمعة <span className="text-muted-foreground text-xs">— يميّز حلقاتها في تقويم الفرز</span></Label>
               <div className="flex items-center gap-2 flex-wrap">
                 {TEACHER_COLORS.map(c => (
                   <button key={c} type="button" onClick={() => setForm({ ...form, color: c })}
@@ -440,7 +440,7 @@ export default function TeachersPage() {
             {/* أوقات التوفر — تُحفظ في availability_slots مع زر الحفظ */}
             <div className="space-y-2 border-t pt-4">
               <div className="flex items-center justify-between">
-                <Label>أوقات التوفر (مواعيد التسميع)</Label>
+                <Label data-tour="teacher-slots">أوقات التوفر (مواعيد التسميع)</Label>
                 {slots.length > 0 && (
                   <span className="text-xs text-muted-foreground">المجموع: {slotsTotalHours} ساعة أسبوعيًا</span>
                 )}

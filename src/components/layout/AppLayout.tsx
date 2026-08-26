@@ -35,6 +35,7 @@ import {
   Timer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { TourProvider, HelpButton } from '@/components/tour/Tour';
 import logoAlwaqar from '@/assets/logo-alwaqar.png';
 
 interface NavItem {
@@ -115,6 +116,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const filteredItems = navItems.filter(item => item.roles.some(r => roles.includes(r)));
 
   return (
+    <TourProvider>
+    <HelpButton />
     <div className="min-h-screen flex">
       {/* Mobile overlay */}
       {mobileOpen && (
@@ -144,7 +147,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
+        <nav data-tour="nav" className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
           {filteredItems.map(item => {
             const isActive = location.pathname === item.href;
             return (
@@ -169,7 +172,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* User section */}
-        <div className={cn('p-3 border-t border-sidebar-border', collapsed && 'flex flex-col items-center')}>
+        <div data-tour="user" className={cn('p-3 border-t border-sidebar-border', collapsed && 'flex flex-col items-center')}>
           {!collapsed && (
             <div className="mb-2 px-2">
               <p className="text-sm font-medium truncate">{user?.email}</p>
@@ -214,5 +217,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
     </div>
+    </TourProvider>
   );
 }

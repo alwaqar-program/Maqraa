@@ -525,11 +525,11 @@ export default function CirclesPage() {
           <Badge variant="outline">{circles.length}</Badge>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" className="gap-1" onClick={createCirclesFromSlots} disabled={autoCreating}
+          <Button variant="outline" className="gap-1" data-tour="circles-autocreate" onClick={createCirclesFromSlots} disabled={autoCreating}
             title="حلقة لكل موعد توفر غير مرتبط — والمواعيد الدورية حلقة واحدة">
             <CalendarPlus size={15} /> {autoCreating ? '...' : 'إنشاء حلقات من مواعيد المسمعات'}
           </Button>
-          <Button variant="outline" className="gap-1" onClick={buildDistribution} disabled={distributing}>
+          <Button variant="outline" className="gap-1" data-tour="circles-distribute" onClick={buildDistribution} disabled={distributing}>
             <Wand2 size={15} /> {distributing ? '...' : 'توزيع تلقائي'}
           </Button>
           <Button onClick={openCreate}><Plus size={16} className="ml-1" /> حلقة جديدة</Button>
