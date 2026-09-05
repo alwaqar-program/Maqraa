@@ -17,7 +17,7 @@ import { SortableHead } from '@/components/ui/sortable-head';
 import { useTableSort, sortRows, SortType } from '@/lib/use-table-sort';
 import { useUrlState } from '@/lib/use-url-state';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, GraduationCap, FileSignature, Check, X, Trash2 } from 'lucide-react';
+import { Plus, Pencil, GraduationCap, FileSignature, Check, X, Trash2, Copy, Eye } from 'lucide-react';
 import { useSuperAdmin } from '@/components/ui/super-delete';
 import { WEEKDAYS, slotHours } from '@/lib/schedule';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -53,6 +53,27 @@ interface Agreement {
   extra_answers?: Record<string, any>;
 }
 
+
+/** إجابات الأسئلة الإضافية باسم كل سؤال — الأيبان وغيره يظهر بعنوانه لا كرقم مرصوص */
+function ExtraAnswersList({ answers, labels }: { answers?: Record<string, any>; labels: Record<string, string> }) {
+  if (!answers || !Object.keys(answers).length) return null;
+  const text = (v: any) => (Array.isArray(v) ? v.join('، ') : String(v ?? ''));
+  return (
+    <div className="mt-1 space-y-0.5">
+      {Object.entries(answers).map(([k, v]) => (
+        <p key={k} className="text-xs flex items-center gap-1.5 flex-wrap">
+          <span className="text-muted-foreground">{labels[k] ?? 'سؤال إضافي'}:</span>
+          <span className="font-medium" dir="auto">{text(v)}</span>
+          <button type="button" title="نسخ" className="text-muted-foreground hover:text-foreground"
+            onClick={() => navigator.clipboard?.writeText(text(v))}>
+            <Copy size={11} />
+          </button>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
@@ -63,6 +84,9 @@ export default function TeachersPage() {
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [origSlots, setOrigSlots] = useState<SlotRow[]>([]);
+  const [qLabels, setQLabels] = useState<Record<string, string>>({});   // معرّف السؤال → نصه
+  const [pastAgreements, setPastAgreements] = useState<Agreement[]>([]); // المقبولة والمرفوضة
+  const [viewAgreement, setViewAgreement] = useState<Agreement | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ keys: string[]; names: string[] } | null>(null);
   const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
   const { toast } = useToast();
@@ -107,9 +131,12 @@ export default function TeachersPage() {
       supabase.from('v_teacher_weekly_hours').select('*'),
       // طالبات كل مسمعة من عضويات حلقاتها
       supabase.from('circle_members').select('circles(teacher_id)').range(0, 4999),
-      supabase.from('teacher_agreements').select('*').eq('status', 'pending').order('created_at'),
+      supabase.from('teacher_agreements').select('*').order('created_at', { ascending: false }),
+      supabase.from('form_questions').select('id, label').eq('form_key', 'teacher_agreement'),
     ]);
-    setAgreements(agr || []);
+    setAgreements((agr || []).filter((a: any) => a.status === 'pending'));
+    setPastAgreements((agr || []).filter((a: any) => a.status !== 'pending'));
+    setQLabels(Object.fromEntries(((qs as any[]) || []).map(q => [q.id, q.label])));
     if (error) toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     setTeachers((rows || []).map((t: any) => ({
       ...t,
@@ -300,11 +327,7 @@ export default function TeachersPage() {
                     </p>
                   )}
                   {a.notes && <p className="text-muted-foreground mt-0.5">ملاحظات: {a.notes}</p>}
-                  {a.extra_answers && Object.keys(a.extra_answers).length > 0 && (
-                    <p className="text-muted-foreground mt-0.5 text-xs">
-                      إجابات إضافية: {Object.values(a.extra_answers).map(v => Array.isArray(v) ? v.join('، ') : v).join(' · ')}
-                    </p>
-                  )}
+                  <ExtraAnswersList answers={a.extra_answers} labels={qLabels} />
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Button size="sm" variant="outline" className="gap-1" onClick={() => acceptAgreement(a)}>
@@ -316,6 +339,34 @@ export default function TeachersPage() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* أرشيف الاتفاقيات: المقبولة والمرفوضة تبقى مرئية ببياناتها كاملة */}
+      {pastAgreements.length > 0 && (
+        <Card>
+          <CardContent className="pt-5 space-y-2">
+            <p className="font-medium flex items-center gap-2">
+              <FileSignature size={17} className="text-muted-foreground" />
+              اتفاقيات سابقة ({pastAgreements.length})
+              <span className="text-xs font-normal text-muted-foreground">— بياناتها كاملة كما وقّعتها</span>
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {pastAgreements.map(a => (
+                <button key={a.id} type="button" onClick={() => setViewAgreement(a)}
+                  className="text-right border rounded-lg px-3 py-2 hover:border-accent transition-colors">
+                  <span className="flex items-center gap-2">
+                    <b className="text-sm">{a.full_name}</b>
+                    <Badge variant="outline" className={(a as any).status === 'accepted' ? 'text-success border-success' : 'text-muted-foreground'}>
+                      {(a as any).status === 'accepted' ? 'مقبولة' : 'مرفوضة'}
+                    </Badge>
+                    <Eye size={13} className="text-muted-foreground mr-auto" />
+                  </span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">وقّعت في {a.agreement_date}</span>
+                </button>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -609,6 +660,27 @@ export default function TeachersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* عرض اتفاقية موقعة بكل تفاصيلها */}
+      <Dialog open={!!viewAgreement} onOpenChange={open => !open && setViewAgreement(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>اتفاقية {viewAgreement?.full_name}</DialogTitle></DialogHeader>
+          {viewAgreement && (
+            <div className="space-y-2 text-sm">
+              <p><span className="text-muted-foreground">الجوال:</span> <span dir="ltr">{viewAgreement.phone ?? '—'}</span></p>
+              <p><span className="text-muted-foreground">تاريخ التوقيع:</span> {viewAgreement.agreement_date}</p>
+              {viewAgreement.agreed_times_text && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">المواعيد:</span> {viewAgreement.agreed_times_text}</p>
+              )}
+              {viewAgreement.notes && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">ملاحظات:</span> {viewAgreement.notes}</p>
+              )}
+              <ExtraAnswersList answers={viewAgreement.extra_answers} labels={qLabels} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+
     </div>
   );
 }
