@@ -126,7 +126,7 @@ export default function TeachersPage() {
   };
 
   const fetchAll = useCallback(async () => {
-    const [{ data: rows, error }, { data: hours }, { data: members }, { data: agr }] = await Promise.all([
+    const [{ data: rows, error }, { data: hours }, { data: members }, { data: agr }, { data: qs }] = await Promise.all([
       supabase.from('teachers').select('*').order('full_name'),
       supabase.from('v_teacher_weekly_hours').select('*'),
       // طالبات كل مسمعة من عضويات حلقاتها
