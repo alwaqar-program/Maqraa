@@ -54,6 +54,10 @@ interface Agreement {
 }
 
 
+
+/** تسوية الاسم للمطابقة: مسافات مضغوطة وبلا تشكيل زائد */
+const normName = (v: string) => (v || '').replace(/\s+/g, ' ').trim();
+
 /** إجابات الأسئلة الإضافية باسم كل سؤال — الأيبان وغيره يظهر بعنوانه لا كرقم مرصوص */
 function ExtraAnswersList({ answers, labels }: { answers?: Record<string, any>; labels: Record<string, string> }) {
   if (!answers || !Object.keys(answers).length) return null;
@@ -147,6 +151,13 @@ export default function TeachersPage() {
     setLoading(false);
   }, [toast]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  /** اتفاقية هذه المسمعة إن وُجدت — بالمعرّف أولًا ثم بالاسم أو الجوال */
+  const agreementOf = (t: Teacher): Agreement | undefined =>
+    [...agreements, ...pastAgreements].find(a =>
+      (a as any).teacher_id === t.id
+      || normName(a.full_name) === normName(t.full_name)
+      || (!!a.phone && !!t.phone && a.phone === t.phone));
 
   const { sortKey, sortDir, toggleSort } = useTableSort();
   const SORTS: Record<string, { get: (r: Teacher) => unknown; type: SortType }> = {
@@ -259,9 +270,20 @@ export default function TeachersPage() {
 
   // قبول اتفاقية موقعة → إنشاء ملف مسمعة
   const acceptAgreement = async (a: Agreement) => {
-    const { data: teacher, error: tErr } = await supabase.from('teachers')
-      .insert({ full_name: a.full_name, phone: a.phone ?? null }).select('id').single();
-    if (tErr) { toast({ title: 'خطأ', description: tErr.message, variant: 'destructive' }); return; }
+    // مسمعة بالاسم نفسه أو الجوال نفسه؟ نربط الاتفاقية بها بدل إنشاء نسخة مكررة
+    const existing = teachers.find(t =>
+      normName(t.full_name) === normName(a.full_name)
+      || (!!a.phone && !!t.phone && a.phone === t.phone));
+    let teacher: { id: string };
+    if (existing) {
+      teacher = { id: existing.id };
+      if (a.phone && !existing.phone) await supabase.from('teachers').update({ phone: a.phone }).eq('id', existing.id);
+    } else {
+      const { data, error: tErr } = await supabase.from('teachers')
+        .insert({ full_name: a.full_name, phone: a.phone ?? null }).select('id').single();
+      if (tErr) { toast({ title: 'خطأ', description: tErr.message, variant: 'destructive' }); return; }
+      teacher = data;
+    }
     // مواعيد الاتفاقية تصبح مواعيد توفرها مباشرة
     if (a.agreed_slots?.length) {
       const { error: slotErr } = await supabase.from('availability_slots').insert(
@@ -343,34 +365,6 @@ export default function TeachersPage() {
         </Card>
       )}
 
-      {/* أرشيف الاتفاقيات: المقبولة والمرفوضة تبقى مرئية ببياناتها كاملة */}
-      {pastAgreements.length > 0 && (
-        <Card>
-          <CardContent className="pt-5 space-y-2">
-            <p className="font-medium flex items-center gap-2">
-              <FileSignature size={17} className="text-muted-foreground" />
-              اتفاقيات سابقة ({pastAgreements.length})
-              <span className="text-xs font-normal text-muted-foreground">— بياناتها كاملة كما وقّعتها</span>
-            </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {pastAgreements.map(a => (
-                <button key={a.id} type="button" onClick={() => setViewAgreement(a)}
-                  className="text-right border rounded-lg px-3 py-2 hover:border-accent transition-colors">
-                  <span className="flex items-center gap-2">
-                    <b className="text-sm">{a.full_name}</b>
-                    <Badge variant="outline" className={(a as any).status === 'accepted' ? 'text-success border-success' : 'text-muted-foreground'}>
-                      {(a as any).status === 'accepted' ? 'مقبولة' : 'مرفوضة'}
-                    </Badge>
-                    <Eye size={13} className="text-muted-foreground mr-auto" />
-                  </span>
-                  <span className="block text-xs text-muted-foreground mt-0.5">وقّعت في {a.agreement_date}</span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardContent className="pt-6">
           {loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : (
@@ -411,6 +405,13 @@ export default function TeachersPage() {
                     </TableCell>
                     <TableCell><Switch checked={t.is_active} onCheckedChange={() => toggleActive(t)} /></TableCell>
                     <TableCell className="whitespace-nowrap">
+                      {/* اتفاقيتها الموقّعة ببياناتها (الأيبان وغيره) — بجانبها لا في قائمة منفصلة */}
+                      {agreementOf(t) && (
+                        <Button variant="ghost" size="icon" title="الاتفاقية الموقّعة"
+                          onClick={() => setViewAgreement(agreementOf(t)!)}>
+                          <FileSignature size={16} />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => openEdit(t)}><Pencil size={16} /></Button>
                       <Button variant="ghost" size="icon" title="حذف المسمعة" className="text-muted-foreground hover:text-destructive"
                         onClick={() => setDeletingTeacher(t)}>
