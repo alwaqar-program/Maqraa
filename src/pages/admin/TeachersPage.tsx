@@ -55,6 +55,22 @@ interface Agreement {
 
 
 
+
+/** «يرجى إدخال رقم الآيبان» → «رقم الآيبان» — عناوين الأسئلة تُكتب كطلبات، ونحن نعرضها كحقول */
+const fieldLabel = (v: string) =>
+  (v || '').replace(/^(يرجى|الرجاء|رجاءً)\s+(إدخال|ادخال|اختيار|كتابة|تحديد)\s+/u, '').replace(/[:؟?]\s*$/u, '').trim();
+
+const isIban = (label: string, value: string) =>
+  /آيبان|ايبان|iban/i.test(label) || /^SA\d{2}[A-Z0-9]{16,}$/i.test((value || '').replace(/\s/g, ''));
+
+/** 05xxxxxxxx → 9665xxxxxxxx لرابط واتساب */
+const waNumber = (p?: string | null) => {
+  const d = (p || '').replace(/\D/g, '');
+  if (d.startsWith('05')) return '966' + d.slice(1);
+  if (d.startsWith('9665')) return d;
+  return d;
+};
+
 /** تسوية الاسم للمطابقة: مسافات مضغوطة وبلا تشكيل زائد */
 const normName = (v: string) => (v || '').replace(/\s+/g, ' ').trim();
 
@@ -661,23 +677,96 @@ export default function TeachersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* عرض اتفاقية موقعة بكل تفاصيلها */}
+      {/* اتفاقية موقّعة — البيانات التشغيلية أولًا وبإجراء مباشر */}
       <Dialog open={!!viewAgreement} onOpenChange={open => !open && setViewAgreement(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>اتفاقية {viewAgreement?.full_name}</DialogTitle></DialogHeader>
-          {viewAgreement && (
-            <div className="space-y-2 text-sm">
-              <p><span className="text-muted-foreground">الجوال:</span> <span dir="ltr">{viewAgreement.phone ?? '—'}</span></p>
-              <p><span className="text-muted-foreground">تاريخ التوقيع:</span> {viewAgreement.agreement_date}</p>
-              {viewAgreement.agreed_times_text && (
-                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">المواعيد:</span> {viewAgreement.agreed_times_text}</p>
-              )}
-              {viewAgreement.notes && (
-                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">ملاحظات:</span> {viewAgreement.notes}</p>
-              )}
-              <ExtraAnswersList answers={viewAgreement.extra_answers} labels={qLabels} />
-            </div>
-          )}
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">{viewAgreement?.full_name}</DialogTitle>
+          </DialogHeader>
+          {viewAgreement && (() => {
+            const answers = Object.entries(viewAgreement.extra_answers ?? {})
+              .map(([k, v]) => ({
+                label: fieldLabel(qLabels[k] ?? 'سؤال إضافي'),
+                value: Array.isArray(v) ? v.join('، ') : String(v ?? ''),
+              }))
+              .filter(a => a.value);
+            const iban = answers.find(a => isIban(a.label, a.value));
+            const rest = answers.filter(a => a !== iban);
+            const copy = (v: string, what: string) => {
+              navigator.clipboard?.writeText(v);
+              toast({ title: `نُسخ ${what}` });
+            };
+            return (
+              <div className="space-y-4">
+                {/* التواصل + تاريخ التوقيع */}
+                <div className="flex items-center gap-2 flex-wrap text-sm">
+                  {viewAgreement.phone ? (
+                    <>
+                      <a href={`tel:${viewAgreement.phone}`} dir="ltr"
+                        className="font-medium border rounded-lg px-2.5 py-1 hover:border-accent">
+                        {viewAgreement.phone}
+                      </a>
+                      <Button variant="outline" size="sm" className="gap-1" asChild>
+                        <a href={`https://wa.me/${waNumber(viewAgreement.phone)}`} target="_blank" rel="noreferrer">
+                          واتساب
+                        </a>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="gap-1"
+                        onClick={() => copy(viewAgreement.phone!, 'الجوال')}>
+                        <Copy size={13} /> نسخ
+                      </Button>
+                    </>
+                  ) : <span className="text-muted-foreground">بلا جوال</span>}
+                  <span className="text-xs text-muted-foreground mr-auto">وقّعت في {viewAgreement.agreement_date}</span>
+                </div>
+
+                {/* الآيبان — أكثر ما يُحتاج نسخه */}
+                {iban && (
+                  <div className="rounded-xl border border-accent/50 bg-accent/5 p-3">
+                    <p className="text-xs text-muted-foreground mb-1">{iban.label}</p>
+                    <div className="flex items-center gap-2">
+                      <code dir="ltr" className="flex-1 font-mono text-[13px] sm:text-[15px] tracking-wider break-all">{iban.value}</code>
+                      <Button size="sm" variant="outline" className="gap-1 shrink-0"
+                        onClick={() => copy(iban.value.replace(/\s/g, ''), 'الآيبان')}>
+                        <Copy size={13} /> نسخ
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* المواعيد سطرًا سطرًا لا كتلة نص */}
+                {viewAgreement.agreed_times_text && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">المواعيد المتفق عليها</p>
+                    <div className="rounded-lg border divide-y">
+                      {viewAgreement.agreed_times_text.split('\n').filter(l => l.trim()).map((l, i) => (
+                        <p key={i} className="px-3 py-1.5 text-sm">{l.trim()}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* بقية الإجابات: عنوان صغير وقيمة بارزة */}
+                {rest.length > 0 && (
+                  <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2.5">
+                    {rest.map(a => (
+                      <div key={a.label}>
+                        <dt className="text-xs text-muted-foreground">{a.label}</dt>
+                        <dd className="text-sm font-medium" dir="auto">{a.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+
+                {viewAgreement.notes && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">ملاحظاتها</p>
+                    <p className="text-sm whitespace-pre-wrap border rounded-lg px-3 py-2">{viewAgreement.notes}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

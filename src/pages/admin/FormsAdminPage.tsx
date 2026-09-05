@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save } from 'lucide-react';
+import { FileEdit, Plus, Trash2, ExternalLink, ArrowUp, ArrowDown, ImageUp, Eye, Save, Inbox } from 'lucide-react';
 import { FORM_DEFAULTS, FormKey, FormQuestion, headerUrl, BASE_FIELDS } from '@/lib/form-settings';
 import { useUrlState } from '@/lib/use-url-state';
 import { StudentRegisterPreview, TeacherAgreementPreview, HostingFeedbackPreview } from '@/components/forms/FormPreviews';
@@ -24,6 +25,16 @@ const FORM_LABELS: Record<FormKey, { label: string; url: string }> = {
   hosting_feedback: { label: 'قياس رضا الاستضافات', url: '' },
 };
 const QTYPE_LABELS = { text: 'نص حر', select: 'اختيار واحد', multiselect: 'اختيار متعدد', note: 'نص إرشادي' };
+
+
+/** مصدر إجابات كل نموذج: جدوله وأعمدة العرض والصفحة التي تُدار منها */
+const RESPONSE_SOURCES: Record<FormKey, {
+  table: string; nameCol: string; dateCol: string; page: string; pageLabel: string;
+}> = {
+  student_register: { table: 'applicants', nameCol: 'full_name', dateCol: 'created_at', page: '/applicants', pageLabel: 'المتقدمات' },
+  teacher_agreement: { table: 'teacher_agreements', nameCol: 'full_name', dateCol: 'created_at', page: '/teachers', pageLabel: 'المسمعات' },
+  hosting_feedback: { table: 'hosting_feedback', nameCol: 'student_id', dateCol: 'created_at', page: '/hostings', pageLabel: 'الاستضافات' },
+};
 
 /** أسئلة المسودة: الجديدة تحمل معرفًا مؤقتًا new-... حتى تُحفظ */
 type DraftQuestion = FormQuestion & { _new?: boolean };
@@ -38,6 +49,10 @@ export default function FormsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
+  // تتبع الإجابات الواردة على هذا النموذج
+  const [responses, setResponses] = useState<any[]>([]);
+  const [respTotal, setRespTotal] = useState(0);
+  const [viewResp, setViewResp] = useState<any | null>(null);
   const { toast } = useToast();
 
   // المسارات = خيارات شرط الحقل المدمج «المسار»
@@ -73,6 +88,15 @@ export default function FormsAdminPage() {
     setQuestions((qs || []) as DraftQuestion[]);
     setDeletedIds([]);
     setDirty(false);
+    // الإجابات الواردة على هذا النموذج (أحدث ١٥ + الإجمالي)
+    const src = RESPONSE_SOURCES[key];
+    const [{ data: latest }, { count }] = await Promise.all([
+      supabase.from(src.table).select('*, students(full_name)')
+        .order(src.dateCol, { ascending: false }).limit(15),
+      supabase.from(src.table).select('id', { count: 'exact', head: true }),
+    ]);
+    setResponses((latest as any[]) || []);
+    setRespTotal(count ?? 0);
   }, [key]);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -222,6 +246,51 @@ export default function FormsAdminPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* تتبع الإجابات الواردة على هذا النموذج */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-body flex items-center justify-between gap-2 flex-wrap">
+            <span className="flex items-center gap-2">
+              <Inbox size={17} className="text-accent" />
+              الإجابات الواردة
+              <Badge variant="outline">{respTotal.toLocaleString('ar-EG')}</Badge>
+            </span>
+            <Button variant="outline" size="sm" className="gap-1" asChild>
+              <Link to={RESPONSE_SOURCES[key].page}>
+                فتح صفحة {RESPONSE_SOURCES[key].pageLabel} <ExternalLink size={13} />
+              </Link>
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {responses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">لم تصل أي إجابة على هذا النموذج بعد.</p>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">
+                أحدث {responses.length.toLocaleString('ar-EG')} إجابة — اضغطي أي واحدة لعرض تفاصيلها كاملة.
+              </p>
+              {responses.map(r => (
+                <button key={r.id} type="button" onClick={() => setViewResp(r)}
+                  className="w-full text-right border rounded-lg px-3 py-2 hover:border-accent transition-colors flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-sm">{r.full_name ?? r.students?.full_name ?? 'بلا اسم'}</span>
+                  {r.status && (
+                    <Badge variant="outline" className="text-xs">
+                      {r.status === 'pending' ? 'بانتظار المراجعة' : r.status === 'accepted' ? 'مقبولة' : 'مرفوضة'}
+                    </Badge>
+                  )}
+                  {typeof r.rating === 'number' && <Badge variant="outline" className="text-xs">{'★'.repeat(r.rating)}</Badge>}
+                  <span className="text-xs text-muted-foreground mr-auto">
+                    {new Date(r.created_at).toLocaleString('ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* صورة الترويسة */}
       {key !== 'hosting_feedback' && (
@@ -412,6 +481,47 @@ export default function FormsAdminPage() {
           ))}
         </CardContent>
       </Card>
+
+      {/* تفاصيل إجابة واردة */}
+      <Dialog open={!!viewResp} onOpenChange={open => !open && setViewResp(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{viewResp?.full_name ?? viewResp?.students?.full_name ?? 'إجابة واردة'}</DialogTitle>
+          </DialogHeader>
+          {viewResp && (
+            <div className="space-y-2 text-sm">
+              <p className="text-xs text-muted-foreground">
+                وصلت في {new Date(viewResp.created_at).toLocaleString('ar-EG')}
+              </p>
+              {viewResp.phone && <p><span className="text-muted-foreground">الجوال:</span> <span dir="ltr">{viewResp.phone}</span></p>}
+              {viewResp.agreed_times_text && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">المواعيد:</span> {viewResp.agreed_times_text}</p>
+              )}
+              {Array.isArray(viewResp.preferred_slots) && viewResp.preferred_slots.length > 0 && (
+                <p><span className="text-muted-foreground">أولوياتها:</span> {viewResp.preferred_slots.map((x: string, i: number) => `${i + 1}) ${x}`).join(' · ')}</p>
+              )}
+              {typeof viewResp.rating === 'number' && <p><span className="text-muted-foreground">التقييم:</span> {'★'.repeat(viewResp.rating)}</p>}
+              {(viewResp.comment || viewResp.notes || viewResp.suggestions) && (
+                <p className="whitespace-pre-wrap">
+                  <span className="text-muted-foreground">ملاحظات:</span> {viewResp.comment ?? viewResp.notes ?? viewResp.suggestions}
+                </p>
+              )}
+              {viewResp.extra_answers && Object.keys(viewResp.extra_answers).length > 0 && (
+                <div className="border-t pt-2 space-y-1">
+                  {Object.entries(viewResp.extra_answers).map(([qid, v]: any) => (
+                    <p key={qid} className="text-sm">
+                      <span className="text-muted-foreground">
+                        {questions.find(q => q.id === qid)?.label ?? 'سؤال إضافي'}:
+                      </span>{' '}
+                      <span className="font-medium" dir="auto">{Array.isArray(v) ? v.join('، ') : String(v ?? '')}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* الاستعراض */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
